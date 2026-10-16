@@ -1,0 +1,22 @@
+"""Pass Codex's --json events through untouched; write session id, usage and status to HI_OUTPUT.
+thread.started carries thread_id; turn.completed carries usage; turn.failed / error mean failure."""
+import json
+import os
+import sys
+
+out = {}
+for line in sys.stdin:
+    sys.stdout.write(line)
+    sys.stdout.flush()
+    try:
+        ev = json.loads(line)
+    except ValueError:
+        continue
+    t = ev.get("type", "")
+    if t == "thread.started" and ev.get("thread_id"):
+        out["session_id"] = ev["thread_id"]
+    if t == "turn.completed":
+        out["status"], out["usage"] = "ok", ev.get("usage")
+    if t in ("turn.failed", "error"):
+        out["status"] = "fail"
+json.dump(out, open(os.environ["HI_OUTPUT"], "w"))

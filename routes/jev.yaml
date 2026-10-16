@@ -1,0 +1,29 @@
+# The routing decision, authored in Jev's own question types (choice / noul / score).
+# `criteria: from_registry` turns every registered harness into an option, described by its card.
+kind: Route
+engine: jev
+model: jev-latest
+state:
+  task: "{request.task}"
+  instructions: "{request.instructions}"
+  files: "{request.file_names}"
+  model_requested: "{request.model}"
+questions:
+  harness:
+    type: choice
+    instructions: Which registered harness should run this task?
+    criteria: from_registry
+  risky:
+    type: noul
+    instructions: Could this task change or delete anything outside its own workspace (deploy, delete, send, pay)?
+  size:
+    type: score
+    instructions: How much work is this task?
+    criteria: [a one-line change, one file, several files, a whole project]
+decide:
+  - when: risky.probability > 0.8
+    then: reject needs a person before an agent acts
+  - when: harness.confidence >= 0.6
+    then: use harness.choice
+  - then: use default
+default: claude-code

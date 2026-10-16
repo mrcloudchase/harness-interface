@@ -1,0 +1,18 @@
+kind: Harness
+name: codex
+description: >
+  OpenAI's Codex CLI, headless. A coding agent that edits files and runs commands in the
+  workspace. Best for OpenAI models and GPT-family reasoning on code. Low to mid cost.
+labels: [coding, shell, files, tests]
+models: [gpt-5.3-codex, gpt-5.2-codex]
+secrets: [OPENAI_API_KEY]
+files:
+  AGENTS.md: "{request.instructions}"
+run:
+  argv: [bash, "{harness_dir}/run.sh"]
+  env:
+    HOME: "{workspace}/.home"
+    CODEX_HOME: "{workspace}/.home/.codex"   # sessions live here, so `resume --last` is this session's
+  stdout: application/x-ndjson
+  timeout_s: 900
+check: [codex, --version]

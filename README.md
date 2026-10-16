@@ -20,7 +20,7 @@ hi serve                       # http://127.0.0.1:8000, data in ./data
 
 # in another shell
 hi secret ANTHROPIC_API_KEY    # reads $ANTHROPIC_API_KEY, or paste on stdin
-hi apply harnesses/claude-code/harness.yaml harnesses/codex/harness.yaml routes/static.yaml
+hi apply harnesses/*/harness.yaml routes/static.yaml
 hi run "What files are in this folder? Answer in one line." --harness claude-code
 hi run "Fix the failing test" --file prices.py --file test_prices.py --check "python -m unittest -q"
 ```
@@ -137,10 +137,25 @@ hi/
   template.py   {a.b.c} placeholders
   storage.py    JSON files and secrets; swap for a database here
   cli.py        hi serve | apply | secret | run | get
-harnesses/      resources: one folder each (claude-code, codex, echo)
+harnesses/      resources: one folder each (claude-code, codex, deepseek-harness, echo)
 routes/         static.yaml and jev.yaml
 tests/          unit tests, and the whole path through the echo harness
 ```
+
+## Verified
+
+Through this interface, on the shop task from the harness-engineering repo ("The tests are failing.
+Find out why and fix it." with `check: python3 -m unittest -q`):
+
+| Harness | Result | Follow-up on the same session |
+|---|---|---|
+| claude-code | fixed, check passed, ~10 s | resumed its own session and recalled the change |
+| deepseek-harness | fixed, check passed, ~14 s | resumed its own session and recalled the change |
+| codex | resource written against the documented `--json` events; not yet run (no OpenAI key) | |
+
+The `jev` route was exercised live with `TYPESAFE_API_KEY`: Jev returned a probability per registered
+harness, a risk probability and a size level, and the decide table fell through to `default` when the
+choice confidence was under the threshold. Set the threshold from your own run history, not by feel.
 
 ## Trust
 

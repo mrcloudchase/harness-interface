@@ -1,0 +1,20 @@
+kind: Harness
+name: deepseek-harness
+description: >
+  DeepSeek Harness (dsh), headless. A coding agent with read, edit and shell tools that works
+  in the workspace and iterates until the task is done. DeepSeek models only. Low cost;
+  latency comparable to the other coding agents. Good for routine code changes and questions
+  about a codebase.
+labels: [coding, shell, files, tests]
+models: [deepseek-chat, deepseek-reasoner]
+secrets: [DEEPSEEK_API_KEY]
+files:
+  AGENTS.md: "{request.instructions}"
+run:
+  argv: [bash, "{harness_dir}/run.sh"]
+  env:
+    HOME: "{workspace}/.home"   # dsh keeps profiles and sessions under $HOME/.dsh, so resume works later
+    DSH_TELEMETRY_DISABLED: "1"
+  stdout: application/x-ndjson
+  timeout_s: 900
+check: [dsh, --version]

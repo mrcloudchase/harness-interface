@@ -151,7 +151,7 @@ Find out why and fix it." with `check: python3 -m unittest -q`):
 |---|---|---|
 | claude-code | fixed, check passed, ~10 s | resumed its own session and recalled the change |
 | deepseek-harness | fixed, check passed, ~14 s | resumed its own session and recalled the change |
-| codex | resource written against the documented `--json` events; not yet run (no OpenAI key) | |
+| codex | fixed, check passed, ~17 s | resumed its own session and recalled the change |
 
 The `jev` route was exercised live with `TYPESAFE_API_KEY`: Jev returned a probability per registered
 harness, a risk probability and a size level, and the decide table fell through to `default` when the

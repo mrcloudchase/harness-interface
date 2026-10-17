@@ -6,8 +6,8 @@ from hi.models import Route, RunRequest
 from hi.router.base import Rejected
 from hi.router.jev import JevRouter, flatten
 
-CARDS = [{"name": "claude-code", "description": "shell coding agent", "labels": [], "models": []},
-         {"name": "codex", "description": "openai coding agent", "labels": [], "models": []}]
+CARDS = [{"name": "claude-code", "description": "shell coding agent", "record": "4 runs: 4 delivered, 0 failed (100%)."},
+         {"name": "codex", "description": "openai coding agent", "record": "No runs yet."}]
 
 
 class FakeJev:
@@ -38,7 +38,8 @@ def test_from_registry_becomes_criteria_and_state_renders():
     assert d.harness == "codex" and d.runner_up == "claude-code" and d.confidence == 0.9
     model, state, questions = fake.calls[0]
     assert state == {"task": "add tests"}
-    assert questions["harness"]["criteria"] == {"claude-code": "shell coding agent", "codex": "openai coding agent"}
+    assert questions["harness"]["criteria"] == {"claude-code": "4 runs: 4 delivered, 0 failed (100%).", "codex": "No runs yet."}
+    assert "shell coding agent" not in str(questions)        # Jev sees records, never descriptions
     assert "criteria" not in questions["risky"]
 
 

@@ -1,19 +1,23 @@
-"""HTTP surface. Thin: validate, call the service, shape the response."""
+"""HTTP surface. Thin: validate, call the service or the arena, shape the response."""
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 
+from .arena import Arena
 from .config import Settings
-from .models import Harness, HarnessSpec, Route, RouteSpec, Run, RunRequest, Session, VerdictIn
+from .models import Contest, Harness, HarnessSpec, Route, RouteSpec, Run, RunRequest, Session, VerdictIn
 from .registry import Registry
 from .router.base import Rejected
 from .runner import Runner
 from .service import RunService
 from .storage import JsonStore, SecretStore
-from .workspace import Workspace
+
+UI_PAGE = Path(__file__).parent / "ui" / "index.html"
+CONTEST_STREAM = "application/x-ndjson"
 
 
 @dataclass
@@ -23,36 +27,37 @@ class Container:
     secrets: SecretStore
     runs: JsonStore[Run]
     sessions: JsonStore[Session]
+    contests: JsonStore[Contest]
     service: RunService
+    arena: Arena
 
 
 def build(settings: Settings | None = None) -> Container:
     s = settings or Settings()
     secrets = SecretStore(s.secrets)
     registry = Registry(JsonStore(s.harnesses, Harness), JsonStore(s.routes, Route), s.check_timeout_s)
-    runs, sessions = JsonStore(s.runs, Run), JsonStore(s.sessions, Session)
-    service = RunService(s, registry, Runner(secrets), secrets, runs, sessions)
-    return Container(s, registry, secrets, runs, sessions, service)
+    runs, sessions, contests = JsonStore(s.runs, Run), JsonStore(s.sessions, Session), JsonStore(s.contests, Contest)
+    service = RunService(s, registry, Runner(secrets), secrets, runs, sessions, contests)
+    arena = Arena(s, registry, secrets, service, contests)
+    return Container(s, registry, secrets, runs, sessions, contests, service, arena)
 
 
 def create_app(c: Container | None = None) -> FastAPI:
     c = c or build()
-    app = FastAPI(title="harness-interface", version="0.1.0")
+    app = FastAPI(title="harness-interface", version="0.2.0")
     app.state.container = c
 
     def not_found(what: str):
         raise HTTPException(404, what)
 
     # ui: one static page over the same API
-    ui_page = __import__("pathlib").Path(__file__).parent / "ui" / "index.html"
-
     @app.get("/", include_in_schema=False)
     def root():
         return RedirectResponse("/ui")
 
     @app.get("/ui", include_in_schema=False)
     def ui():
-        return FileResponse(ui_page, media_type="text/html")
+        return FileResponse(UI_PAGE, media_type="text/html")
 
     # harnesses
     @app.put("/harnesses/{name}")
@@ -71,7 +76,7 @@ def create_app(c: Container | None = None) -> FastAPI:
 
     @app.get("/cards")
     def cards() -> list[dict]:
-        """What the router chooses between: each harness's description plus its evidence."""
+        """Each harness with its record: runs, delivered, failed, contests, won, lost."""
         return c.service.cards()
 
     @app.delete("/harnesses/{name}")
@@ -92,7 +97,7 @@ def create_app(c: Container | None = None) -> FastAPI:
 
     @app.post("/route/preview")
     async def preview_route(request: RunRequest) -> dict:
-        """Dry run: what the route would decide for this request, and the Jev request it would send."""
+        """Dry run of `route` mode: the decision, and the Jev request it would send."""
         try:
             return await c.service.preview(request)
         except Rejected as e:
@@ -116,12 +121,25 @@ def create_app(c: Container | None = None) -> FastAPI:
     # runs
     @app.post("/runs")
     async def create_run(request: RunRequest):
+        """`fanout` answers with the contest: streamed as NDJSON lines tagged by harness, or as
+        JSON. The other modes answer with the one harness's output in its own content type."""
         try:
-            run, execution, ws = await c.service.start(request)
+            if request.mode == "fanout":
+                contest, launched = await c.arena.start(request)
+            else:
+                run, execution, ws = await c.service.start(request)
         except Rejected as e:
             raise HTTPException(422, f"route rejected the request: {e}")
         except LookupError as e:
             raise HTTPException(400, str(e))
+        if request.mode == "fanout":
+            headers = {"X-Contest-Id": contest.id}
+            if request.stream:
+                return StreamingResponse(c.arena.stream(contest, launched), media_type=CONTEST_STREAM, headers=headers)
+            contest = await c.arena.finish(contest, launched)
+            return JSONResponse({"contest": contest.model_dump(),
+                                 "runs": {name: c.runs.get(rid).model_dump() for name, rid in contest.runs.items()}},
+                                headers=headers)
         harness = c.registry.get(run.harness)
         headers = {"X-Run-Id": run.id, "X-Session-Id": run.session, "X-Harness": run.harness}
         if request.stream:
@@ -142,7 +160,7 @@ def create_app(c: Container | None = None) -> FastAPI:
 
     @app.patch("/runs/{run_id}")
     def set_verdict(run_id: str, body: VerdictIn) -> Run:
-        """A person's verdict on a run. Replaces the check's or the judge's."""
+        """A person's verdict on a run. Replaces the judge's."""
         return c.service.set_verdict(run_id, body.success, body.note) or not_found(f"no run {run_id}")
 
     @app.post("/runs/{run_id}/cancel")
@@ -166,12 +184,22 @@ def create_app(c: Container | None = None) -> FastAPI:
     @app.get("/runs/{run_id}/files/{path:path}")
     def run_file(run_id: str, path: str):
         run = c.runs.get(run_id) or not_found(f"no run {run_id}")
-        session = c.sessions.get(run.session) or not_found("no session")
         try:
-            p = Workspace(__import__("pathlib").Path(session.workspace)).resolve(path)
+            p = c.service.workspace(run).resolve(path)
+        except LookupError as e:
+            raise HTTPException(404, str(e))
         except ValueError as e:
             raise HTTPException(400, str(e))
         return FileResponse(p) if p.is_file() else not_found(f"no file {path}")
+
+    # contests
+    @app.get("/contests")
+    def list_contests() -> list[Contest]:
+        return c.contests.list()
+
+    @app.get("/contests/{contest_id}")
+    def get_contest(contest_id: str) -> Contest:
+        return c.contests.get(contest_id) or not_found(f"no contest {contest_id}")
 
     # sessions
     @app.get("/sessions")

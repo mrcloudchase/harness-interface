@@ -1,43 +1,52 @@
-"""Per-harness evidence from the run log: how often it succeeded, how fast, what it used and what
-it cost. The usage figures are medians of whatever keys the harness itself reports, under the
-harness's own names; nothing is renamed or converted between harnesses. The sentence is appended
-to the harness's description when Jev chooses, so the options compare track records, each in its
-own units, and Jev does the comparing."""
+"""Per-harness record from the run log and the contest log: how often it delivered, how often it
+won, how fast, what it used and what it cost. The usage figures are medians of whatever keys the
+harness itself reports, under the harness's own names; nothing is renamed or converted between
+harnesses. The sentence is the whole of what Jev sees about a harness when it routes: the name
+and the numbers, never the description."""
 from __future__ import annotations
 
 from statistics import median
 
-from .models import Run, Verdict
+from .models import Contest, Run
 
 
-def label(run: Run) -> Verdict | None:
-    """A run's verdict; a run recorded before verdicts existed is read from its check."""
-    if run.verdict is not None:
-        return run.verdict
-    if run.check is not None:
-        return Verdict(success=bool(run.check.get("pass")), by="check", note=str(run.check.get("cmd") or ""))
-    return None
-
-
-def summarize(runs: list[Run]) -> dict[str, dict]:
+def summarize(runs: list[Run], contests: list[Contest]) -> dict[str, dict]:
     by: dict[str, list[Run]] = {}
     for r in runs:
         if r.status != "running":
             by.setdefault(r.harness, []).append(r)
+    record = _record(contests)
     out = {}
     for name, rs in by.items():
-        verdicts = [v for v in (label(r) for r in rs) if v is not None]
+        verdicts = [r.verdict for r in rs if r.verdict is not None]
         successes = sum(1 for v in verdicts if v.success)
         latencies = [r.latency_s for r in rs if r.latency_s is not None]
+        wins, losses = record.get(name, (0, 0))
         out[name] = {
             "runs": len(rs),
             "judged": len(verdicts),
+            "delivered": successes,
+            "failed": len(verdicts) - successes,
             "success_rate": round(successes / len(verdicts), 3) if verdicts else None,
+            "contests": wins + losses,
+            "wins": wins,
+            "losses": losses,
             "median_latency_s": round(median(latencies), 1) if latencies else None,
             "median_usage": _median_usage(rs),
             "median_cost_usd": _median_cost(rs),
         }
     return out
+
+
+def _record(contests: list[Contest]) -> dict[str, tuple[int, int]]:
+    """(wins, losses) per harness. Only a settled contest counts; every entrant but the winner lost."""
+    out: dict[str, list[int]] = {}
+    for c in contests:
+        if c.status != "done":
+            continue
+        for name in c.runs:
+            out.setdefault(name, [0, 0])[0 if name == c.winner else 1] += 1
+    return {k: (v[0], v[1]) for k, v in out.items()}
 
 
 def _numbers(d: dict, prefix: str = "") -> dict[str, float]:
@@ -69,15 +78,13 @@ def _median_cost(rs: list[Run]) -> float | None:
 
 
 def sentence(stats: dict | None) -> str:
+    """The record, in words: runs and how they were judged, contests and how they went."""
     if not stats or not stats.get("runs"):
-        return "Evidence: no runs yet."
-    parts = [f"{stats['runs']} runs"]
-    if stats.get("judged"):
-        parts.append(f"{int(stats['success_rate'] * 100)}% successful of {stats['judged']} judged")
-    if stats.get("median_latency_s") is not None:
-        parts.append(f"median {stats['median_latency_s']}s")
-    parts.append(f"median cost ${stats['median_cost_usd']}" if stats.get("median_cost_usd") is not None
-                 else "no cost reported")
-    if stats.get("median_usage"):
-        parts.append("median usage " + ", ".join(f"{k} {v:g}" for k, v in stats["median_usage"].items()))
-    return "Evidence: " + ", ".join(parts) + "."
+        return "No runs yet."
+    runs = f"{stats['runs']} runs"
+    if stats["judged"]:
+        runs += f": {stats['delivered']} delivered, {stats['failed']} failed ({int(stats['success_rate'] * 100)}%)"
+    out = runs + "."
+    if stats["contests"]:
+        out += f" {stats['contests']} contests: {stats['wins']} won, {stats['losses']} lost."
+    return out

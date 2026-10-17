@@ -1,7 +1,7 @@
 """The resource schemas (what people author) and the records (what the server stamps on them).
 
 Authored:  HarnessSpec, RouteSpec, RunRequest.
-Stamped:   Harness, Route, Session, Run, Decision.
+Stamped:   Harness, Route, Session, Run, Contest, Decision, Verdict.
 """
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ class RunSpec(BaseModel):
 class HarnessSpec(BaseModel):
     kind: Literal["Harness"] = "Harness"
     name: str = Field(pattern=r"^[a-z0-9][a-z0-9-]*$")
-    description: str                                 # the routing prompt: what Jev reads to choose this
+    description: str                                 # for people; Jev routes on the record, not on this
     labels: list[str] = []
     models: list[str] = []
     secrets: list[str] = []                          # env names injected from the secret store
@@ -44,7 +44,7 @@ class Harness(HarnessSpec):
     applied_at: float = Field(default_factory=time.time)
 
     def card(self) -> dict[str, Any]:
-        """What the router sees: enough to choose, nothing about how to run."""
+        """The harness as a contestant: who it is, nothing about how to run. The service adds its record."""
         return {"name": self.name, "description": self.description,
                 "labels": self.labels, "models": self.models}
 
@@ -71,8 +71,8 @@ class Rule(BaseModel):
 
 
 class JudgeSpec(BaseModel):
-    """How a run with no `check` gets its verdict: Jev reads the task and the output and answers
-    these questions; `success_when` over the answers decides."""
+    """How a run gets its verdict: Jev reads the task and the output and answers these questions;
+    `success_when` over the answers decides."""
     model: str = "jev-latest"
     questions: dict[str, Question]
     success_when: str                                # "<answer.path> <op> <value>"
@@ -85,7 +85,14 @@ class JudgeSpec(BaseModel):
         return self
 
 
+class ArenaSpec(BaseModel):
+    """How a fan-out contest is settled: one choice question over the delivered outputs."""
+    model: str = "jev-latest"
+    instructions: str = "Which output best accomplishes the task?"
+
+
 class RouteSpec(BaseModel):
+    """The policy: how `route` mode picks a harness, how every run is judged, how a contest is won."""
     kind: Literal["Route"] = "Route"
     engine: Literal["static", "jev"] = "static"
     model: str = "jev-latest"
@@ -93,7 +100,8 @@ class RouteSpec(BaseModel):
     questions: dict[str, Question] = {}
     decide: list[Rule] = []
     default: str                                     # the harness when nothing else decides
-    judge: JudgeSpec | None = None                   # labels runs that carry no check
+    judge: JudgeSpec | None = None                   # every finished run's verdict
+    arena: ArenaSpec = ArenaSpec()
 
     @model_validator(mode="after")
     def _refs(self) -> "RouteSpec":
@@ -117,15 +125,30 @@ class FileIn(BaseModel):
     content: str
 
 
+Mode = Literal["fanout", "route", "named"]
+
+
 class RunRequest(BaseModel):
+    """`fanout` sends the task to every harness and a referee picks the winner. `route` asks the
+    route for one. `named` is the harness given, or the session's. Left out, the mode is `named`
+    when a harness or session is given and `fanout` otherwise."""
     task: str
     instructions: str = ""
     model: str | None = None
-    harness: str | None = None                       # pin; skips the router
-    session: str | None = None                       # continue; harness is the session's
+    mode: Mode | None = None
+    harness: str | None = None
+    session: str | None = None                       # continue; the harness is the session's
     files: list[FileIn] = []
-    check: str | None = None                         # shell command run in the workspace afterwards
     stream: bool = True
+
+    @model_validator(mode="after")
+    def _mode(self) -> "RunRequest":
+        pinned = bool(self.harness or self.session)
+        if self.mode is None:
+            self.mode = "named" if pinned else "fanout"
+        if (self.mode == "named") != pinned:
+            raise ValueError("mode 'named' takes a harness or a session; the other modes take neither")
+        return self
 
 
 class Decision(BaseModel):
@@ -137,10 +160,10 @@ class Decision(BaseModel):
 
 
 class Verdict(BaseModel):
-    """The one label on a run: did it accomplish the task. From the check, from the judge, or from
-    a person. Later verdicts replace earlier ones; `by` says which."""
+    """The one label on a run: did it deliver the task. From the harness's own status, from the
+    judge, or from a person. Later verdicts replace earlier ones; `by` says which."""
     success: bool
-    by: Literal["check", "jev", "human", "status"]
+    by: Literal["status", "jev", "human"]
     score: float | None = None                       # the judge's probability, when it gave one
     note: str = ""
     answers: dict[str, Any] = {}
@@ -164,15 +187,31 @@ class Run(BaseModel):
     id: str = Field(default_factory=lambda: new_id("r"))
     session: str
     harness: str
+    mode: Mode
+    contest: str | None = None                       # the fan-out contest this run entered
     request: RunRequest
-    decision: Decision | None = None
+    decision: Decision | None = None                 # `route` mode only
     status: Literal["running", "ok", "fail", "timeout", "cancelled"] = "running"
     exit_code: int | None = None
     output: dict[str, Any] = {}                      # what the harness wrote to HI_OUTPUT
     usage: dict[str, Any] | None = None
     files: list[str] = []
-    check: dict[str, Any] | None = None
     verdict: Verdict | None = None
     started_at: float = Field(default_factory=time.time)
     ended_at: float | None = None
     latency_s: float | None = None
+
+
+class Contest(BaseModel):
+    """One fan-out request: the same task to every harness, one winner. Wins and losses on the
+    cards come only from here; a `void` contest (the referee could not decide) counts for nothing."""
+    id: str = Field(default_factory=lambda: new_id("c"))
+    request: RunRequest
+    runs: dict[str, str] = {}                        # harness -> run id
+    status: Literal["running", "done", "void"] = "running"
+    winner: str | None = None                        # harness; None when nothing was delivered
+    session: str | None = None                       # the winner's session, to continue from
+    answers: dict[str, Any] = {}                     # the referee's answers, when it was asked
+    note: str = ""
+    started_at: float = Field(default_factory=time.time)
+    ended_at: float | None = None

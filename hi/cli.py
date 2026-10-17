@@ -40,22 +40,30 @@ def secret(args) -> None:
 
 
 def run(args) -> None:
-    body = {"task": args.task, "instructions": args.instructions or "", "stream": True,
-            "harness": args.harness, "session": args.session, "model": args.model, "check": args.check,
+    """Stream what comes back: one harness's own output, or, for fan-out, NDJSON lines tagged by
+    harness. The record is printed to stderr when it ends."""
+    body = {"task": args.task, "instructions": args.instructions or "", "stream": True, "mode": args.mode,
+            "harness": args.harness, "session": args.session, "model": args.model,
             "files": [{"name": Path(p).name, "content": Path(p).read_text()} for p in args.file]}
     with httpx.Client(base_url=args.url, timeout=None) as c:
         with c.stream("POST", "/runs", json=body) as r:
             if r.status_code >= 400:
                 print(r.read().decode(), file=sys.stderr)
                 sys.exit(1)
-            print(f"run={r.headers['x-run-id']} session={r.headers['x-session-id']} harness={r.headers['x-harness']}",
+            contest = r.headers.get("x-contest-id")
+            print(f"contest={contest}" if contest else
+                  f"run={r.headers['x-run-id']} session={r.headers['x-session-id']} harness={r.headers['x-harness']}",
                   file=sys.stderr)
             for chunk in r.iter_bytes():
                 sys.stdout.buffer.write(chunk)
                 sys.stdout.buffer.flush()
-        info = c.get(f"/runs/{r.headers['x-run-id']}").json()
-        print(json.dumps({k: info[k] for k in ("id", "status", "latency_s", "usage", "files", "check", "verdict")}, indent=2),
-              file=sys.stderr)
+        if contest:
+            info = c.get(f"/contests/{contest}").json()
+            keep = ("id", "status", "winner", "session", "runs", "note")
+        else:
+            info = c.get(f"/runs/{r.headers['x-run-id']}").json()
+            keep = ("id", "status", "latency_s", "usage", "files", "verdict")
+        print(json.dumps({k: info[k] for k in keep}, indent=2), file=sys.stderr)
 
 
 def verdict(args) -> None:
@@ -80,13 +88,14 @@ def main() -> None:
     a = sub.add_parser("apply", help="register Harness/Route YAML files"); a.add_argument("files", nargs="+"); a.set_defaults(fn=apply)
     k = sub.add_parser("secret", help="store a secret (value from arg, env, or stdin)")
     k.add_argument("name"); k.add_argument("value", nargs="?"); k.set_defaults(fn=secret)
-    r = sub.add_parser("run", help="send a task and stream the harness's output")
-    r.add_argument("task"); r.add_argument("--harness"); r.add_argument("--session"); r.add_argument("--model")
-    r.add_argument("--instructions"); r.add_argument("--check"); r.add_argument("--file", action="append", default=[])
+    r = sub.add_parser("run", help="send a task: to every harness (fan-out), to the route's pick, or to one by name")
+    r.add_argument("task"); r.add_argument("--mode", choices=["fanout", "route", "named"], help="default: named with --harness/--session, else fanout")
+    r.add_argument("--harness"); r.add_argument("--session"); r.add_argument("--model")
+    r.add_argument("--instructions"); r.add_argument("--file", action="append", default=[])
     r.set_defaults(fn=run)
     v = sub.add_parser("verdict", help="record a person's verdict on a run")
     v.add_argument("run_id"); v.add_argument("outcome", choices=["pass", "fail"]); v.add_argument("--note"); v.set_defaults(fn=verdict)
-    g = sub.add_parser("get", help="GET any path, e.g. /runs, /runs/<id>, /cards"); g.add_argument("path"); g.set_defaults(fn=show)
+    g = sub.add_parser("get", help="GET any path, e.g. /runs, /runs/<id>, /contests, /cards"); g.add_argument("path"); g.set_defaults(fn=show)
     args = p.parse_args()
     args.fn(args)
 

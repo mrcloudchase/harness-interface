@@ -1,13 +1,15 @@
-"""Jev as the decision engine. The policy is authored in Jev's own question types; this module
-only resolves `from_registry`, renders the state, makes one call, flattens the answers, and
-runs the decide table."""
+"""Jev as the decision engine, three ways. The router picks a harness from the records; the
+judge labels a finished run; the referee picks a contest's winner from the delivered outputs.
+The policy is authored in Jev's own question types; this module only resolves `from_registry`,
+renders the state, makes one call, flattens the answers, and runs the decide table."""
 from __future__ import annotations
 
+import json
 from typing import Any
 
 import httpx
 
-from ..models import Decision, JudgeSpec, Question, Route, Run, RunRequest, Verdict
+from ..models import ArenaSpec, Decision, JudgeSpec, Question, Route, Run, RunRequest, Verdict
 from ..template import render_obj
 from .base import Rejected
 from .rules import decide, holds
@@ -46,14 +48,13 @@ def flatten(answer: dict) -> dict[str, Any]:
 
 
 def compile_questions(questions: dict[str, Question], cards: list[dict] | None = None) -> dict[str, dict]:
-    """Jev's wire shape. `from_registry` becomes one option per card: its description plus its
-    evidence sentence, so the choice is between track records, not only descriptions."""
+    """Jev's wire shape. `from_registry` becomes one option per card: the harness's name and its
+    record sentence, nothing else, so the choice is between track records alone."""
     out = {}
     for qid, q in questions.items():
         criteria = q.criteria
         if criteria == "from_registry":
-            criteria = {c["name"]: " ".join(x for x in (c.get("description", ""), c.get("evidence", "")) if x).strip()
-                        for c in (cards or [])}
+            criteria = {c["name"]: c["record"] for c in (cards or [])}
         out[qid] = {"type": q.type, "instructions": q.instructions,
                     **({"criteria": criteria} if criteria is not None else {})}
     return out
@@ -85,6 +86,12 @@ class JevRouter:
                         runner_up=choice.get("runner_up"), reason=reason, answers=answers)
 
 
+def excerpt(answer: str, files: dict[str, str], answer_chars: int, file_chars: int, max_files: int) -> dict:
+    """What a harness produced, cut to size: the tail of its answer and the head of each file."""
+    return {"answer": answer[-answer_chars:],
+            "files": {k: v[:file_chars] for k, v in list(files.items())[:max_files]}}
+
+
 class JevJudge:
     """Labels a finished run: Jev reads the task, the instructions, the harness's answer and the
     produced files, and `success_when` over its answers is the verdict."""
@@ -94,12 +101,11 @@ class JevJudge:
     def __init__(self, spec: JudgeSpec, client: JevClient):
         self.spec, self.client = spec, client
 
-    @staticmethod
-    def state(run: Run, answer: str, files: dict[str, str]) -> dict:
+    @classmethod
+    def state(cls, run: Run, answer: str, files: dict[str, str]) -> dict:
         return {"task": run.request.task, "instructions": run.request.instructions,
                 "harness_status": run.status,
-                "answer": answer[-JevJudge.ANSWER_CHARS:],
-                "files": {k: v[:JevJudge.FILE_CHARS] for k, v in list(files.items())[:JevJudge.MAX_FILES]}}
+                **excerpt(answer, files, cls.ANSWER_CHARS, cls.FILE_CHARS, cls.MAX_FILES)}
 
     async def judge(self, run: Run, answer: str, files: dict[str, str]) -> Verdict:
         raw = await self.client.evaluate(self.spec.model, self.state(run, answer, files),
@@ -111,3 +117,27 @@ class JevJudge:
         return Verdict(success=holds(self.spec.success_when, answers), by="jev",
                        score=float(score) if isinstance(score, (int, float)) else None,
                        note=self.spec.success_when, answers=answers)
+
+
+class JevReferee:
+    """Settles a contest: Jev reads the task and each delivered output, one option per harness,
+    and chooses. The options are what was produced, never who produced it beyond the name."""
+
+    ANSWER_CHARS, FILE_CHARS, MAX_FILES = 4000, 1000, 4
+
+    def __init__(self, spec: ArenaSpec, client: JevClient):
+        self.spec, self.client = spec, client
+
+    def questions(self, entrants: dict[str, tuple[str, dict[str, str]]]) -> dict[str, dict]:
+        criteria = {name: json.dumps(excerpt(answer, files, self.ANSWER_CHARS, self.FILE_CHARS, self.MAX_FILES))
+                    for name, (answer, files) in entrants.items()}
+        return {"winner": {"type": "choice", "instructions": self.spec.instructions, "criteria": criteria}}
+
+    async def pick(self, request: RunRequest, entrants: dict[str, tuple[str, dict[str, str]]]) -> tuple[str, dict[str, Any]]:
+        state = {"task": request.task, "instructions": request.instructions}
+        raw = await self.client.evaluate(self.spec.model, state, self.questions(entrants))
+        answers = {qid: flatten(a) for qid, a in raw.items()}
+        winner = answers.get("winner", {}).get("choice")
+        if winner not in entrants:
+            raise LookupError(f"referee chose {winner!r}, which did not enter")
+        return str(winner), answers

@@ -1,9 +1,9 @@
-"""Output capture, verdicts from check / status / person / judge, and the evidence on cards."""
+"""Output capture, verdicts from status / person / judge, and the record on cards."""
 import asyncio
 import json
 
 from hi.evidence import sentence, summarize
-from hi.models import JudgeSpec, Run, RunRequest, Verdict
+from hi.models import Contest, JudgeSpec, Run, RunRequest, Verdict
 from hi.router.jev import JevJudge
 
 
@@ -14,13 +14,6 @@ def test_output_endpoint_keeps_the_stream(client, echo):
     assert out.status_code == 200 and out.headers["content-type"].startswith("application/x-ndjson")
     assert out.text == r.json()["body"]
     assert json.loads(out.text.splitlines()[0])["text"] == "echo: keep me"
-
-
-def test_check_sets_verdict(client, echo):
-    ok = client.post("/runs", json={"task": "x", "harness": "echo", "check": "test -f hello.txt", "stream": False}).json()["run"]
-    assert ok["verdict"] == {**ok["verdict"], "success": True, "by": "check"}
-    bad = client.post("/runs", json={"task": "x", "harness": "echo", "check": "false", "stream": False}).json()["run"]
-    assert bad["verdict"]["success"] is False and bad["verdict"]["by"] == "check"
 
 
 def test_failed_harness_is_a_failed_verdict(client, echo):
@@ -37,46 +30,53 @@ def test_no_check_no_judge_means_no_verdict(client, echo):
 
 
 def test_person_overrides(client, echo):
-    run = client.post("/runs", json={"task": "x", "harness": "echo", "check": "false", "stream": False}).json()["run"]
+    run = client.post("/runs", json={"task": "x", "harness": "echo", "stream": False}).json()["run"]
     r = client.patch(f"/runs/{run['id']}", json={"success": True, "note": "looked fine to me"})
     v = r.json()["verdict"]
     assert v["success"] is True and v["by"] == "human" and v["note"] == "looked fine to me"
     assert client.patch("/runs/r_nope", json={"success": True}).status_code == 404
 
 
-def test_cards_carry_evidence(client, echo):
-    assert client.get("/cards").json()[0]["evidence"] == "Evidence: no runs yet."
-    client.post("/runs", json={"task": "x", "harness": "echo", "check": "true", "stream": False})
-    client.post("/runs", json={"task": "x", "harness": "echo", "check": "false", "stream": False})
+def test_cards_carry_the_record(client, echo):
+    assert client.get("/cards").json()[0]["record"] == "No runs yet."
+    run = client.post("/runs", json={"task": "x", "harness": "echo", "stream": False}).json()["run"]
+    client.patch(f"/runs/{run['id']}", json={"success": True})
+    run = client.post("/runs", json={"task": "x", "harness": "echo", "stream": False}).json()["run"]
+    client.patch(f"/runs/{run['id']}", json={"success": False})
     card = client.get("/cards").json()[0]
-    assert card["stats"]["runs"] == 2 and card["stats"]["judged"] == 2 and card["stats"]["success_rate"] == 0.5
-    assert card["stats"]["median_usage"] == {"input_tokens": 1.0, "output_tokens": 1.0}
-    assert card["evidence"].startswith("Evidence: 2 runs, 50% successful of 2 judged, median ")
-    assert card["evidence"].endswith("no cost reported, median usage input_tokens 1, output_tokens 1.")
+    assert card["stats"] == {**card["stats"], "runs": 2, "judged": 2, "delivered": 1, "failed": 1, "success_rate": 0.5,
+                             "contests": 0, "wins": 0, "losses": 0, "median_usage": {"input_tokens": 1.0, "output_tokens": 1.0}}
+    assert card["record"] == "2 runs: 1 delivered, 1 failed (50%)."
+    assert "description" in card                     # for people: the route never sends it to Jev
 
 
-def test_summarize_keeps_each_harness_own_usage_names():
+def test_summarize_keeps_each_harness_own_usage_names_and_counts_contests():
     def run(h, ok, lat, usage=None, cost=None):
-        r = Run(session="s", harness=h, request=RunRequest(task="t"), status="ok", latency_s=lat,
+        r = Run(session="s", harness=h, mode="named", request=RunRequest(task="t"), status="ok", latency_s=lat,
                 usage=usage, output={"cost_usd": cost} if cost is not None else {})
         if ok is not None:
-            r.verdict = Verdict(success=ok, by="check")
+            r.verdict = Verdict(success=ok, by="jev")
         return r
+    contests = [Contest(request=RunRequest(task="t"), runs={"a": "r1", "b": "r2"}, status="done", winner="a"),
+                Contest(request=RunRequest(task="t"), runs={"a": "r3", "b": "r4"}, status="done", winner=None),
+                Contest(request=RunRequest(task="t"), runs={"a": "r5", "b": "r6"}, status="void"),
+                Contest(request=RunRequest(task="t"), runs={"a": "r7", "b": "r8"})]
     stats = summarize([
         run("a", True, 2.0, {"input_tokens": 10, "cache_read_input_tokens": 100, "detail": {"thinking": 4}}, 0.01),
         run("a", False, 4.0, {"input_tokens": 30, "cache_read_input_tokens": 300, "detail": {"thinking": 6}}, 0.03),
         run("a", None, 6.0),
         run("b", None, 1.0, {"cached_input_tokens": 500}),
-    ])
-    assert stats["a"] == {"runs": 3, "judged": 2, "success_rate": 0.5, "median_latency_s": 4.0,
+    ], contests)
+    assert stats["a"] == {"runs": 3, "judged": 2, "delivered": 1, "failed": 1, "success_rate": 0.5,
+                          "contests": 2, "wins": 1, "losses": 1, "median_latency_s": 4.0,
                           "median_usage": {"input_tokens": 20.0, "cache_read_input_tokens": 200.0, "detail.thinking": 5.0},
                           "median_cost_usd": 0.02}
-    assert stats["b"] == {"runs": 1, "judged": 0, "success_rate": None, "median_latency_s": 1.0,
+    assert stats["b"] == {"runs": 1, "judged": 0, "delivered": 0, "failed": 0, "success_rate": None,
+                          "contests": 2, "wins": 0, "losses": 2, "median_latency_s": 1.0,
                           "median_usage": {"cached_input_tokens": 500.0}, "median_cost_usd": None}
-    assert sentence(stats["a"]) == ("Evidence: 3 runs, 50% successful of 2 judged, median 4.0s, median cost $0.02, "
-                                    "median usage input_tokens 20, cache_read_input_tokens 200, detail.thinking 5.")
-    assert sentence(stats["b"]) == "Evidence: 1 runs, median 1.0s, no cost reported, median usage cached_input_tokens 500."
-    assert sentence(None) == "Evidence: no runs yet."
+    assert sentence(stats["a"]) == "3 runs: 1 delivered, 1 failed (50%). 2 contests: 1 won, 1 lost."
+    assert sentence(stats["b"]) == "1 runs. 2 contests: 0 won, 2 lost."
+    assert sentence(None) == "No runs yet."
 
 
 class FakeJev:
@@ -97,7 +97,7 @@ def judge_spec():
 def test_jev_judge_reads_task_answer_and_files():
     fake = FakeJev({"success": {"type": "noul", "noul": 0.92},
                     "quality": {"type": "score", "score": 1.8, "confidence": 0.6, "probabilities": {"0": 0.0, "1": 0.2, "2": 0.8}}})
-    run = Run(session="s", harness="h", request=RunRequest(task="summarize", instructions="short"), status="ok")
+    run = Run(session="s", harness="h", mode="named", request=RunRequest(task="summarize", instructions="short"), status="ok")
     v = asyncio.run(JevJudge(judge_spec(), fake).judge(run, "the summary", {"out.md": "# Summary"}))
     assert v.success is True and v.by == "jev" and v.score == 0.92 and v.answers["quality"]["level"] == 2
     model, state, questions = fake.calls[0]
@@ -107,7 +107,7 @@ def test_jev_judge_reads_task_answer_and_files():
 
 def test_jev_judge_below_threshold_fails():
     fake = FakeJev({"success": {"type": "noul", "noul": 0.4}, "quality": {"type": "score", "score": 0.5, "probabilities": {}}})
-    run = Run(session="s", harness="h", request=RunRequest(task="t"), status="ok")
+    run = Run(session="s", harness="h", mode="named", request=RunRequest(task="t"), status="ok")
     v = asyncio.run(JevJudge(judge_spec(), fake).judge(run, "meh", {}))
     assert v.success is False and v.score == 0.4
 

@@ -19,8 +19,8 @@ def test_route_default_must_exist(client, echo):
 
 
 def test_run_streams_records_and_resumes(client, echo):
-    body = {"task": "say hi", "instructions": "be brief", "model": "m1",
-            "files": [{"name": "a.txt", "content": "A"}], "check": "test -f hello.txt"}
+    body = {"task": "say hi", "instructions": "be brief", "model": "m1", "mode": "route",
+            "files": [{"name": "a.txt", "content": "A"}]}
     with client.stream("POST", "/runs", json=body) as r:
         assert r.status_code == 200
         assert r.headers["content-type"].startswith("application/x-ndjson")
@@ -35,8 +35,7 @@ def test_run_streams_records_and_resumes(client, echo):
     assert run["status"] == "ok" and run["exit_code"] == 0
     assert run["files"] == ["hello.txt"]              # inputs and harness-written files are the baseline
     assert run["usage"] == {"input_tokens": 1, "output_tokens": 1}
-    assert run["check"]["pass"] is True
-    assert run["decision"]["reason"] == "static default"
+    assert run["mode"] == "route" and run["decision"]["reason"] == "static default"
     assert client.get(f"/runs/{run_id}/files/hello.txt").text.strip() == "hello from echo"
     assert client.get(f"/runs/{run_id}/files/AGENTS.md").text == "be brief"
 
@@ -47,7 +46,7 @@ def test_run_streams_records_and_resumes(client, echo):
     assert r2.status_code == 200
     d = r2.json()
     assert ndjson(d["body"])[1]["session_id_in"] == "echo-1"
-    assert d["run"]["decision"] is None and d["run"]["harness"] == "echo"
+    assert d["run"]["decision"] is None and d["run"]["harness"] == "echo" and d["run"]["mode"] == "named"
     assert d["run"]["files"] == []                   # hello.txt unchanged since last commit
 
 
@@ -56,8 +55,12 @@ def test_pin_and_errors(client, echo):
     assert r.status_code == 400
     r = client.post("/runs", json={"task": "x", "session": "s_nope", "stream": False})
     assert r.status_code == 400
+    r = client.post("/runs", json={"task": "x", "mode": "named", "stream": False})
+    assert r.status_code == 422                       # named needs a harness or a session
+    r = client.post("/runs", json={"task": "x", "mode": "route", "harness": "echo", "stream": False})
+    assert r.status_code == 422                       # a harness pins; route takes none
     r = client.post("/runs", json={"task": "x", "harness": "echo", "stream": False})
-    assert r.status_code == 200 and r.json()["run"]["decision"]["reason"] == "pinned by request"
+    assert r.status_code == 200 and r.json()["run"]["mode"] == "named" and r.json()["run"]["decision"] is None
 
 
 def test_secret_required(client, echo):

@@ -1,14 +1,14 @@
-"""One request, end to end: decide, prepare, run, record, judge. The HTTP layer only calls this."""
+"""One run, end to end: decide the harness, prepare, run, record, judge. The HTTP layer and the
+arena only call this."""
 from __future__ import annotations
 
-import subprocess
 import time
 from pathlib import Path
 from typing import AsyncIterator
 
 from . import evidence
 from .config import Settings
-from .models import Decision, Harness, Run, RunRequest, Session, Verdict
+from .models import Contest, Decision, Harness, Run, RunRequest, Session, Verdict
 from .registry import Registry
 from .router import make_judge, make_router
 from .router.jev import JevRouter
@@ -21,50 +21,47 @@ TEXT_FILE_BYTES = 64 * 1024   # a produced file larger than this is named to the
 
 class RunService:
     def __init__(self, settings: Settings, registry: Registry, runner: Runner, secrets: SecretStore,
-                 runs: JsonStore[Run], sessions: JsonStore[Session]):
+                 runs: JsonStore[Run], sessions: JsonStore[Session], contests: JsonStore[Contest]):
         self.settings, self.registry, self.runner, self.secrets = settings, registry, runner, secrets
-        self.runs, self.sessions = runs, sessions
+        self.runs, self.sessions, self.contests = runs, sessions, contests
         self.live: dict[str, Execution] = {}
 
-    # ── cards: what the router chooses between ────────────────────────────────────────────────
+    # ── cards: each harness with its record ───────────────────────────────────────────────────
     def cards(self) -> list[dict]:
-        stats = evidence.summarize(self.runs.list())
-        return [{**c, "stats": stats.get(c["name"]), "evidence": evidence.sentence(stats.get(c["name"]))}
+        stats = evidence.summarize(self.runs.list(), self.contests.list())
+        return [{**c, "stats": stats.get(c["name"]), "record": evidence.sentence(stats.get(c["name"]))}
                 for c in self.registry.cards()]
 
-    # ── decide ────────────────────────────────────────────────────────────────────────────────
-    async def decide(self, request: RunRequest) -> tuple[Session, Harness, Decision | None]:
+    # ── decide: `named` and `route` modes; `fanout` is the arena's ────────────────────────────
+    async def decide(self, request: RunRequest) -> tuple[Session | None, Harness, Decision | None]:
         if request.session:
             session = self.sessions.get(request.session)
             if not session:
                 raise LookupError(f"no session {request.session}")
-            return session, self._harness(session.harness), None
+            return session, self.harness(session.harness), None
         if request.harness:
-            decision = Decision(harness=request.harness, reason="pinned by request")
-        else:
-            route = self.registry.route()
-            if not route:
-                raise LookupError("no harness named and no route applied (PUT /route)")
-            router = make_router(route, self.secrets, self.settings.jev_base_url, self.settings.jev_secret_name)
-            decision = await router.choose(request, self.cards())
-        harness = self._harness(decision.harness)
-        session = Session(harness=harness.name, workspace="")
-        session.workspace = str(self.settings.workspaces / session.id)
-        return self.sessions.put(session.id, session), harness, decision
+            return None, self.harness(request.harness), None
+        router = make_router(self._route(), self.secrets, self.settings.jev_base_url, self.settings.jev_secret_name)
+        decision = await router.choose(request, self.cards())
+        return None, self.harness(decision.harness), decision
 
     async def preview(self, request: RunRequest) -> dict:
-        """What the route would do with this request, without running it: the exact Jev request
+        """What `route` mode would do with this request, without running it: the exact Jev request
         body (None for a static route) and the decision."""
-        route = self.registry.route()
-        if not route:
-            raise LookupError("no route applied (PUT /route)")
+        route = self._route()
         router = make_router(route, self.secrets, self.settings.jev_base_url, self.settings.jev_secret_name)
         cards = self.cards()
         body = ({"model": route.model, "state": router.state(request), "questions": router.questions(cards)}
                 if isinstance(router, JevRouter) else None)
         return {"engine": route.engine, "jev_request": body, "decision": (await router.choose(request, cards)).model_dump()}
 
-    def _harness(self, name: str) -> Harness:
+    def _route(self):
+        route = self.registry.route()
+        if not route:
+            raise LookupError("no route applied (PUT /route)")
+        return route
+
+    def harness(self, name: str) -> Harness:
         h = self.registry.get(name)
         if not h:
             raise LookupError(f"no harness '{name}'")
@@ -73,11 +70,21 @@ class RunService:
     # ── run ───────────────────────────────────────────────────────────────────────────────────
     async def start(self, request: RunRequest) -> tuple[Run, Execution, Workspace]:
         session, harness, decision = await self.decide(request)
+        return await self.launch(request, harness, session, decision)
+
+    async def launch(self, request: RunRequest, harness: Harness, session: Session | None = None,
+                     decision: Decision | None = None, contest: str | None = None) -> tuple[Run, Execution, Workspace]:
+        """Run this request on this harness: a new session unless one is given."""
+        if session is None:
+            session = Session(harness=harness.name, workspace="")
+            session.workspace = str(self.settings.workspaces / session.id)
+            self.sessions.put(session.id, session)
         ws = Workspace(Path(session.workspace))
         ws.init(request.files)
         prepared = self.runner.prepare(harness, request, session, ws)
         ws.commit("prepare")                      # baseline: only what the harness itself writes counts as produced
-        run = Run(session=session.id, harness=harness.name, request=request, decision=decision)
+        run = Run(session=session.id, harness=harness.name, mode=request.mode, contest=contest,
+                  request=request, decision=decision)
         execution = Execution(prepared, self.log_path(run.id), self.out_path(run.id))
         await execution.start()
         self.live[run.id] = execution
@@ -88,6 +95,12 @@ class RunService:
 
     def out_path(self, run_id: str) -> Path:
         return self.settings.logs / f"{run_id}.out"
+
+    def workspace(self, run: Run) -> Workspace:
+        session = self.sessions.get(run.session)
+        if not session:
+            raise LookupError(f"no session {run.session}")
+        return Workspace(Path(session.workspace))
 
     async def stream(self, run: Run, execution: Execution, ws: Workspace) -> AsyncIterator[bytes]:
         try:
@@ -104,8 +117,6 @@ class RunService:
         run.status = ("timeout" if execution.timed_out else "cancelled" if execution.cancelled
                       else str(output.get("status") or ("ok" if code == 0 else "fail")))
         run.files = ws.changed()
-        if run.request.check:
-            run.check = self._check(run.request.check, ws)
         run.verdict = await self._verdict(run, ws)
         ws.commit(f"run {run.id}")
         run.ended_at = time.time()
@@ -117,25 +128,13 @@ class RunService:
                 self.sessions.put(session.id, session)
         return self.runs.put(run.id, run)
 
-    def _check(self, cmd: str, ws: Workspace) -> dict:
-        try:
-            done = subprocess.run(cmd, shell=True, cwd=ws.path, capture_output=True, text=True,
-                                  timeout=self.settings.check_timeout_s)
-            return {"cmd": cmd, "exit": done.returncode, "pass": done.returncode == 0,
-                    "output": (done.stdout + done.stderr)[-2000:]}
-        except subprocess.TimeoutExpired:
-            return {"cmd": cmd, "exit": None, "pass": False, "output": "timed out"}
-
     # ── verdicts ──────────────────────────────────────────────────────────────────────────────
     async def _verdict(self, run: Run, ws: Workspace) -> Verdict | None:
-        """The check decides when there is one. A run the harness itself failed is a failure.
-        Otherwise the route's judge reads the output, if a judge is configured."""
-        if run.check is not None:
-            return Verdict(success=bool(run.check["pass"]), by="check", note=run.check["cmd"])
+        """A run the harness itself failed is a failure. Otherwise the route's judge reads the
+        output, if a judge is configured."""
         if run.status != "ok":
             return Verdict(success=False, by="status", note=f"harness status {run.status}")
-        route = self.registry.route()
-        judge = make_judge(route, self.secrets, self.settings.jev_base_url, self.settings.jev_secret_name) if route else None
+        judge = make_judge(self.registry.route(), self.secrets, self.settings.jev_base_url, self.settings.jev_secret_name)
         if not judge:
             return None
         try:

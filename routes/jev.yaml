@@ -1,6 +1,7 @@
-# The routing decision, authored in Jev's own question types (choice / noul / score).
-# `criteria: from_registry` turns every registered harness into an option, described by its card:
-# the description from its YAML plus the evidence sentence built from its runs.
+# The policy, authored in Jev's own question types (choice / noul / score): how `route` mode picks
+# a harness, how every run is judged, how a fan-out contest is won.
+# `criteria: from_registry` turns every registered harness into an option described by its record
+# alone: runs, delivered, failed, contests, won, lost. Jev never sees the descriptions.
 kind: Route
 engine: jev
 model: jev-latest
@@ -13,8 +14,8 @@ questions:
   harness:
     type: choice
     instructions: >
-      Which registered harness should run this task? Weigh fit to the kind of work and each
-      option's track record. The task's cost matters only when fit is equal.
+      Which harness should run this task? Each option is a harness's record: how often it
+      delivered, and how often it won when every harness tried the same task.
     criteria: from_registry
   risky:
     type: noul
@@ -33,9 +34,9 @@ decide:
   - then: use default
 default: claude-code
 
-# A run that carries no `check` is judged on delivery: did the harness produce what was asked.
-# Jev reads the task, the instructions, the harness's answer and the produced files. It cannot
-# run code or verify facts, so correctness is the job of a `check` or a person's verdict.
+# Every run is judged on delivery: did the harness produce what was asked. Jev reads the task,
+# the instructions, the harness's answer and the produced files. It cannot run code or verify
+# facts; a person's verdict (PATCH /runs/{id}) replaces its label.
 judge:
   model: jev-latest
   questions:
@@ -46,3 +47,11 @@ judge:
         answer or change exists, matches the instructions (length, format, scope), and the
         harness reports it finished without error. Do not guess at facts or run anything.
   success_when: completed.probability >= 0.5
+
+# A fan-out contest is settled among the delivered outputs: one choice question, one option per
+# harness, each option being what that harness produced. The winner takes the win; the rest lose.
+arena:
+  model: jev-latest
+  instructions: >
+    Which output best accomplishes the task? Judge the work itself: completeness against what
+    was asked, correctness as far as it can be read, and fit to the instructions.

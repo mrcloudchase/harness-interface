@@ -20,6 +20,8 @@ class Settings(BaseModel):
     @property
     def sessions(self) -> Path: return self.data_dir / "sessions"
     @property
+    def contests(self) -> Path: return self.data_dir / "contests"
+    @property
     def harnesses(self) -> Path: return self.data_dir / "harnesses"
     @property
     def routes(self) -> Path: return self.data_dir / "routes"

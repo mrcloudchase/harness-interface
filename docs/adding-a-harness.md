@@ -46,9 +46,9 @@ quirk goes in `run.sh` or `env:`, never in the server.
 
 ### harness.yaml
 
-Questions 4, 5, 6, 8 and the description. The description is not documentation: it is the text
-the router hands to Jev as this harness's option, so write what it is good at, which models it
-runs, and roughly what it costs.
+Questions 4, 5, 6, 8 and the description. The description is for people reading the cards and
+the console: what it is, which models it runs, roughly what it costs. Jev never sees it; the
+route sends Jev the harness's name and its record, and the referee sends only what it produced.
 
 ```yaml
 kind: Harness
@@ -133,9 +133,10 @@ instead of copying the code.
 ```bash
 hi apply harnesses/<name>/harness.yaml            # check_ok must be true
 hi run "What files are here? One sentence." --harness <name> --file some.py
-hi get /runs/<id>                                 # status ok, usage present
+hi get /runs/<id>                                 # status ok, usage present, verdict from the judge
 hi get /sessions/<session>                        # session_id present
 hi run "What did I ask you before?" --session <session>   # the answer proves resume
+hi run "What files are here? One sentence." --file some.py   # fan-out: it enters its first contest
 ```
 
 If the second run does not remember the first, question 6 or 7 is wrong: either the CLI's state is

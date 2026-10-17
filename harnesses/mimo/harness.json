@@ -1,0 +1,16 @@
+{
+  "name": "mimo",
+  "description": "MiMo Code (Xiaomi's mimo CLI, an OpenCode-style agent), headless. Shell, files, MCP. Its built-in anthropic provider reads ANTHROPIC_API_KEY; the base URL is set through the config the harness passes in MIMOCODE_CONFIG_CONTENT, so the provider is Anthropic or any endpoint that serves the Messages shape. One JSON event per line.",
+  "provider": "anthropic",
+  "files": {
+    "AGENTS.md": "{instructions}"
+  },
+  "run": {
+    "env": {
+      "HOME": "{workspace}/.home",
+      "MIMOCODE_DISABLE_AUTOUPDATE": "1"
+    },
+    "stdout": "application/x-ndjson",
+    "timeout_s": 900
+  }
+}

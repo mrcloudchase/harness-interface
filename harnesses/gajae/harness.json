@@ -1,0 +1,18 @@
+{
+  "name": "gajae",
+  "description": "Gajae-Code (gjc), headless. Read, bash, edit, write tools. Its anthropic provider reads ANTHROPIC_API_KEY and ANTHROPIC_BASE_URL, so the provider is Anthropic or any endpoint that serves the Messages shape. One JSON event per line; the session event carries the resume id.",
+  "provider": "anthropic",
+  "files": {
+    "AGENTS.md": "{instructions}"
+  },
+  "run": {
+    "env": {
+      "HOME": "{workspace}/.home",
+      "GJC_NO_TMUX": "1",
+      "GJC_LAUNCH_POLICY": "direct",
+      "GJC_NOTIFY": "off"
+    },
+    "stdout": "application/x-ndjson",
+    "timeout_s": 900
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "name": "cline",
+  "description": "Cline CLI, headless. Shell, files. Its anthropic provider reads the key from `-k` and always calls api.anthropic.com (base URL settings are OpenAI-only), so its provider is Anthropic. No headless resume: `--id` only opens the interactive TUI, so a follow-up keeps the files only.",
+  "provider": "anthropic",
+  "files": {
+    "AGENTS.md": "{instructions}"
+  },
+  "run": {
+    "env": {
+      "HOME": "{workspace}/.home"
+    },
+    "stdout": "application/x-ndjson",
+    "timeout_s": 900
+  }
+}

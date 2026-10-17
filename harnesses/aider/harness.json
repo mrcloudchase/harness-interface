@@ -1,0 +1,14 @@
+{
+  "name": "aider",
+  "description": "Aider, headless. Edits files it is told about, repo map from git. Speaks every provider through litellm; its anthropic route reads ANTHROPIC_API_KEY and ANTHROPIC_API_BASE, so the provider is Anthropic or any endpoint that serves the Messages shape. No JSON mode: the reporter picks the answer and the usage line out of its text. Resume = restoring the chat history kept in $HOME.",
+  "provider": "anthropic",
+  "run": {
+    "env": {
+      "HOME": "{workspace}/.home",
+      "LITELLM_LOCAL_MODEL_COST_MAP": "True",
+      "AIDER_CHECK_UPDATE": "false"
+    },
+    "stdout": "text/plain",
+    "timeout_s": 900
+  }
+}

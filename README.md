@@ -39,13 +39,13 @@ run script decides which variables want them. Pointing Claude Code at DeepSeek i
 shell script, and the server never learns what that line means.
 
 **Every run in a sandbox.** Each response is a container built from a Dockerfile you control,
-with everything dropped that Docker can drop, gVisor when the host has it, and a private
-network whose only exit is a tunnel to the harness's provider. The harness can call its provider
+with everything dropped that Docker can drop and a private network whose only exit is a tunnel to the harness's provider. The harness can call its provider
 and nothing else.
 
 **Adding anything is a PUT.** A new harness is a folder of three files. A new provider is one line
 of JSON. A new sandbox is a Dockerfile. Change any of them and the next request uses it. No
-restart, ever.
+restart, ever. Twenty-five harnesses ship in [harnesses/](harnesses/), ready to register, and
+the built-in sandbox already has all of their CLIs.
 
 **Small enough to read.** The whole server is eleven files and about 1,100 lines. The security
 boundary is sixty of them.
@@ -53,13 +53,14 @@ boundary is sixty of them.
 ## Try it
 
 ```bash
-pip install -e .
-hi serve
+git clone https://github.com/mrcloudchase/harness-interface && cd harness-interface
+uv venv && source .venv/bin/activate
+uv pip install -e .
+hi serve                   # http://127.0.0.1:8000, state under ./data (HI_DATA_DIR to move it)
 ```
 
 Then follow the [walkthrough](docs/walkthrough.md): add a provider, keep the default sandbox,
-add Claude Code as a harness in three files, make the first request, continue it. Twenty
-minutes from an empty server to a resumed conversation.
+register Claude Code, make the first request, continue it. Everything is an HTTP call.
 
 ## How it fits together
 

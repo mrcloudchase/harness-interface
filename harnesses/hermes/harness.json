@@ -1,0 +1,13 @@
+{
+  "name": "hermes",
+  "description": "Hermes Agent (NousResearch), headless. Speaks the Anthropic Messages API through its anthropic provider, reading ANTHROPIC_BASE_URL and ANTHROPIC_API_KEY. Session id printed on exit.",
+  "provider": "anthropic",
+  "run": {
+    "env": {
+      "HOME": "{workspace}/.home",
+      "HERMES_HOME": "{workspace}/.home/.hermes"
+    },
+    "stdout": "text/plain",
+    "timeout_s": 900
+  }
+}

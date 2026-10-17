@@ -1,0 +1,16 @@
+{
+  "name": "qwen-code",
+  "description": "Qwen Code (Alibaba), headless. Shell, files, web fetch. Speaks the OpenAI chat shape through OPENAI_BASE_URL / OPENAI_API_KEY, so its provider is OpenAI or any OpenAI-compatible endpoint (DeepSeek's /v1 here). Its stream-json events mirror Claude Code's.",
+  "provider": "deepseek-openai",
+  "files": {
+    "QWEN.md": "{instructions}"
+  },
+  "run": {
+    "env": {
+      "HOME": "{workspace}/.home",
+      "QWEN_CODE_SUPPRESS_YOLO_WARNING": "1"
+    },
+    "stdout": "application/x-ndjson",
+    "timeout_s": 900
+  }
+}

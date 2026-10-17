@@ -1,7 +1,7 @@
 """Where a harness runs. One interface, two runtimes.
 
 Docker: the sandbox resource's image, on an internal network whose only other member is the
-egress door, with the hardening every run gets. gVisor when the host has it. Subprocess: the
+egress door, with the hardening every run gets. Subprocess: the
 same contract on the host itself, for tests and for a laptop without Docker; no isolation and
 no egress rule, and the record says so.
 """
@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import json
 import os
 import signal
 import tempfile
@@ -22,8 +21,10 @@ from .runner import Mounts, Prepared
 
 DOOR_IMAGE = "python:3.12-alpine"
 DOOR_PORT = 3128
+UID = 1000                                           # the sandbox user; it must own the workspace
+# /tmp allows exec, as a normal /tmp does: CLIs unpack native modules there and load them.
 HARDENING = ["--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only",
-             "--tmpfs", "/tmp:rw,size=512m", "--pids-limit", "512", "--memory", "4g"]
+             "--tmpfs", "/tmp:rw,exec,nosuid,nodev,size=512m", "--pids-limit", "512", "--memory", "4g"]
 
 
 @dataclass(frozen=True)
@@ -174,7 +175,6 @@ class DockerSandbox:
     def __init__(self, out_dir: Path, build_log_dir: Path):
         self.out_dir, self.build_log_dir = out_dir, build_log_dir
         self._locks: dict[str, asyncio.Lock] = {}
-        self._runtimes: set[str] | None = None
 
     def mounts(self, workspace: Path, harness_dir: Path) -> Mounts:
         return Mounts(workspace=self.WORKSPACE, harness=self.HARNESS)
@@ -199,21 +199,10 @@ class DockerSandbox:
                 raise RuntimeError(f"sandbox '{spec.name}' failed to build:\n{log[-2000:]}")
             return tag
 
-    async def _runtime(self, spec: SandboxSpec) -> str:
-        if spec.runtime != "auto":
-            return spec.runtime
-        if self._runtimes is None:
-            code, out = await docker("info", "--format", "{{json .Runtimes}}")
-            try:
-                self._runtimes = set(json.loads(out)) if code == 0 else set()
-            except ValueError:
-                self._runtimes = set()
-        return "runsc" if "runsc" in self._runtimes else "runc"
-
     # run
-    def run_argv(self, job: Job, image: str, runtime: str, names: DockerNames) -> list[str]:
+    def run_argv(self, job: Job, image: str, names: DockerNames) -> list[str]:
         p = job.prepared
-        argv = ["docker", "run", "--rm", "-i", "--name", names.run, "--network", names.network, "--runtime", runtime,
+        argv = ["docker", "run", "--rm", "-i", "--name", names.run, "--network", names.network,
                 *HARDENING,
                 "-v", f"{job.workspace}:{self.WORKSPACE}", "-v", f"{job.harness_dir}:{self.HARNESS}:ro", "-w", self.WORKSPACE,
                 "-e", f"HTTPS_PROXY=http://{names.door}:{DOOR_PORT}", "-e", f"HTTP_PROXY=http://{names.door}:{DOOR_PORT}"]
@@ -229,8 +218,20 @@ class DockerSandbox:
                 "-v", f"{door_script}:/door/egress.py:ro", DOOR_IMAGE,
                 "python3", "/door/egress.py", f"0.0.0.0:{DOOR_PORT}", *egress]
 
+    @staticmethod
+    def hand_over(workspace: Path) -> None:
+        """Make the workspace the sandbox user's. A server running as root creates it as root, and
+        the unprivileged user inside could not write to it; a server running as a regular user
+        is usually that uid already, and could not change it anyway."""
+        if os.geteuid() != 0:
+            return
+        for root, dirs, files in os.walk(workspace):
+            for name in (root, *(os.path.join(root, n) for n in dirs + files)):
+                os.lchown(name, UID, UID)
+
     async def start(self, job: Job) -> Process:
-        image, runtime, names = await self.image(job.spec), await self._runtime(job.spec), DockerNames.of(job.id)
+        image, names = await self.image(job.spec), DockerNames.of(job.id)
+        self.hand_over(job.workspace)
         for step in (("network", "create", "--internal", names.network),
                      tuple(self.door_argv(names, job.egress)),
                      ("network", "connect", "bridge", names.door)):
@@ -239,7 +240,7 @@ class DockerSandbox:
                 await docker("rm", "-f", names.door)
                 await docker("network", "rm", "-f", names.network)
                 raise RuntimeError(f"docker {step[0]} {step[1]} failed: {out[-500:]}")
-        argv = self.run_argv(job, image, runtime, names)
+        argv = self.run_argv(job, image, names)
         proc = await _spawn(argv, {**os.environ, **job.prepared.env}, None, job.prepared.stdin, job.log_path)
         d = _DockerProc(proc, self.out_dir / f"{job.id}.out", job.prepared.timeout_s, names)
         d.arm()

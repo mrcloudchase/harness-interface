@@ -29,11 +29,10 @@ class Provider(BaseModel):
 
 
 class Sandbox(BaseModel):
-    """A Dockerfile, the hosts a run may reach besides its provider, and the container runtime."""
+    """A Dockerfile, and the hosts a run may reach besides its provider."""
     name: str = Field(pattern=NAME)
     dockerfile: str
     egress: list[str] = []                           # host or host:port; the provider's host is always allowed
-    runtime: Literal["auto", "runsc", "runc"] = "auto"   # auto: gVisor when the host has it
 
 
 class RunSpec(BaseModel):

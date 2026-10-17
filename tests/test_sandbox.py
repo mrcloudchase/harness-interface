@@ -20,10 +20,11 @@ def test_run_and_door_argv(tmp_path):
     job = Job(id="abc", prepared=prepared, workspace=Path("/ws"), harness_dir=Path("/hd"), log_path=tmp_path / "l",
               spec=Sandbox(name="default", dockerfile="FROM x"), egress=["api.deepseek.com:443", "pypi.org:443"])
     names = DockerNames.of("abc")
-    argv = sb.run_argv(job, "hi/default:deadbeef", "runsc", names)
+    argv = sb.run_argv(job, "hi/default:deadbeef", names)
     assert argv[:2] == ["docker", "run"] and argv[-3:] == ["hi/default:deadbeef", "bash", "/harness/run.sh"]
     assert "--network" in argv and argv[argv.index("--network") + 1] == "hi-net-abc"
-    assert argv[argv.index("--runtime") + 1] == "runsc"
+    assert "--runtime" not in argv
+    assert "/tmp:rw,exec,nosuid,nodev,size=512m" in argv                 # native modules load from /tmp
     assert all(flag in argv for flag in HARDENING)
     assert "/ws:/workspace" in argv and "/hd:/harness:ro" in argv
     assert f"HTTPS_PROXY=http://hi-door-abc:{DOOR_PORT}" in argv
@@ -32,3 +33,15 @@ def test_run_and_door_argv(tmp_path):
     assert door[:2] == ["run", "-d"] and door[-2:] == ["api.deepseek.com:443", "pypi.org:443"]
     assert "--network" in door and door[door.index("--network") + 1] == "hi-net-abc"
     assert any(x.endswith("egress.py:/door/egress.py:ro") for x in door)
+
+
+def test_hand_over_gives_the_workspace_to_the_sandbox_user(tmp_path):
+    import os
+    import pytest
+    from hi.sandbox import UID
+    if os.geteuid() != 0:
+        pytest.skip("only a server running as root changes ownership")
+    (tmp_path / "a" / "b").mkdir(parents=True)
+    (tmp_path / "a" / "f.txt").write_text("x")
+    DockerSandbox.hand_over(tmp_path)
+    assert {p.stat().st_uid for p in [tmp_path, *tmp_path.rglob("*")]} == {UID}

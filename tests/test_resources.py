@@ -16,10 +16,10 @@ def test_default_sandbox_is_built_in_and_reserved(client):
     names = [s["name"] for s in client.get("/sandboxes").json()]
     assert names == [DEFAULT_SANDBOX]
     d = client.get(f"/sandboxes/{DEFAULT_SANDBOX}").json()
-    assert d["dockerfile"].startswith("#") and d["egress"] == [] and d["runtime"] == "auto"
+    assert d["dockerfile"].startswith("#") and d["egress"] == []
     assert client.put(f"/sandboxes/{DEFAULT_SANDBOX}", json={"name": DEFAULT_SANDBOX, "dockerfile": "FROM x"}).status_code == 400
     assert client.delete(f"/sandboxes/{DEFAULT_SANDBOX}").status_code == 400
-    r = client.put("/sandboxes/py", json={"name": "py", "dockerfile": "FROM python:3.12", "egress": ["pypi.org"], "runtime": "runc"})
+    r = client.put("/sandboxes/py", json={"name": "py", "dockerfile": "FROM python:3.12", "egress": ["pypi.org"]})
     assert r.status_code == 200 and r.json()["egress"] == ["pypi.org"]
     assert [s["name"] for s in client.get("/sandboxes").json()] == [DEFAULT_SANDBOX, "py"]
     assert client.delete("/sandboxes/py").json() == {"deleted": True}

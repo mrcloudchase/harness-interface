@@ -4,12 +4,12 @@ From an empty server to a resumed conversation. Four PUTs, one POST, all over th
 
 ## 1. Install
 
-The server needs Python 3.11, git, and Docker. gVisor is optional: when `runsc` is registered as
-a Docker runtime, every sandbox uses it.
+The server needs Python 3.11, [uv](https://docs.astral.sh/uv/), git, and Docker.
 
 ```bash
 git clone https://github.com/mrcloudchase/harness-interface && cd harness-interface
-pip install -e .
+uv venv && source .venv/bin/activate
+uv pip install -e .
 hi serve                   # http://127.0.0.1:8000, state under ./data (HI_DATA_DIR to move it)
 ```
 
@@ -20,7 +20,8 @@ Without Docker, `hi serve --runtime local` runs harnesses as plain processes on 
 is fine for trying things and for development. Every record then says `runtime: local`, and
 there is no isolation and no egress rule.
 
-Everything below is `curl`. Any HTTP client works the same way.
+Everything below is `curl`, plus `jq` to build a harness's JSON from its folder. Any HTTP client
+works the same way. Nothing here needs a restart: each PUT takes effect on the next request.
 
 ## 2. Add a provider
 
@@ -44,14 +45,15 @@ curl -X PUT localhost:8000/providers/deepseek -H 'content-type: application/json
 
 ## 3. Add a sandbox, or keep the default
 
-A sandbox is a Dockerfile, and it is where a harness runs. `default` is built in: Node and
-Python with Claude Code, Codex and DeepSeek Harness installed, run as an unprivileged user. You
-do not need to add one to get started.
+A sandbox is a Dockerfile, and it is where a harness runs. `default` is built in: one image with
+the CLI of every harness in `harnesses/` installed, run as the unprivileged user `agent`. You do
+not need to add one to get started. Its first build takes several minutes; every response after
+that reuses the image, and each run is a fresh container from it.
 
 What locks a sandbox down is not the Dockerfile but what every run gets: all capabilities
 dropped, no privilege escalation, a read-only root, tmpfs `/tmp`, pid and memory caps, and a
 private internal network whose only exit is the egress door, a tunnel to the harness's provider
-host and nothing else. gVisor when the host has it.
+host and nothing else.
 
 Add a sandbox when a harness needs more: a tool, a language, or a host to reach. The provider's
 host is always allowed; `egress` adds to it.
@@ -59,7 +61,7 @@ host is always allowed; `egress` adds to it.
 ```bash
 curl -X PUT localhost:8000/sandboxes/python-dev -H 'content-type: application/json' -d '{
   "name": "python-dev",
-  "dockerfile": "FROM node:22-bookworm-slim\nRUN apt-get update && apt-get install -y git python3 python3-pip && npm install -g @anthropic-ai/claude-code && useradd -m -u 1000 agent\nUSER 1000\nENV HOME=/workspace/.home\nWORKDIR /workspace\n",
+  "dockerfile": "FROM python:3.12-slim\nRUN useradd -m -u 1000 agent\nUSER agent\nENV HOME=/workspace/.home\nWORKDIR /workspace\n",
   "egress": ["pypi.org", "files.pythonhosted.org"]
 }'
 ```
@@ -70,8 +72,8 @@ and the next response builds the new one. `GET /sandboxes/default` shows the bui
 ## 4. Add a harness
 
 A harness is one CLI, described completely: its command, the files it wants in the workspace,
-its scripts, and by name the provider it calls and the sandbox it runs in. Write it as a folder of
-three files and `hi pack` turns the folder into the JSON the PUT takes.
+its scripts, and by name the provider it calls and the sandbox it runs in. It is written as a folder
+of three files: `harness.json`, and the scripts it names.
 
 The server promises every harness the same thing inside its sandbox. The request arrives on
 stdin and in `HI_TASK`, `HI_MODEL`, `HI_SESSION_ID`; the provider as `HI_PROVIDER_URL` and
@@ -82,24 +84,28 @@ are the produced files.
 
 Here is Claude Code, complete.
 
-`claude-code/harness.yaml`:
+`harnesses/claude-code/harness.json`:
 
-```yaml
-name: claude-code
-description: Claude Code, headless. Speaks the Anthropic Messages API.
-provider: anthropic
-sandbox: default
-files:
-  AGENTS.md: "{instructions}"            # the request's instructions, where this CLI reads them
-run:
-  env:
-    HOME: "{workspace}/.home"            # transcripts land inside the workspace, so --resume works later
-    IS_SANDBOX: "1"                      # claude refuses --dangerously-skip-permissions as root without this
-  stdout: application/x-ndjson
-  timeout_s: 900
+```json
+{
+  "name": "claude-code",
+  "description": "Claude Code, headless. Speaks the Anthropic Messages API.",
+  "provider": "anthropic",
+  "files": {"AGENTS.md": "{instructions}"},
+  "run": {
+    "env": {"HOME": "{workspace}/.home", "IS_SANDBOX": "1"},
+    "stdout": "application/x-ndjson",
+    "timeout_s": 900
+  }
+}
 ```
 
-`claude-code/run.sh`, where everything specific to this CLI lives:
+`files` are written into the workspace before each run: here the request's instructions, where
+Claude Code reads them. `HOME` is inside the workspace so the CLI's transcripts survive for the next
+turn. `IS_SANDBOX` lets Claude Code skip its permission prompts. `sandbox` is left out, so it runs
+in `default`.
+
+`harnesses/claude-code/run.sh`, where everything specific to this CLI lives:
 
 ```bash
 #!/usr/bin/env bash
@@ -112,7 +118,7 @@ claude -p "$HI_TASK" --output-format stream-json --verbose --dangerously-skip-pe
   | python3 "$HI_HARNESS_DIR/report.py"
 ```
 
-`claude-code/report.py`, a filter that passes every line through and writes what the server reads:
+`harnesses/claude-code/report.py`, a filter that passes every line through and writes what the server reads:
 
 ```python
 import json, os, sys
@@ -135,17 +141,20 @@ for line in sys.stdin:
 json.dump(out, open(os.environ["HI_OUTPUT"], "w"))
 ```
 
-Register it:
+Register it. The PUT body is `harness.json` with the folder's other files as `scripts`:
 
 ```bash
-curl -X PUT localhost:8000/harnesses/claude-code -H 'content-type: application/json' \
-  -d "$(hi pack claude-code)"
+jq --rawfile run harnesses/claude-code/run.sh --rawfile report harnesses/claude-code/report.py \
+   '. + {scripts: {"run.sh": $run, "report.py": $report}}' harnesses/claude-code/harness.json \
+  | curl -X PUT localhost:8000/harnesses/claude-code -H 'content-type: application/json' -d @-
 ```
+
+[harnesses/README.md](../harnesses/README.md) has a loop that registers all twenty-five.
 
 That is the whole of adding a harness. Nothing on the server changed, and nothing on the server
 knows what `ANTHROPIC_BASE_URL` means.
 
-To run the same CLI on DeepSeek, change one word, `provider: deepseek`, and register it under
+To run the same CLI on DeepSeek, change one word, `"provider": "deepseek"`, and register it under
 another name, or edit this one. The run script already maps whatever provider it is given.
 
 Other CLIs differ only in the lines that are about them. Codex speaks the Responses API, so its

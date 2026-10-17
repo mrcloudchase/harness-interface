@@ -1,0 +1,12 @@
+{
+  "name": "echo",
+  "description": "Echoes the task. For tests.",
+  "provider": "none",
+  "files": {
+    "AGENTS.md": "{instructions}"
+  },
+  "run": {
+    "stdout": "application/x-ndjson",
+    "timeout_s": 30
+  }
+}

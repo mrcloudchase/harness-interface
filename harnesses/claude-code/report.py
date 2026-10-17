@@ -1,5 +1,5 @@
-"""Pass Claude Code's stream-json through untouched; write what the server needs to HI_OUTPUT.
-session_id comes from the system/init line; usage, status and the answer from the result line."""
+"""Pass Claude Code's stream-json through untouched; write what the server reads to HI_OUTPUT.
+session_id comes from the system/init line; usage, status, cost and the answer from the result line."""
 import json
 import os
 import sys

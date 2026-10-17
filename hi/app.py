@@ -1,185 +1,165 @@
-"""HTTP surface. Thin: validate, call the service, shape the response."""
+"""HTTP surface: the three resources, and responses. Validate, call, shape; nothing else."""
 from __future__ import annotations
 
 from dataclasses import dataclass
+from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
+from fastapi import FastAPI, HTTPException
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from .config import Settings
-from .models import Harness, HarnessSpec, Route, RouteSpec, Run, RunRequest, Session, VerdictIn
-from .registry import Registry
-from .router.base import Rejected
-from .runner import Runner
-from .service import RunService
-from .storage import JsonStore, SecretStore
+from .models import Harness, Provider, Response, ResponseRequest, Sandbox
+from .registry import Resources
+from .responses import ResponseService
+from .sandbox import DockerSandbox, LocalSandbox
+from .store import JsonStore
 from .workspace import Workspace
 
 
 @dataclass
 class Container:
     settings: Settings
-    registry: Registry
-    secrets: SecretStore
-    runs: JsonStore[Run]
-    sessions: JsonStore[Session]
-    service: RunService
+    resources: Resources
+    responses: JsonStore[Response]
+    service: ResponseService
 
 
 def build(settings: Settings | None = None) -> Container:
     s = settings or Settings()
-    secrets = SecretStore(s.secrets)
-    registry = Registry(JsonStore(s.harnesses, Harness), JsonStore(s.routes, Route), s.check_timeout_s)
-    runs, sessions = JsonStore(s.runs, Run), JsonStore(s.sessions, Session)
-    service = RunService(s, registry, Runner(secrets), secrets, runs, sessions)
-    return Container(s, registry, secrets, runs, sessions, service)
+    resources = Resources(s.data_dir)
+    sandbox = LocalSandbox(s.logs) if s.runtime == "local" else DockerSandbox(s.logs, s.logs)
+    responses = JsonStore(s.responses, Response)
+    return Container(s, resources, responses, ResponseService(s, resources, sandbox, responses))
 
 
 def create_app(c: Container | None = None) -> FastAPI:
     c = c or build()
-    app = FastAPI(title="harness-interface", version="0.1.0")
+    app = FastAPI(title="harness-interface", version="1.0.0")
     app.state.container = c
 
     def not_found(what: str):
         raise HTTPException(404, what)
 
-    # ui: one static page over the same API
-    ui_page = __import__("pathlib").Path(__file__).parent / "ui" / "index.html"
+    def same_name(path_name: str, body_name: str) -> None:
+        if path_name != body_name:
+            raise HTTPException(400, "name in path and body differ")
 
-    @app.get("/", include_in_schema=False)
-    def root():
-        return RedirectResponse("/ui")
+    def public(p: Provider) -> dict:
+        return p.model_dump(exclude={"key"})
 
-    @app.get("/ui", include_in_schema=False)
-    def ui():
-        return FileResponse(ui_page, media_type="text/html")
+    # providers
+    @app.put("/providers/{name}")
+    def put_provider(name: str, spec: Provider) -> dict:
+        same_name(name, spec.name)
+        return public(c.resources.providers.put(name, spec))
+
+    @app.get("/providers")
+    def list_providers() -> list[dict]:
+        return [public(p) for p in c.resources.providers.list()]
+
+    @app.get("/providers/{name}")
+    def get_provider(name: str) -> dict:
+        p = c.resources.providers.get(name)
+        return public(p) if p else not_found(f"no provider {name}")
+
+    @app.delete("/providers/{name}")
+    def delete_provider(name: str) -> dict:
+        return {"deleted": c.resources.providers.delete(name)}
+
+    # sandboxes
+    @app.put("/sandboxes/{name}")
+    def put_sandbox(name: str, spec: Sandbox) -> Sandbox:
+        same_name(name, spec.name)
+        try:
+            return c.resources.put_sandbox(spec)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
+
+    @app.get("/sandboxes")
+    def list_sandboxes() -> list[Sandbox]:
+        return c.resources.list_sandboxes()
+
+    @app.get("/sandboxes/{name}")
+    def get_sandbox(name: str) -> Sandbox:
+        return c.resources.sandbox(name) or not_found(f"no sandbox {name}")
+
+    @app.delete("/sandboxes/{name}")
+    def delete_sandbox(name: str) -> dict:
+        try:
+            return {"deleted": c.resources.delete_sandbox(name)}
+        except ValueError as e:
+            raise HTTPException(400, str(e))
 
     # harnesses
     @app.put("/harnesses/{name}")
-    def apply_harness(name: str, spec: HarnessSpec) -> Harness:
-        if spec.name != name:
-            raise HTTPException(400, "name in path and body differ")
-        return c.registry.apply(spec)
+    def put_harness(name: str, spec: Harness) -> Harness:
+        same_name(name, spec.name)
+        try:
+            return c.resources.put_harness(spec)
+        except ValueError as e:
+            raise HTTPException(400, str(e))
 
     @app.get("/harnesses")
     def list_harnesses() -> list[Harness]:
-        return c.registry.list()
+        return c.resources.harnesses.list()
 
     @app.get("/harnesses/{name}")
     def get_harness(name: str) -> Harness:
-        return c.registry.get(name) or not_found(f"no harness {name}")
-
-    @app.get("/cards")
-    def cards() -> list[dict]:
-        """What the router chooses between: each harness's description plus its evidence."""
-        return c.service.cards()
+        return c.resources.harnesses.get(name) or not_found(f"no harness {name}")
 
     @app.delete("/harnesses/{name}")
     def delete_harness(name: str) -> dict:
-        return {"deleted": c.registry.delete(name)}
+        return {"deleted": c.resources.delete_harness(name)}
 
-    # route
-    @app.put("/route")
-    def apply_route(spec: RouteSpec) -> Route:
+    # responses
+    @app.post("/responses")
+    async def create_response(req: ResponseRequest):
         try:
-            return c.registry.apply_route(spec)
-        except LookupError as e:
+            record, proc, ws = await c.service.start(req)
+        except (LookupError, ValueError) as e:
             raise HTTPException(400, str(e))
+        except RuntimeError as e:
+            raise HTTPException(500, str(e))
+        if req.stream:
+            return StreamingResponse(c.service.stream(record, proc, ws), media_type="text/event-stream",
+                                     headers={"X-Response-Id": record.id})
+        async for _ in proc.chunks():
+            pass
+        record = await c.service.finish(record, proc, ws)
+        return JSONResponse(record.model_dump(), headers={"X-Response-Id": record.id})
 
-    @app.get("/route")
-    def get_route() -> Route:
-        return c.registry.route() or not_found("no route applied")
+    @app.get("/responses")
+    def list_responses() -> list[Response]:
+        return c.responses.list()
 
-    @app.post("/route/preview")
-    async def preview_route(request: RunRequest) -> dict:
-        """Dry run: what the route would decide for this request, and the Jev request it would send."""
-        try:
-            return await c.service.preview(request)
-        except Rejected as e:
-            return {"rejected": str(e)}
-        except LookupError as e:
-            raise HTTPException(400, str(e))
+    @app.get("/responses/{response_id}")
+    def get_response(response_id: str) -> Response:
+        return c.responses.get(response_id) or not_found(f"no response {response_id}")
 
-    # secrets
-    @app.put("/secrets/{name}")
-    async def put_secret(name: str, request: Request) -> dict:
-        value = (await request.body()).decode().strip()
-        if not value:
-            raise HTTPException(400, "empty body")
-        c.secrets.put(name, value)
-        return {"stored": name}
+    @app.post("/responses/{response_id}/cancel")
+    def cancel_response(response_id: str) -> dict:
+        return {"cancelled": c.service.cancel(response_id)}
 
-    @app.get("/secrets")
-    def list_secrets() -> list[str]:
-        return c.secrets.names()
+    @app.get("/responses/{response_id}/output")
+    def response_output(response_id: str):
+        """The harness's stdout as it was streamed, in the content type its resource declared."""
+        record = c.responses.get(response_id) or not_found(f"no response {response_id}")
+        harness = c.resources.harnesses.get(record.harness.name)
+        p = c.service.out_path(response_id)
+        return FileResponse(p, media_type=harness.run.stdout if harness else "application/octet-stream") if p.exists() else not_found("no output")
 
-    # runs
-    @app.post("/runs")
-    async def create_run(request: RunRequest):
-        try:
-            run, execution, ws = await c.service.start(request)
-        except Rejected as e:
-            raise HTTPException(422, f"route rejected the request: {e}")
-        except LookupError as e:
-            raise HTTPException(400, str(e))
-        harness = c.registry.get(run.harness)
-        headers = {"X-Run-Id": run.id, "X-Session-Id": run.session, "X-Harness": run.harness}
-        if request.stream:
-            return StreamingResponse(c.service.stream(run, execution, ws),
-                                     media_type=harness.run.stdout if harness else "application/octet-stream",
-                                     headers=headers)
-        body = b"".join([chunk async for chunk in execution.chunks()])
-        run = await c.service.finish(run, execution, ws)
-        return JSONResponse({"run": run.model_dump(), "body": body.decode(errors="replace")}, headers=headers)
-
-    @app.get("/runs")
-    def list_runs() -> list[Run]:
-        return c.runs.list()
-
-    @app.get("/runs/{run_id}")
-    def get_run(run_id: str) -> Run:
-        return c.runs.get(run_id) or not_found(f"no run {run_id}")
-
-    @app.patch("/runs/{run_id}")
-    def set_verdict(run_id: str, body: VerdictIn) -> Run:
-        """A person's verdict on a run. Replaces the check's or the judge's."""
-        return c.service.set_verdict(run_id, body.success, body.note) or not_found(f"no run {run_id}")
-
-    @app.post("/runs/{run_id}/cancel")
-    def cancel_run(run_id: str) -> dict:
-        return {"cancelled": c.service.cancel(run_id)}
-
-    @app.get("/runs/{run_id}/log")
-    def run_log(run_id: str):
-        p = c.service.log_path(run_id)
+    @app.get("/responses/{response_id}/log")
+    def response_log(response_id: str):
+        p = c.service.log_path(response_id)
         return FileResponse(p, media_type="text/plain") if p.exists() else not_found("no log")
 
-    @app.get("/runs/{run_id}/output")
-    def run_output(run_id: str):
-        """The harness's stdout as it was streamed, in the content type its resource declared."""
-        run = c.runs.get(run_id) or not_found(f"no run {run_id}")
-        harness = c.registry.get(run.harness)
-        p = c.service.out_path(run_id)
-        media = harness.run.stdout if harness else "application/octet-stream"
-        return FileResponse(p, media_type=media) if p.exists() else not_found("no output")
-
-    @app.get("/runs/{run_id}/files/{path:path}")
-    def run_file(run_id: str, path: str):
-        run = c.runs.get(run_id) or not_found(f"no run {run_id}")
-        session = c.sessions.get(run.session) or not_found("no session")
+    @app.get("/responses/{response_id}/files/{path:path}")
+    def response_file(response_id: str, path: str):
+        record = c.responses.get(response_id) or not_found(f"no response {response_id}")
         try:
-            p = Workspace(__import__("pathlib").Path(session.workspace)).resolve(path)
+            p = Workspace(Path(record.harness.workspace)).resolve(path)
         except ValueError as e:
             raise HTTPException(400, str(e))
         return FileResponse(p) if p.is_file() else not_found(f"no file {path}")
-
-    # sessions
-    @app.get("/sessions")
-    def list_sessions() -> list[Session]:
-        return c.sessions.list()
-
-    @app.get("/sessions/{session_id}")
-    def get_session(session_id: str) -> Session:
-        return c.sessions.get(session_id) or not_found(f"no session {session_id}")
 
     return app

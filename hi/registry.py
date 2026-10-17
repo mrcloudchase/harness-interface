@@ -1,66 +1,57 @@
-"""Harness and route resources: validate, probe, version, store, list."""
+"""The three resources: stored as JSON, a harness's scripts also on disk so they can be mounted.
+`default` is the built-in sandbox: always present, never stored, never deleted."""
 from __future__ import annotations
 
-import subprocess
+import shutil
 from pathlib import Path
 
-from .models import Harness, HarnessSpec, Route, RouteSpec
-from .storage import JsonStore
+from .models import Harness, Provider, Sandbox
+from .store import JsonStore
 
-ROUTE_KEY = "route"
+DEFAULT_SANDBOX = "default"
+DEFAULT_DOCKERFILE = Path(__file__).with_name("default.Dockerfile")
 
 
-class Registry:
-    def __init__(self, harnesses: JsonStore[Harness], routes: JsonStore[Route], check_timeout_s: int = 60):
-        self.harnesses, self.routes, self.check_timeout_s = harnesses, routes, check_timeout_s
+class Resources:
+    def __init__(self, data: Path):
+        self.providers = JsonStore(data / "providers", Provider, private=True)
+        self.sandboxes = JsonStore(data / "sandboxes", Sandbox)
+        self.harnesses = JsonStore(data / "harnesses", Harness)
+        self.scripts = data / "scripts"
+
+    # sandboxes
+    def sandbox(self, name: str) -> Sandbox | None:
+        if name == DEFAULT_SANDBOX:
+            return Sandbox(name=DEFAULT_SANDBOX, dockerfile=DEFAULT_DOCKERFILE.read_text())
+        return self.sandboxes.get(name)
+
+    def list_sandboxes(self) -> list[Sandbox]:
+        return [self.sandbox(DEFAULT_SANDBOX), *self.sandboxes.list()]
+
+    def put_sandbox(self, spec: Sandbox) -> Sandbox:
+        if spec.name == DEFAULT_SANDBOX:
+            raise ValueError(f"'{DEFAULT_SANDBOX}' is built in; add a sandbox under another name")
+        return self.sandboxes.put(spec.name, spec)
+
+    def delete_sandbox(self, name: str) -> bool:
+        if name == DEFAULT_SANDBOX:
+            raise ValueError(f"'{DEFAULT_SANDBOX}' is built in and cannot be deleted")
+        return self.sandboxes.delete(name)
 
     # harnesses
-    def apply(self, spec: HarnessSpec) -> Harness:
-        prior = self.harnesses.get(spec.name)
-        h = Harness(**spec.model_dump(), version=(prior.version + 1) if prior else 1)
-        if spec.check:
-            h.check_ok, h.check_output = self._probe(spec.check, spec.dir)
-        return self.harnesses.put(h.name, h)
+    def put_harness(self, spec: Harness) -> Harness:
+        d = self.harness_dir(spec.name)
+        shutil.rmtree(d, ignore_errors=True)
+        d.mkdir(parents=True)
+        for name, content in spec.scripts.items():
+            if "/" in name or name.startswith("."):
+                raise ValueError(f"script name must be a plain filename: {name!r}")
+            (d / name).write_text(content)
+        return self.harnesses.put(spec.name, spec)
 
-    def get(self, name: str) -> Harness | None:
-        return self.harnesses.get(name)
-
-    def list(self) -> list[Harness]:
-        return self.harnesses.list()
-
-    def delete(self, name: str) -> bool:
+    def delete_harness(self, name: str) -> bool:
+        shutil.rmtree(self.harness_dir(name), ignore_errors=True)
         return self.harnesses.delete(name)
 
-    def cards(self) -> list[dict]:
-        return [h.card() for h in self.list()]
-
-    def _probe(self, argv: list[str], cwd: str | None) -> tuple[bool, str]:
-        try:
-            done = subprocess.run(argv, cwd=cwd or None, capture_output=True, text=True,
-                                  timeout=self.check_timeout_s)
-            return done.returncode == 0, (done.stdout + done.stderr).strip()[-2000:]
-        except (OSError, subprocess.TimeoutExpired) as e:
-            return False, str(e)
-
-    # route
-    def apply_route(self, spec: RouteSpec) -> Route:
-        if spec.default and not self.get(spec.default):
-            raise LookupError(f"route default '{spec.default}' is not a registered harness")
-        prior = self.routes.get(ROUTE_KEY)
-        r = Route(**spec.model_dump(), version=(prior.version + 1) if prior else 1)
-        return self.routes.put(ROUTE_KEY, r)
-
-    def route(self) -> Route | None:
-        return self.routes.get(ROUTE_KEY)
-
-
-def load_spec(path: Path) -> HarnessSpec | RouteSpec:
-    """A YAML file on disk. A harness remembers its directory so {harness_dir} resolves."""
-    import yaml
-    doc = yaml.safe_load(path.read_text())
-    kind = doc.get("kind")
-    if kind == "Harness":
-        return HarnessSpec(**{**doc, "dir": str(path.parent.resolve())})
-    if kind == "Route":
-        return RouteSpec(**doc)
-    raise ValueError(f"{path}: unknown kind {kind!r} (Harness or Route)")
+    def harness_dir(self, name: str) -> Path:
+        return self.scripts / name

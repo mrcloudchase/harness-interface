@@ -93,7 +93,7 @@ A Responses client sees a valid start and end and may ignore the middle; a clien
 CLI reads its events exactly as it printed them.
 
 A conversation is a chain of responses. `previous_response_id` reuses that response's workspace,
-with the files as the agent left them, and hands the CLI the session id it reported, so Claude
+with the files as the harness left them, and hands the CLI the session id it reported, so Claude
 Code is resumed with `--resume`, Codex with `exec resume`, dsh with `--session-id`. A response
 cannot continue one made on another harness.
 

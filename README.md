@@ -5,19 +5,21 @@
 <h1 align="center">harness-interface</h1>
 
 <p align="center">
-  <b>Run any coding agent through one API, in a sandbox you define, on any provider you connect.</b><br>
-  Providers, sandboxes and harnesses are resources. The server has no code for any of them.
+  <b>One API that sends a request to a harness, runs it in a sandbox, and sends the output back.</b><br>
+  Providers, sandboxes and harnesses are resources you register. The server has no code for any of them.
 </p>
 
 ---
 
-A harness is a coding agent you can start from a shell: Claude Code, Codex, DeepSeek Harness,
-the one you wrote yourself. Each has its own flags, its own output format, its own idea of how a
-key gets in and how a session is resumed. harness-interface puts one API in front of all of them.
+A harness is any program you can start from a shell and hand a task to: Claude Code, Codex,
+DeepSeek Harness, the one you wrote yourself. Each has its own flags, its own output format, its
+own idea of how a key gets in and how a session is resumed. harness-interface puts one API in
+front of all of them.
 
-You register a provider, a sandbox and a harness. You call the harness through the OpenAI
-Responses wire format. It runs in its sandbox, its own output streams back unchanged, and the
-server keeps the record. Then you continue the conversation, or start the next one.
+You register a provider, a sandbox and a harness. You send a request through the OpenAI
+Responses wire format. The platform runs it on the harness, inside the sandbox, and the harness's
+own output streams back over the API unchanged while the server keeps the record. Then you
+continue the conversation, or start the next one.
 
 ```
 PUT  /providers/deepseek    where model calls go, and the key
@@ -28,9 +30,9 @@ POST /responses             {"model": "claude-code/deepseek-chat", "input": "Fix
 
 ## Why
 
-**One API for every agent.** The request is the Responses shape every client already speaks.
+**One API for every harness.** The request is the Responses shape every client already speaks.
 `model` names the harness. `previous_response_id` continues the conversation. What streams back
-is the agent's own event log, byte for byte, so nothing is lost in translation.
+is the harness's own output, byte for byte, so nothing is lost in translation.
 
 **Any provider, any harness, no server code.** A provider is a url and a key. The harness's own
 run script decides which variables want them. Pointing Claude Code at DeepSeek is one line in a
@@ -38,10 +40,10 @@ shell script, and the server never learns what that line means.
 
 **Every run in a sandbox.** Each response is a container built from a Dockerfile you control,
 with everything dropped that Docker can drop, gVisor when the host has it, and a private
-network whose only exit is a tunnel to the harness's provider. The agent can call its model and
-nothing else.
+network whose only exit is a tunnel to the harness's provider. The harness can call its provider
+and nothing else.
 
-**Adding anything is a PUT.** A new agent is a folder of three files. A new provider is one line
+**Adding anything is a PUT.** A new harness is a folder of three files. A new provider is one line
 of JSON. A new sandbox is a Dockerfile. Change any of them and the next request uses it. No
 restart, ever.
 
@@ -69,7 +71,7 @@ minutes from an empty server to a resumed conversation.
                   │                                          sandbox        │
                   └──────────────┬───────────────┬──────────────┬───────────┘
                                  ▼               ▼              ▼
-  POST /responses ──►  harness-interface  ──►  docker run  ──►  the agent's own output, streamed
+  POST /responses ──►  harness-interface  ──►  docker run  ──►  the harness's own output, streamed
   {model, input,       builds the image,        in its sandbox,  then the record: status, answer,
    previous_response_id} wires the door,        one exit: the    usage, files, session to resume
                          keeps the record       provider host

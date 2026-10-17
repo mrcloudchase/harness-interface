@@ -1,5 +1,5 @@
 """Pass Claude Code's stream-json through untouched; write what the server needs to HI_OUTPUT.
-session_id comes from the system/init line, usage and status from the result line."""
+session_id comes from the system/init line; usage, status and the answer from the result line."""
 import json
 import os
 import sys
@@ -18,4 +18,5 @@ for line in sys.stdin:
         out["status"] = "fail" if ev.get("is_error") else "ok"
         out["usage"] = ev.get("usage")
         out["cost_usd"] = ev.get("total_cost_usd")
+        out["answer"] = ev.get("result") or ""
 json.dump(out, open(os.environ["HI_OUTPUT"], "w"))

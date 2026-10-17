@@ -54,8 +54,15 @@ def run(args) -> None:
                 sys.stdout.buffer.write(chunk)
                 sys.stdout.buffer.flush()
         info = c.get(f"/runs/{r.headers['x-run-id']}").json()
-        print(json.dumps({k: info[k] for k in ("id", "status", "latency_s", "usage", "files", "check")}, indent=2),
+        print(json.dumps({k: info[k] for k in ("id", "status", "latency_s", "usage", "files", "check", "verdict")}, indent=2),
               file=sys.stderr)
+
+
+def verdict(args) -> None:
+    with httpx.Client(base_url=args.url, timeout=30) as c:
+        r = c.patch(f"/runs/{args.run_id}", json={"success": args.outcome == "pass", "note": args.note or ""})
+        r.raise_for_status()
+        print(json.dumps(r.json()["verdict"], indent=2))
 
 
 def show(args) -> None:
@@ -77,7 +84,9 @@ def main() -> None:
     r.add_argument("task"); r.add_argument("--harness"); r.add_argument("--session"); r.add_argument("--model")
     r.add_argument("--instructions"); r.add_argument("--check"); r.add_argument("--file", action="append", default=[])
     r.set_defaults(fn=run)
-    g = sub.add_parser("get", help="GET any path, e.g. /runs or /runs/<id>"); g.add_argument("path"); g.set_defaults(fn=show)
+    v = sub.add_parser("verdict", help="record a person's verdict on a run")
+    v.add_argument("run_id"); v.add_argument("outcome", choices=["pass", "fail"]); v.add_argument("--note"); v.set_defaults(fn=verdict)
+    g = sub.add_parser("get", help="GET any path, e.g. /runs, /runs/<id>, /cards"); g.add_argument("path"); g.set_defaults(fn=show)
     args = p.parse_args()
     args.fn(args)
 

@@ -70,6 +70,21 @@ class Rule(BaseModel):
     then: str                                        # "use <harness>" | "use <answer.path>" | "reject <message>"
 
 
+class JudgeSpec(BaseModel):
+    """How a run with no `check` gets its verdict: Jev reads the task and the output and answers
+    these questions; `success_when` over the answers decides."""
+    model: str = "jev-latest"
+    questions: dict[str, Question]
+    success_when: str                                # "<answer.path> <op> <value>"
+
+    @model_validator(mode="after")
+    def _refs(self) -> "JudgeSpec":
+        root = self.success_when.split()[0].split(".")[0]
+        if root not in self.questions:
+            raise ValueError(f"success_when refers to unknown question '{root}'")
+        return self
+
+
 class RouteSpec(BaseModel):
     kind: Literal["Route"] = "Route"
     engine: Literal["static", "jev"] = "static"
@@ -78,6 +93,7 @@ class RouteSpec(BaseModel):
     questions: dict[str, Question] = {}
     decide: list[Rule] = []
     default: str                                     # the harness when nothing else decides
+    judge: JudgeSpec | None = None                   # labels runs that carry no check
 
     @model_validator(mode="after")
     def _refs(self) -> "RouteSpec":
@@ -120,6 +136,22 @@ class Decision(BaseModel):
     answers: dict[str, Any] = {}
 
 
+class Verdict(BaseModel):
+    """The one label on a run: did it accomplish the task. From the check, from the judge, or from
+    a person. Later verdicts replace earlier ones; `by` says which."""
+    success: bool
+    by: Literal["check", "jev", "human", "status"]
+    score: float | None = None                       # the judge's probability, when it gave one
+    note: str = ""
+    answers: dict[str, Any] = {}
+    at: float = Field(default_factory=time.time)
+
+
+class VerdictIn(BaseModel):
+    success: bool
+    note: str = ""
+
+
 class Session(BaseModel):
     id: str = Field(default_factory=lambda: new_id("s"))
     harness: str
@@ -140,6 +172,7 @@ class Run(BaseModel):
     usage: dict[str, Any] | None = None
     files: list[str] = []
     check: dict[str, Any] | None = None
+    verdict: Verdict | None = None
     started_at: float = Field(default_factory=time.time)
     ended_at: float | None = None
     latency_s: float | None = None

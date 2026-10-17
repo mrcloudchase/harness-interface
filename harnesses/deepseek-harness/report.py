@@ -25,6 +25,8 @@ for line in sys.stdin:
         out["usage"] = usage
     elif t == "status" and ev.get("phase") == "turn_end":
         out["status"] = "ok" if (ev.get("reason") or {}).get("kind") == "completed" else "fail"
+    elif t == "final":
+        out["answer"] = str(ev.get("text") or "")
     elif t == "error":
         out["status"] = "fail"
 json.dump(out, open(os.environ["HI_OUTPUT"], "w"))

@@ -20,7 +20,7 @@ with its machine-readable flag on, and looking at what it printed and what it wr
 | 6 | **State.** Where does it write transcripts and sessions? | `env.HOME` points that inside the workspace so resume survives |
 | 7 | **Resume.** What is the resume flag, and which event in the output carries the id? | `run.sh` uses `HI_SESSION_ID`; `report.py` reports `session_id` |
 | 8 | **Instructions.** Which file does it read from the working directory? | `files:` writes the request's instructions there |
-| 9 | **Usage and status.** Which event carries token counts, and which says the turn succeeded? | `report.py` reports `usage` and `status` |
+| 9 | **Usage, status and answer.** Which event carries token counts, which says the turn succeeded, and which carries the final text? | `report.py` reports `usage`, `status` and `answer` |
 
 Then one open-ended question: what did the first hand run complain about? That is the quirk list.
 Claude Code refuses to skip permissions as root unless `IS_SANDBOX=1` is set. Codex refuses to start
@@ -106,15 +106,16 @@ DeepSeek Harness's is the same shape with `--session-id` and no model flag.
 ### report.py
 
 Questions 7 and 9. It is a filter: every line in is written out unchanged, and at the end it writes
-up to three fields to `HI_OUTPUT`. The three differ only in which event carries what:
+up to four fields to `HI_OUTPUT`. The three differ only in which event carries what:
 
 | | claude-code | codex | deepseek-harness |
 |---|---|---|---|
 | `session_id` | `type == "system"` and `session_id` | `type == "thread.started"` and `thread_id` | `type == "session"` and `sessionId` |
 | `usage` | `type == "result"`, `usage` | `type == "turn.completed"`, `usage` | sum of `usage` over `status` events with `phase == "step_end"` |
 | `status` | `"fail"` if `is_error` else `"ok"` | `"ok"` on `turn.completed`, `"fail"` on `turn.failed` or `error` | `"ok"` if `turn_end` `reason.kind == "completed"` |
+| `answer` | `result`, `result` | the last `agent_message` text | `final`, `text` |
 
-Any of the three fields may be left out. Without `status` the exit code decides. Without
+Any of the fields may be left out. Without `answer` the judge reads the tail of stdout instead. Without `status` the exit code decides. Without
 `session_id` a follow-up starts the CLI fresh in the same workspace, with the files but not the
 conversation. Without `usage` the run has no cost.
 

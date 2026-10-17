@@ -68,9 +68,11 @@ class Runner:
 
 @dataclass
 class Execution:
-    """One spawned process. `chunks()` streams stdout; `wait()` gives the exit code."""
+    """One spawned process. `chunks()` streams stdout and keeps a copy at out_path; `wait()` gives
+    the exit code; stderr goes to log_path."""
     prepared: Prepared
     log_path: Path
+    out_path: Path
     proc: asyncio.subprocess.Process | None = None
     timed_out: bool = False
     cancelled: bool = False
@@ -92,8 +94,10 @@ class Execution:
 
     async def chunks(self) -> AsyncIterator[bytes]:
         assert self.proc and self.proc.stdout
-        while chunk := await self.proc.stdout.read(65536):
-            yield chunk
+        with open(self.out_path, "wb") as out:
+            while chunk := await self.proc.stdout.read(65536):
+                out.write(chunk)
+                yield chunk
 
     async def wait(self) -> int:
         assert self.proc

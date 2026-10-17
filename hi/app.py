@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from .config import Settings
-from .models import Harness, HarnessSpec, Route, RouteSpec, Run, RunRequest, Session
+from .models import Harness, HarnessSpec, Route, RouteSpec, Run, RunRequest, Session, VerdictIn
 from .registry import Registry
 from .router.base import Rejected
 from .runner import Runner
@@ -57,6 +57,11 @@ def create_app(c: Container | None = None) -> FastAPI:
     @app.get("/harnesses/{name}")
     def get_harness(name: str) -> Harness:
         return c.registry.get(name) or not_found(f"no harness {name}")
+
+    @app.get("/cards")
+    def cards() -> list[dict]:
+        """What the router chooses between: each harness's description plus its evidence."""
+        return c.service.cards()
 
     @app.delete("/harnesses/{name}")
     def delete_harness(name: str) -> dict:
@@ -114,14 +119,28 @@ def create_app(c: Container | None = None) -> FastAPI:
     def get_run(run_id: str) -> Run:
         return c.runs.get(run_id) or not_found(f"no run {run_id}")
 
+    @app.patch("/runs/{run_id}")
+    def set_verdict(run_id: str, body: VerdictIn) -> Run:
+        """A person's verdict on a run. Replaces the check's or the judge's."""
+        return c.service.set_verdict(run_id, body.success, body.note) or not_found(f"no run {run_id}")
+
     @app.post("/runs/{run_id}/cancel")
     def cancel_run(run_id: str) -> dict:
         return {"cancelled": c.service.cancel(run_id)}
 
     @app.get("/runs/{run_id}/log")
     def run_log(run_id: str):
-        p = c.settings.logs / f"{run_id}.log"
+        p = c.service.log_path(run_id)
         return FileResponse(p, media_type="text/plain") if p.exists() else not_found("no log")
+
+    @app.get("/runs/{run_id}/output")
+    def run_output(run_id: str):
+        """The harness's stdout as it was streamed, in the content type its resource declared."""
+        run = c.runs.get(run_id) or not_found(f"no run {run_id}")
+        harness = c.registry.get(run.harness)
+        p = c.service.out_path(run_id)
+        media = harness.run.stdout if harness else "application/octet-stream"
+        return FileResponse(p, media_type=media) if p.exists() else not_found("no output")
 
     @app.get("/runs/{run_id}/files/{path:path}")
     def run_file(run_id: str, path: str):

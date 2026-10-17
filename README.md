@@ -108,6 +108,24 @@ gives `probability`; a score gives `score`, `level`, `confidence`. The `jev` eng
 `TYPESAFE_API_KEY` secret. Routing happens once, when a session is created; a follow-up with
 `session` always runs on the harness that started it.
 
+## Verdicts and evidence
+
+Every finished run gets one label, its `verdict`: did it accomplish the task. Three sources, in
+order of precedence:
+
+1. **check** (`by: check`): the request's `check` command passed or failed.
+2. **status** (`by: status`): the harness itself failed, timed out or was cancelled.
+3. **judge** (`by: jev`): no check was given, so the route's `judge` asked Jev. It reads the task, the
+   instructions, the harness's `answer` (reported through `HI_OUTPUT`, else the tail of its stdout)
+   and the produced files, and `success_when` over its answers decides. `routes/jev.yaml` ships one.
+
+A person can replace any of them with `PATCH /runs/{id}` or `hi verdict <run> pass|fail --note "..."`.
+
+Verdicts are what the router learns from. `GET /cards` shows each harness's description with an
+evidence sentence built from its runs: how many, what share succeeded of those judged, median
+latency. When a Jev route lists harnesses with `criteria: from_registry`, each option is the
+description plus that sentence, so Jev chooses between track records.
+
 ## API
 
 | Method | Path | Purpose |
@@ -117,8 +135,10 @@ gives `probability`; a score gives `score`, `level`, `confidence`. The `jev` eng
 | PUT / GET | `/route` | apply or read the Route |
 | PUT / GET | `/secrets[/{name}]` | store a value (body), list names |
 | POST | `/runs` | run a task; streams the body, or `{"stream": false}` for JSON |
-| GET | `/runs`, `/runs/{id}`, `/runs/{id}/log`, `/runs/{id}/files/{path}` | records, log, produced files |
+| GET | `/runs`, `/runs/{id}`, `/runs/{id}/output`, `/runs/{id}/log`, `/runs/{id}/files/{path}` | records, the harness's stdout, its stderr, produced files |
+| PATCH | `/runs/{id}` | a person's verdict: `{"success": true, "note": "..."}` |
 | POST | `/runs/{id}/cancel` | kill the process |
+| GET | `/cards` | what the router chooses between: each harness's description plus its evidence |
 | GET | `/sessions[/{id}]` | workspaces and resume handles |
 
 Run request fields: `task`, `instructions`, `model`, `harness`, `session`, `files[{name,content}]`,

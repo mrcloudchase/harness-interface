@@ -142,13 +142,20 @@ hi get /runs/r_55ac987ffe49
 ```
 
 It holds the status, the exit code, the latency, the usage the harness reported, the files the
-agent changed, the result of your `check`, and, for a routed request, the decision: which harness
-was chosen, Jev's confidence, the runner-up, which rule fired, and every raw answer. Three more
-endpoints go deeper:
+agent changed, the result of your `check`, the `verdict`, and, for a routed request, the decision:
+which harness was chosen, Jev's confidence, the runner-up, which rule fired, and every raw answer.
+Four more endpoints go deeper:
 
+- `GET /runs/{id}/output` is the harness's stdout, exactly as it was streamed.
 - `GET /runs/{id}/log` is the harness's stderr, which is where a CLI explains a failure.
 - `GET /runs/{id}/files/prices.py` returns a produced file.
 - `GET /sessions/{id}` shows the workspace path and the resume handle.
+
+The verdict is the run's one label. With a `check`, the check decides. Without one, the route's
+judge asks Jev whether the output accomplished the task, reading the task, the answer and the
+produced files, so a "summarize this paper" task is labeled without a test suite. Disagree with
+either, and `hi verdict <run> pass|fail --note "..."` records yours instead. `hi get /cards` shows
+what those labels add up to per harness, which is what Jev reads when it routes.
 
 `hi get /runs` lists every run. That list is the dataset: harness, task, check pass or fail,
 cost, latency, and routing decision per row.

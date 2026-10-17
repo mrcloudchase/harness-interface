@@ -27,3 +27,18 @@ decide:
     then: use harness.choice
   - then: use default
 default: claude-code
+
+# A run that carries no `check` is judged: Jev reads the task, the instructions, the harness's
+# answer and the produced files. The verdict is the label the evidence sentence on each harness's
+# card is built from, so routing improves from judged history.
+judge:
+  model: jev-latest
+  questions:
+    success:
+      type: noul
+      instructions: Did the output accomplish the task as asked, completely and correctly?
+    quality:
+      type: score
+      instructions: How good is the output for this task?
+      criteria: [unusable, partly done, done with flaws, done well]
+  success_when: success.probability >= 0.7

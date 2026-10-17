@@ -221,7 +221,7 @@ curl localhost:8000/responses -H 'content-type: application/json' -d '{
 }'
 ```
 
-The same workspace is reused with the files as the agent left them, and the CLI is relaunched
+The same workspace is reused with the files as the harness left them, and the CLI is relaunched
 with the session id it reported, so it remembers the earlier turn. A response can only continue
 one made on the same harness. Leave `previous_response_id` out to start fresh.
 

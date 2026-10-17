@@ -22,6 +22,7 @@ from .runner import Mounts, Prepared
 
 DOOR_IMAGE = "python:3.12-alpine"
 DOOR_PORT = 3128
+UID = 1000                                           # the sandbox user every image creates; it owns the workspace
 HARDENING = ["--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only",
              "--tmpfs", "/tmp:rw,size=512m", "--pids-limit", "512", "--memory", "4g"]
 
@@ -217,12 +218,13 @@ class DockerSandbox:
         return "runsc" if "runsc" in self._runtimes else "runc"
 
     # run
-    def run_argv(self, job: Job, image: str, runtime: str, names: DockerNames) -> list[str]:
+    def run_argv(self, job: Job, image: str, runtime: str, names: DockerNames, door_ip: str) -> list[str]:
         p = job.prepared
         argv = ["docker", "run", "--rm", "-i", "--name", names.run, "--hostname", job.harness,
                 "--network", names.network, "--runtime", runtime, *HARDENING,
                 "-v", f"{job.workspace}:{self.WORKSPACE}", "-v", f"{job.harness_dir}:{self.HARNESS}:ro", "-w", self.WORKSPACE,
-                "-e", f"HTTPS_PROXY=http://{names.door}:{DOOR_PORT}", "-e", f"HTTP_PROXY=http://{names.door}:{DOOR_PORT}"]
+                # by address, not name: Docker's DNS for container names does not work under gVisor
+                "-e", f"HTTPS_PROXY=http://{door_ip}:{DOOR_PORT}", "-e", f"HTTP_PROXY=http://{door_ip}:{DOOR_PORT}"]
         for k in p.env:                              # names only: the values travel in the docker client's environment
             argv += ["-e", k]
         return [*argv, image, *p.argv]
@@ -235,8 +237,20 @@ class DockerSandbox:
                 "-v", f"{door_script}:/door/egress.py:ro", DOOR_IMAGE,
                 "python3", "/door/egress.py", f"0.0.0.0:{DOOR_PORT}", *egress]
 
+    @staticmethod
+    def hand_over(workspace: Path) -> None:
+        """Make the workspace the sandbox user's. A server running as root creates it as root, and
+        the unprivileged user inside could not write to it; a server running as a regular user
+        is usually that uid already, and could not change it anyway."""
+        if os.geteuid() != 0:
+            return
+        for root, dirs, files in os.walk(workspace):
+            for name in (root, *(os.path.join(root, n) for n in dirs + files)):
+                os.lchown(name, UID, UID)
+
     async def start(self, job: Job) -> Process:
         image, runtime, names = await self.image(job.spec, job.harness), await self._runtime(job.spec), DockerNames.of(job.id)
+        self.hand_over(job.workspace)
         for step in (("network", "create", "--internal", names.network),
                      tuple(self.door_argv(names, job.egress)),
                      ("network", "connect", "bridge", names.door)):
@@ -245,7 +259,8 @@ class DockerSandbox:
                 await docker("rm", "-f", names.door)
                 await docker("network", "rm", "-f", names.network)
                 raise RuntimeError(f"docker {step[0]} {step[1]} failed: {out[-500:]}")
-        argv = self.run_argv(job, image, runtime, names)
+        _, door_ip = await docker("inspect", "-f", f'{{{{(index .NetworkSettings.Networks "{names.network}").IPAddress}}}}', names.door)
+        argv = self.run_argv(job, image, runtime, names, door_ip.strip())
         proc = await _spawn(argv, {**os.environ, **job.prepared.env}, None, job.prepared.stdin, job.log_path)
         d = _DockerProc(proc, self.out_dir / f"{job.id}.out", job.prepared.timeout_s, runtime, names)
         d.arm()

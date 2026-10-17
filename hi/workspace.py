@@ -12,7 +12,9 @@ class Workspace:
         self.path = path
 
     def _git(self, *args: str) -> subprocess.CompletedProcess:
-        return subprocess.run(["git", *args], cwd=self.path, capture_output=True, text=True)
+        # The sandbox user may own the directory; git refuses a repository owned by someone else
+        # unless told it is safe.
+        return subprocess.run(["git", "-c", "safe.directory=*", *args], cwd=self.path, capture_output=True, text=True)
 
     def init(self) -> None:
         self.path.mkdir(parents=True, exist_ok=True)

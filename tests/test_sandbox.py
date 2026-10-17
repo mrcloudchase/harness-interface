@@ -24,13 +24,13 @@ def test_run_and_door_argv(tmp_path):
     job = Job(id="abc", harness="claude-code", prepared=prepared, workspace=Path("/ws"), harness_dir=Path("/hd"), log_path=tmp_path / "l",
               spec=Sandbox(name="default", dockerfile="FROM x"), egress=["api.deepseek.com:443", "pypi.org:443"])
     names = DockerNames.of("abc")
-    argv = sb.run_argv(job, "hi/default:deadbeef", "runsc", names)
+    argv = sb.run_argv(job, "hi/default:deadbeef", "runsc", names, "172.30.0.2")
     assert argv[:2] == ["docker", "run"] and argv[-3:] == ["hi/default:deadbeef", "bash", "/harness/run.sh"]
     assert "--network" in argv and argv[argv.index("--network") + 1] == "hi-net-abc"
     assert argv[argv.index("--runtime") + 1] == "runsc" and argv[argv.index("--hostname") + 1] == "claude-code"
     assert all(flag in argv for flag in HARDENING)
     assert "/ws:/workspace" in argv and "/hd:/harness:ro" in argv
-    assert f"HTTPS_PROXY=http://hi-door-abc:{DOOR_PORT}" in argv
+    assert f"HTTPS_PROXY=http://172.30.0.2:{DOOR_PORT}" in argv           # the door by address: no DNS under gVisor
     assert "-e" in argv and "HI_PROVIDER_KEY" in argv and "HI_PROVIDER_KEY=k" not in argv   # names only; values stay in the client env
     door = sb.door_argv(names, job.egress)
     assert door[:2] == ["run", "-d"] and door[-2:] == ["api.deepseek.com:443", "pypi.org:443"]

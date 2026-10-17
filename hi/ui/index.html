@@ -2,266 +2,468 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Harness Interface</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
 <style>
-  :root { --bg:#fff; --fg:#1a1a1a; --mute:#6b6b6b; --line:#e3e3e3; --panel:#f6f6f6; --ok:#1f7a3a; --bad:#b4232c; --acc:#2456c9; --accbg:#e8eefc; --mono:ui-monospace,SFMono-Regular,Menlo,monospace; }
-  @media (prefers-color-scheme: dark) { :root { --bg:#111; --fg:#e8e8e8; --mute:#9a9a9a; --line:#2a2a2a; --panel:#1a1a1a; --ok:#4fc27a; --bad:#ff6b73; --acc:#8ab0ff; --accbg:#1b2540; } }
-  * { box-sizing:border-box }
-  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif }
-  header { display:flex; gap:4px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--line); flex-wrap:wrap }
-  header b { margin-right:12px }
-  header a { color:var(--fg); text-decoration:none; padding:6px 10px; border-radius:6px }
-  header a.on { background:var(--accbg); color:var(--acc) }
-  main { max-width:1100px; margin:0 auto; padding:16px }
-  h2 { font-size:18px; margin:4px 0 12px }
-  h3 { font-size:15px; margin:14px 0 6px }
-  .card { border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin:10px 0; background:var(--panel) }
-  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center }
-  .grow { flex:1 1 320px }
-  label { display:block; font-size:13px; color:var(--mute); margin:8px 0 3px }
-  input, textarea, select { width:100%; padding:7px 9px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); font:inherit }
-  textarea { min-height:110px; font-family:var(--mono); font-size:13px }
-  textarea.tall { min-height:320px }
-  button { padding:7px 12px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); font:inherit; cursor:pointer }
-  button.primary { background:var(--acc); border-color:var(--acc); color:#fff }
-  button.danger { color:var(--bad) }
-  button:disabled { opacity:.5; cursor:default }
-  table { width:100%; border-collapse:collapse; font-size:14px }
-  th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top }
-  th { color:var(--mute); font-weight:500 }
-  tr.link { cursor:pointer } tr.link:hover { background:var(--panel) }
-  pre { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px; overflow:auto; font:12.5px/1.4 var(--mono); max-height:460px; white-space:pre-wrap; word-break:break-word }
-  .mute { color:var(--mute); font-size:13px }
-  .ok { color:var(--ok) } .bad { color:var(--bad) }
-  .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; border:1px solid var(--line) }
-  .bar { height:8px; background:var(--accbg); border-radius:4px; overflow:hidden; margin:3px 0 } .bar i { display:block; height:100%; background:var(--acc) }
-  .msg { padding:8px 10px; border-radius:6px; margin:8px 0 } .msg.bad { background:#fdeaea; color:#8a1c22 } .msg.ok { background:#e8f5ec; color:#1f5a30 }
-  @media (prefers-color-scheme: dark) { .msg.bad { background:#3a1a1c; color:#ffb3b8 } .msg.ok { background:#163122; color:#9ee5b6 } }
-  code { font-family:var(--mono); font-size:13px }
+/* Layout: a fixed left rail of six destinations and a live status block; a content column with a
+   page header, summary before detail. Dark-first, like a console; light is designed, not inverted. */
+:root {
+  --bg:#0f1318; --bg-2:#151b22; --bg-3:#1b232c; --line:#263039; --line-2:#334150;
+  --fg:#e6ebf0; --fg-2:#aab6c2; --fg-3:#6f7d8b;
+  --accent:#5fb3a2; --accent-2:#1f3a38; --accent-fg:#0f1318;
+  --good:#5cc689; --good-bg:#15301f; --bad:#f07a7a; --bad-bg:#3a1d1d; --warn:#e5b95a; --warn-bg:#3a2f14;
+  --h1:#7cb7ff; --h2:#f4a261; --h3:#c792ea; --h4:#9ad36a;    /* per-harness hues, assigned in order */
+  --sans:"IBM Plex Sans",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --r:10px; --rail:228px;
+  color-scheme:dark;
+}
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) {
+  --bg:#f5f7f9; --bg-2:#ffffff; --bg-3:#eef2f5; --line:#dde3e9; --line-2:#c7d0d9;
+  --fg:#15202b; --fg-2:#4c5b6a; --fg-3:#7d8b99;
+  --accent:#1f8a78; --accent-2:#d8efe9; --accent-fg:#ffffff;
+  --good:#1f8a4c; --good-bg:#dff3e6; --bad:#c2383f; --bad-bg:#fbe3e3; --warn:#9a6b00; --warn-bg:#fbefcf;
+  --h1:#1d6fd1; --h2:#c8661c; --h3:#7b42c7; --h4:#4e8f1f;
+  color-scheme:light; } }
+:root[data-theme="light"] {
+  --bg:#f5f7f9; --bg-2:#ffffff; --bg-3:#eef2f5; --line:#dde3e9; --line-2:#c7d0d9;
+  --fg:#15202b; --fg-2:#4c5b6a; --fg-3:#7d8b99;
+  --accent:#1f8a78; --accent-2:#d8efe9; --accent-fg:#ffffff;
+  --good:#1f8a4c; --good-bg:#dff3e6; --bad:#c2383f; --bad-bg:#fbe3e3; --warn:#9a6b00; --warn-bg:#fbefcf;
+  --h1:#1d6fd1; --h2:#c8661c; --h3:#7b42c7; --h4:#4e8f1f;
+  color-scheme:light; }
+
+* { box-sizing:border-box }
+html, body { height:100% }
+body { margin:0; background:var(--bg); color:var(--fg); font:14px/1.5 var(--sans); -webkit-font-smoothing:antialiased }
+a { color:var(--accent); text-decoration:none } a:hover { text-decoration:underline }
+button, input, select, textarea { font:inherit; color:inherit }
+:focus-visible { outline:2px solid var(--accent); outline-offset:2px }
+@media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important } }
+
+/* shell */
+.shell { display:grid; grid-template-columns:var(--rail) 1fr; min-height:100% }
+.rail { background:var(--bg-2); border-right:1px solid var(--line); padding:18px 14px; display:flex; flex-direction:column; gap:18px; position:sticky; top:0; height:100vh }
+.brand { display:flex; align-items:center; gap:10px; padding:4px 8px; font-weight:600; letter-spacing:.01em }
+.brand .mark { width:26px; height:26px; border-radius:7px; background:var(--accent); color:var(--accent-fg); display:grid; place-items:center; font:600 13px var(--mono) }
+.nav { display:flex; flex-direction:column; gap:2px }
+.nav a { display:flex; align-items:center; gap:10px; padding:8px 10px; border-radius:8px; color:var(--fg-2) }
+.nav a svg { width:16px; height:16px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; stroke-linejoin:round }
+.nav a:hover { background:var(--bg-3); text-decoration:none; color:var(--fg) }
+.nav a.on { background:var(--accent-2); color:var(--accent) }
+.status { margin-top:auto; font-size:12.5px; color:var(--fg-2); display:flex; flex-direction:column; gap:6px; padding:10px; border:1px solid var(--line); border-radius:var(--r) }
+.status b { color:var(--fg); font-weight:500 }
+.dot { display:inline-block; width:7px; height:7px; border-radius:50%; background:var(--good); margin-right:6px; vertical-align:1px }
+.dot.off { background:var(--bad) }
+.theme { background:none; border:1px solid var(--line); border-radius:8px; padding:6px 10px; color:var(--fg-2); cursor:pointer; font-size:12.5px }
+.content { min-width:0; padding-block:22px 48px; padding-left:max(24px,env(safe-area-inset-left,0px)); padding-right:max(24px,env(safe-area-inset-right,0px)) }
+.page { max-width:1180px; margin:0 auto; display:flex; flex-direction:column; gap:18px }
+.head { display:flex; align-items:flex-end; justify-content:space-between; gap:16px; flex-wrap:wrap }
+.head h1 { font-size:22px; font-weight:600; margin:0; letter-spacing:-.01em; text-wrap:balance }
+.head p { margin:4px 0 0; color:var(--fg-2) }
+.eyebrow { font-size:11.5px; letter-spacing:.08em; text-transform:uppercase; color:var(--fg-3); font-weight:500 }
+h2 { font-size:15px; font-weight:600; margin:0 }
+.section { display:flex; flex-direction:column; gap:10px }
+
+/* surfaces */
+.panel { background:var(--bg-2); border:1px solid var(--line); border-radius:var(--r); padding:16px }
+.tiles { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:12px }
+.tile { background:var(--bg-2); border:1px solid var(--line); border-radius:var(--r); padding:14px 16px; display:flex; flex-direction:column; gap:4px }
+.tile .v { font-size:26px; font-weight:600; letter-spacing:-.02em; font-variant-numeric:tabular-nums }
+.tile .l { font-size:12.5px; color:var(--fg-2) }
+.grid { display:grid; gap:12px } .cols-2 { grid-template-columns:repeat(auto-fit,minmax(300px,1fr)) }
+.split { display:grid; grid-template-columns:minmax(0,1.6fr) minmax(300px,1fr); gap:18px; align-items:start }
+@media (max-width:980px) { .split { grid-template-columns:1fr } }
+.row { display:flex; gap:10px; align-items:center; flex-wrap:wrap } .grow { flex:1 1 220px; min-width:0 }
+.stack { display:flex; flex-direction:column; gap:10px }
+.kv { display:grid; grid-template-columns:auto 1fr; gap:4px 14px; font-size:13px } .kv dt { color:var(--fg-3) } .kv dd { margin:0; min-width:0; overflow-wrap:anywhere }
+
+/* controls */
+label.f { display:flex; flex-direction:column; gap:5px; font-size:12.5px; color:var(--fg-2) }
+input[type=text], input[type=password], select, textarea { width:100%; padding:8px 10px; background:var(--bg); border:1px solid var(--line-2); border-radius:8px; color:var(--fg) }
+input[type=file] { font-size:12.5px; color:var(--fg-2) }
+textarea { min-height:120px; resize:vertical } textarea.code { font:12.5px/1.5 var(--mono); min-height:340px }
+.btn { display:inline-flex; align-items:center; gap:6px; padding:8px 13px; border-radius:8px; border:1px solid var(--line-2); background:var(--bg-2); cursor:pointer; font-weight:500; transition:background .12s }
+.btn:hover { background:var(--bg-3) } .btn:disabled { opacity:.5; cursor:default }
+.btn.primary { background:var(--accent); border-color:var(--accent); color:var(--accent-fg) } .btn.primary:hover { filter:brightness(1.07) }
+.btn.quiet { border-color:transparent; background:none; color:var(--fg-2) } .btn.quiet:hover { background:var(--bg-3); color:var(--fg) }
+.btn.good { color:var(--good) } .btn.bad { color:var(--bad) }
+.btn.sm { padding:5px 9px; font-size:12.5px }
+
+/* pills and bars */
+.pill { display:inline-flex; align-items:center; gap:6px; padding:2px 9px; border-radius:999px; font-size:12px; font-weight:500; border:1px solid var(--line); color:var(--fg-2); white-space:nowrap }
+.pill.good { background:var(--good-bg); color:var(--good); border-color:transparent }
+.pill.bad { background:var(--bad-bg); color:var(--bad); border-color:transparent }
+.pill.warn { background:var(--warn-bg); color:var(--warn); border-color:transparent }
+.pill.h { border-color:transparent; background:var(--bg-3); color:var(--fg) } .pill.h::before { content:""; width:8px; height:8px; border-radius:50%; background:var(--hc,var(--fg-3)) }
+.bars { display:flex; flex-direction:column; gap:8px }
+.bar { display:grid; grid-template-columns:150px 1fr 44px; gap:10px; align-items:center; font-size:13px }
+.bar .t { height:8px; background:var(--bg-3); border-radius:4px; overflow:hidden } .bar .t i { display:block; height:100%; background:var(--hc,var(--accent)); border-radius:4px }
+.bar .n { text-align:right; color:var(--fg-2); font-variant-numeric:tabular-nums }
+.ring { --p:0; width:54px; height:54px; border-radius:50%; background:conic-gradient(var(--rc) calc(var(--p)*1%), var(--bg-3) 0); display:grid; place-items:center; flex:none }
+.ring i { width:42px; height:42px; border-radius:50%; background:var(--bg-2); display:grid; place-items:center; font:500 13px var(--mono); font-style:normal }
+
+/* tables */
+table { width:100%; border-collapse:collapse; font-size:13.5px }
+th { text-align:left; font-weight:500; color:var(--fg-3); font-size:12px; letter-spacing:.04em; text-transform:uppercase; padding:8px 10px; border-bottom:1px solid var(--line) }
+td { padding:9px 10px; border-bottom:1px solid var(--line); vertical-align:top } tr:last-child td { border-bottom:0 }
+tr.link { cursor:pointer } tr.link:hover td { background:var(--bg-3) }
+.num { font-variant-numeric:tabular-nums; text-align:right; white-space:nowrap }
+.tablewrap { overflow-x:auto; background:var(--bg-2); border:1px solid var(--line); border-radius:var(--r) }
+.mono { font-family:var(--mono); font-size:12.5px }
+.muted { color:var(--fg-2) } .faint { color:var(--fg-3); font-size:12.5px }
+pre { margin:0; background:var(--bg); border:1px solid var(--line); border-radius:8px; padding:12px; overflow:auto; font:12.5px/1.5 var(--mono); white-space:pre-wrap; overflow-wrap:anywhere; max-height:420px }
+
+/* event timeline */
+.timeline { display:flex; flex-direction:column; gap:0; background:var(--bg); border:1px solid var(--line); border-radius:8px; max-height:620px; overflow:auto }
+.ev { display:grid; grid-template-columns:76px 1fr; gap:12px; padding:9px 12px; border-bottom:1px solid var(--line) } .ev:last-child { border-bottom:0 }
+.ev .k { font:500 11px/1.9 var(--mono); letter-spacing:.06em; text-transform:uppercase; color:var(--fg-3) }
+.ev.text .k { color:var(--accent) } .ev.tool .k { color:var(--h2) } .ev.result .k { color:var(--fg-3) } .ev.final .k { color:var(--good) } .ev.error .k { color:var(--bad) }
+.ev .b { min-width:0; white-space:pre-wrap; overflow-wrap:anywhere } .ev.tool .b, .ev.result .b { font:12.5px/1.5 var(--mono) } .ev.result .b { color:var(--fg-2); max-height:140px; overflow:auto }
+.ev.text .b { font-size:13.5px }
+.toast { position:fixed; right:18px; bottom:18px; padding:10px 14px; border-radius:10px; background:var(--bg-2); border:1px solid var(--line-2); box-shadow:0 8px 30px rgba(0,0,0,.25); font-size:13px; z-index:20 }
+.toast.bad { border-color:var(--bad) } .toast.good { border-color:var(--good) }
+details summary { cursor:pointer; color:var(--fg-2); font-size:12.5px }
+.empty { color:var(--fg-3); padding:28px; text-align:center; border:1px dashed var(--line-2); border-radius:var(--r) }
+
+@media (max-width:820px) {
+  .shell { grid-template-columns:1fr } .rail { position:static; height:auto; flex-direction:row; flex-wrap:wrap; align-items:center; gap:8px; padding:10px 14px }
+  .nav { flex-direction:row; flex-wrap:wrap } .nav a span { display:none } .status { display:none } .brand { margin-right:6px }
+  .content { padding-left:max(16px,env(safe-area-inset-left,0px)); padding-right:max(16px,env(safe-area-inset-right,0px)) }
+  .bar { grid-template-columns:100px 1fr 40px }
+}
 </style>
 </head>
 <body>
-<header>
-  <b>Harness Interface</b>
-  <a href="#run">New run</a><a href="#runs">Runs</a><a href="#sessions">Sessions</a>
-  <a href="#harnesses">Harnesses</a><a href="#route">Route</a><a href="#secrets">Secrets</a>
-</header>
-<main id="main"></main>
+<div class="shell">
+  <aside class="rail">
+    <div class="brand"><span class="mark">hi</span><span>Harness Interface</span></div>
+    <nav class="nav" id="nav">
+      <a href="#overview"><svg viewBox="0 0 24 24"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span>Overview</span></a>
+      <a href="#run"><svg viewBox="0 0 24 24"><path d="M5 4l14 8-14 8z"/></svg><span>New run</span></a>
+      <a href="#runs"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></svg><span>Runs</span></a>
+      <a href="#sessions"><svg viewBox="0 0 24 24"><path d="M4 7a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v6a3 3 0 0 1-3 3H9l-5 4z"/></svg><span>Sessions</span></a>
+      <a href="#harnesses"><svg viewBox="0 0 24 24"><path d="M4 4h16v16H4zM4 10h16M10 10v10"/></svg><span>Harnesses</span></a>
+      <a href="#route"><svg viewBox="0 0 24 24"><path d="M4 18V6l8 6 8-6v12"/></svg><span>Route</span></a>
+      <a href="#secrets"><svg viewBox="0 0 24 24"><path d="M7 11V8a5 5 0 0 1 10 0v3M5 11h14v10H5z"/></svg><span>Secrets</span></a>
+    </nav>
+    <div class="status" id="status"><span><span class="dot" id="sdot"></span>connecting…</span></div>
+    <button class="theme" id="theme" type="button">Theme: system</button>
+  </aside>
+  <main class="content"><div class="page" id="page"></div></main>
+</div>
 <script>
-// ── helpers ─────────────────────────────────────────────────────────────────────────────
-const $ = (sel, el=document) => el.querySelector(sel);
+// ── core ──────────────────────────────────────────────────────────────────────────────────
+const $ = (s, el=document) => el.querySelector(s);
 const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const fmt = v => v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
-const when = t => t ? new Date(t * 1000).toLocaleString() : "";
+const when = t => t ? new Date(t * 1000).toLocaleString([], { month:"short", day:"numeric", hour:"2-digit", minute:"2-digit" }) : "";
+const money = v => v == null ? "" : "$" + Number(v).toFixed(v < 0.01 ? 4 : 3);
+const secs = v => v == null ? "" : (v >= 60 ? (v / 60).toFixed(1) + " min" : v.toFixed(1) + " s");
+const page = $("#page");
 async function api(method, path, body, raw=false) {
-  const opts = { method, headers: {} };
-  if (body !== undefined) { opts.headers["content-type"] = typeof body === "string" ? "text/plain" : "application/json"; opts.body = typeof body === "string" ? body : JSON.stringify(body); }
-  const r = await fetch(path, opts);
+  const o = { method, headers: {} };
+  if (body !== undefined) { o.headers["content-type"] = typeof body === "string" ? "text/plain" : "application/json"; o.body = typeof body === "string" ? body : JSON.stringify(body); }
+  const r = await fetch(path, o);
   if (!r.ok) { let d; try { d = await r.json(); } catch { d = { detail: await r.text() }; } throw new Error(fmt(d.detail ?? d)); }
   return raw ? r : r.json();
 }
-const main = $("#main");
-function note(kind, text) { const d = document.createElement("div"); d.className = "msg " + kind; d.textContent = text; main.prepend(d); setTimeout(() => d.remove(), 6000); }
-function verdictHtml(v) {
-  if (!v) return '<span class="pill">unjudged</span>';
-  const cls = v.success ? "ok" : "bad";
-  return `<span class="pill ${cls}">${v.success ? "success" : "failure"} by ${esc(v.by)}${v.score != null ? " " + v.score : ""}</span>`;
+function toast(kind, text) { const t = document.createElement("div"); t.className = "toast " + kind; t.textContent = text; document.body.appendChild(t); setTimeout(() => t.remove(), 5000); }
+const hues = ["--h1", "--h2", "--h3", "--h4"]; const hueOf = {}; let hueN = 0;
+const hc = name => { if (!(name in hueOf)) hueOf[name] = hues[hueN++ % hues.length]; return `--hc:var(${hueOf[name]})`; };
+const hpill = name => `<span class="pill h" style="${hc(name)}">${esc(name)}</span>`;
+const vpill = v => !v ? `<span class="pill">unjudged</span>` : `<span class="pill ${v.success ? "good" : "bad"}">${v.success ? "success" : "failure"} · ${esc(v.by)}${v.score != null ? " " + v.score.toFixed(2) : ""}</span>`;
+const spill = s => `<span class="pill ${s === "ok" ? "good" : s === "running" ? "warn" : "bad"}">${esc(s)}</span>`;
+const verdictOf = r => r.verdict || (r.check ? { success: !!r.check.pass, by: "check" } : null);
+
+// theme
+const applyTheme = t => { if (t === "system") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = t; $("#theme").textContent = "Theme: " + t; };
+let theme = "system"; try { theme = localStorage.getItem("hi.theme") || "system"; } catch {} applyTheme(theme);
+$("#theme").onclick = () => { theme = { system: "dark", dark: "light", light: "system" }[theme]; try { localStorage.setItem("hi.theme", theme); } catch {} applyTheme(theme); };
+
+// status block
+async function refreshStatus() {
+  try {
+    const [hs, route] = await Promise.all([api("GET", "/harnesses"), api("GET", "/route").catch(() => null)]);
+    $("#status").innerHTML = `<span><span class="dot"></span>server on 127.0.0.1:8000</span><span><b>${hs.length}</b> harness${hs.length === 1 ? "" : "es"} registered</span>
+      <span>route <b>${route ? esc(route.engine) + " v" + route.version : "none"}</b>${route?.judge ? " · judge on" : ""}</span>`;
+  } catch { $("#status").innerHTML = `<span><span class="dot off"></span>server unreachable</span>`; }
 }
 
-// ── views ───────────────────────────────────────────────────────────────────────────────
-const views = {};
-
-views.run = async (params) => {
-  const harnesses = await api("GET", "/harnesses");
-  main.innerHTML = `<h2>New run</h2>
-  <div class="card">
-    <label>Task</label><textarea id="task" placeholder="What should the harness do?"></textarea>
-    <label>Instructions <span class="mute">(written to the harness's instruction file)</span></label><textarea id="instr" style="min-height:60px"></textarea>
-    <div class="row">
-      <div class="grow"><label>Harness</label><select id="harness"><option value="">let the route decide</option>${harnesses.map(h => `<option>${esc(h.name)}</option>`).join("")}</select></div>
-      <div class="grow"><label>Continue session <span class="mute">(optional)</span></label><input id="session" placeholder="s_…" value="${esc(params.session || "")}"></div>
-      <div class="grow"><label>Model <span class="mute">(optional)</span></label><input id="model"></div>
-    </div>
-    <div class="row">
-      <div class="grow"><label>Files <span class="mute">(text files, written into the workspace)</span></label><input id="files" type="file" multiple></div>
-      <div class="grow"><label>Check <span class="mute">(shell command; exit 0 passes; otherwise the judge decides)</span></label><input id="check" placeholder="python3 -m unittest -q"></div>
-    </div>
-    <div class="row" style="margin-top:12px"><button class="primary" id="go">Run</button><button id="preview">Preview routing</button><span class="mute" id="status"></span></div>
-  </div>
-  <div id="out"></div>`;
-  async function body(stream) {
-    const files = [];
-    for (const f of $("#files").files) files.push({ name: f.name, content: await f.text() });
-    return { task: $("#task").value, instructions: $("#instr").value, harness: $("#harness").value || null,
-             session: $("#session").value || null, model: $("#model").value || null, check: $("#check").value || null, files, stream };
+// ── output timeline: a readable view of whatever the harness streamed ──────────────────────
+function eventsOf(text) {
+  const out = [];
+  const push = (cls, k, b) => { if (b && String(b).trim()) out.push({ cls, k, b: String(b) }); };
+  for (const line of text.split("\n")) {
+    if (!line.trim()) continue;
+    let ev; try { ev = JSON.parse(line); } catch { push("raw", "out", line); continue; }
+    const t = ev.type || ev.event || "";
+    // claude stream-json
+    if (t === "system") { if (ev.subtype === "init") push("meta", "start", `session ${ev.session_id}${ev.model ? " · " + ev.model : ""}`); else if (ev.subtype === "task_summary" && ev.detail) push("meta", "note", ev.detail); continue; }
+    if (t === "assistant" && ev.message?.content) {
+      for (const b of ev.message.content) {
+        if (b.type === "text") push("text", "says", b.text);
+        if (b.type === "tool_use") push("tool", b.name || "tool", b.input?.command || b.input?.cmd || b.input?.file_path || fmt(b.input));
+      }
+      continue;
+    }
+    if (t === "user" && ev.message?.content) { for (const b of ev.message.content) if (b.type === "tool_result") push("result", "result", Array.isArray(b.content) ? b.content.map(x => x.text || "").join("\n") : b.content); continue; }
+    if (t === "result") { push(ev.is_error ? "error" : "final", ev.is_error ? "error" : "done", `${ev.subtype || ""}${ev.num_turns ? " · " + ev.num_turns + " turns" : ""}${ev.total_cost_usd != null ? " · " + money(ev.total_cost_usd) : ""}`); continue; }
+    // codex --json
+    if (t === "thread.started") { push("meta", "start", `thread ${ev.thread_id}`); continue; }
+    if (t === "item.completed") { const it = ev.item || {};
+      if (it.type === "agent_message") push("text", "says", it.text);
+      else if (it.type === "command_execution") { push("tool", "shell", it.command); push("result", `exit ${it.exit_code ?? "?"}`, it.aggregated_output || ""); }
+      else if (it.type === "file_change") push("tool", "edit", (it.changes || []).map(c => `${c.kind} ${c.path}`).join("\n"));
+      else if (it.type === "reasoning") push("meta", "thinks", it.text || it.summary || "");
+      else if (it.type === "error") push("error", "error", it.message);
+      continue; }
+    if (t === "turn.completed") { push("final", "done", ev.usage ? `tokens in ${ev.usage.input_tokens} · out ${ev.usage.output_tokens}` : "turn completed"); continue; }
+    if (t === "turn.failed" || t === "error") { push("error", "error", ev.error?.message || ev.message); continue; }
+    if (t === "turn.started" || t === "item.started" || t === "item.updated") continue;
+    // dsh --json
+    if (t === "session") { push("meta", "start", `session ${ev.sessionId}`); continue; }
+    if (t === "text") { push("text", "says", ev.text); continue; }
+    if (t === "tool_call") { push("tool", ev.tool || "tool", ev.input?.command || ev.input?.file_path || fmt(ev.input)); continue; }
+    if (t === "tool_result") { push("result", ev.status || "result", ev.result); continue; }
+    if (t === "final") { push("final", "done", ev.text); continue; }
+    if (t === "status" || t === "thinking") continue;
+    if (/^(active_goal|autocompact_state|rate_limit_event)$/.test(t)) continue;
+    push("raw", t || "event", line.length > 300 ? line.slice(0, 300) + "…" : line);
   }
-  $("#preview").onclick = async () => {
-    try {
-      const d = await api("POST", "/route/preview", await body(false));
-      $("#out").innerHTML = `<h3>Preview</h3>${d.rejected ? `<div class="msg bad">rejected: ${esc(d.rejected)}</div>` : decisionHtml(d.decision)}
-        ${d.jev_request ? `<h3>What Jev was sent</h3><pre>${esc(JSON.stringify(d.jev_request, null, 2))}</pre>` : `<p class="mute">Static route: no Jev call.</p>`}`;
-    } catch (e) { note("bad", e.message); }
-  };
+  return out;
+}
+const timelineHtml = text => { const evs = eventsOf(text); return evs.length ? `<div class="timeline">${evs.map(e => `<div class="ev ${e.cls}"><div class="k">${esc(e.k)}</div><div class="b">${esc(e.b)}</div></div>`).join("")}</div>` : `<div class="empty">No output yet.</div>`; };
+
+// ── views ─────────────────────────────────────────────────────────────────────────────────
+const views = {};
+const header = (eyebrow, h1, sub, right="") => `<div class="head"><div><div class="eyebrow">${eyebrow}</div><h1>${h1}</h1>${sub ? `<p>${sub}</p>` : ""}</div><div class="row">${right}</div></div>`;
+
+views.overview = async () => {
+  const [runs, cards] = await Promise.all([api("GET", "/runs"), api("GET", "/cards")]);
+  const done = runs.filter(r => r.status !== "running");
+  const judged = done.map(verdictOf).filter(Boolean), succ = judged.filter(v => v.success).length;
+  const spend = done.reduce((a, r) => a + (Number(r.output?.cost_usd) || 0), 0);
+  const lat = done.map(r => r.latency_s).filter(x => x != null).sort((a, b) => a - b);
+  const med = lat.length ? lat[Math.floor(lat.length / 2)] : null;
+  const recent = [...runs].sort((a, b) => b.started_at - a.started_at).slice(0, 8);
+  page.innerHTML = header("Overview", "What the harnesses have done", "Every run is one task handed to one harness, judged on delivery.", `<a class="btn primary" href="#run">New run</a>`) +
+  `<div class="tiles">
+    <div class="tile"><div class="v">${runs.length}</div><div class="l">runs${runs.length - done.length ? ` · ${runs.length - done.length} in progress` : ""}</div></div>
+    <div class="tile"><div class="v">${judged.length ? Math.round(100 * succ / judged.length) + "%" : "–"}</div><div class="l">delivered, of ${judged.length} judged</div></div>
+    <div class="tile"><div class="v">${spend ? money(spend) : "–"}</div><div class="l">spend reported by harnesses</div></div>
+    <div class="tile"><div class="v">${med != null ? secs(med) : "–"}</div><div class="l">median run time</div></div>
+  </div>
+  <div class="section"><h2>Harnesses</h2><div class="grid cols-2">${cards.map(cardHtml).join("") || '<div class="empty">No harnesses registered. Apply one under Harnesses.</div>'}</div></div>
+  <div class="section"><h2>Recent runs</h2>${runsTable(recent)}</div>`;
+};
+
+function cardHtml(c) {
+  const s = c.stats || {};
+  return `<div class="panel stack" style="${hc(c.name)}">
+    <div class="row" style="justify-content:space-between">${hpill(c.name)}<span class="faint">${s.runs ? `${s.runs} run${s.runs === 1 ? "" : "s"}` : "no runs yet"}</span></div>
+    <div style="font-size:13.5px">${esc(c.description)}</div>
+    ${s.runs ? `<div class="row" style="gap:16px"><span class="muted">${s.judged ? `<b>${Math.round(s.success_rate * 100)}%</b> delivered of ${s.judged}` : "none judged"}</span>
+      <span class="muted">median <b>${secs(s.median_latency_s)}</b></span><span class="muted">${s.median_cost_usd != null ? `median <b>${money(s.median_cost_usd)}</b>` : "no cost reported"}</span></div>
+      <details><summary>usage, as this harness reports it</summary><dl class="kv mono" style="margin:8px 0 0">${Object.entries(s.median_usage || {}).map(([k, v]) => `<dt>${esc(k)}</dt><dd>${v}</dd>`).join("")}</dl></details>` : ""}
+  </div>`;
+}
+
+function runsTable(runs) {
+  if (!runs.length) return `<div class="empty">No runs yet.</div>`;
+  return `<div class="tablewrap"><table><thead><tr><th>When</th><th>Task</th><th>Harness</th><th>Status</th><th>Verdict</th><th class="num">Time</th><th class="num">Cost</th></tr></thead><tbody>
+    ${runs.map(r => `<tr class="link" onclick="location.hash='#runs/${esc(r.id)}'"><td class="faint" style="white-space:nowrap">${esc(when(r.started_at))}</td><td>${esc(r.request.task.slice(0, 80))}${r.request.task.length > 80 ? "…" : ""}</td>
+      <td>${hpill(r.harness)}</td><td>${spill(r.status)}</td><td>${vpill(verdictOf(r))}</td><td class="num">${secs(r.latency_s)}</td><td class="num">${money(r.output?.cost_usd)}</td></tr>`).join("")}
+  </tbody></table></div>`;
+}
+
+views.runs = async (p) => {
+  if (p.id) return runDetail(p.id);
+  const runs = (await api("GET", "/runs")).sort((a, b) => b.started_at - a.started_at);
+  page.innerHTML = header("Runs", "Every run, newest first", "", `<a class="btn primary" href="#run">New run</a>`) + runsTable(runs);
+};
+
+function decisionHtml(d) {
+  if (!d) return `<div class="panel faint">No routing decision: the harness was pinned by the request or by the session.</div>`;
+  const probs = Object.entries(d.answers?.harness?.probabilities || {}).sort((a, b) => b[1] - a[1]);
+  const readable = v => v && typeof v === "object"
+    ? ("probability" in v ? `${Math.round(v.probability * 100)}%`
+      : "level" in v ? `level ${v.level}${v.score != null ? ` (score ${Number(v.score).toFixed(2)})` : ""}${v.confidence != null ? ` · confidence ${Number(v.confidence).toFixed(2)}` : ""}`
+      : "choice" in v ? `${v.choice}${v.confidence != null ? ` · confidence ${Number(v.confidence).toFixed(2)}` : ""}` : fmt(v))
+    : fmt(v);
+  const others = Object.entries(d.answers || {}).filter(([k]) => k !== "harness");
+  return `<div class="panel stack">
+    <div class="row" style="justify-content:space-between">${hpill(d.harness)}<span class="faint">${esc(d.reason)}${d.confidence != null ? ` · confidence ${d.confidence.toFixed(2)}` : ""}</span></div>
+    ${probs.length ? `<div class="bars">${probs.map(([k, v]) => `<div class="bar" style="${hc(k)}"><span>${esc(k)}</span><div class="t"><i style="width:${Math.round(v * 100)}%"></i></div><span class="n">${Math.round(v * 100)}%</span></div>`).join("")}</div>` : ""}
+    ${others.length ? `<dl class="kv">${others.map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(readable(v))}</dd>`).join("")}</dl>` : ""}
+  </div>`;
+}
+
+function verdictHtml(r, id) {
+  const v = verdictOf(r); const p = v?.score != null ? Math.round(v.score * 100) : (v ? (v.success ? 100 : 0) : 0);
+  return `<div class="panel stack">
+    <div class="row"><div class="ring" style="--p:${p};--rc:${v ? (v.success ? "var(--good)" : "var(--bad)") : "var(--fg-3)"}"><i>${v?.score != null ? v.score.toFixed(2) : v ? (v.success ? "✓" : "✗") : "–"}</i></div>
+      <div class="stack" style="gap:4px"><div>${vpill(v)}</div><div class="faint">${v ? esc(v.note || "") : "No check and no judge ran."}</div></div></div>
+    ${v?.answers && Object.keys(v.answers).length ? `<details><summary>the judge's answers</summary><pre>${esc(JSON.stringify(v.answers, null, 2))}</pre></details>` : ""}
+    ${r.check ? `<div class="faint">check <span class="mono">${esc(r.check.cmd)}</span> · exit ${esc(r.check.exit)}</div><pre style="max-height:160px">${esc(r.check.output || "")}</pre>` : ""}
+    <div class="row"><input type="text" id="vnote" class="grow" placeholder="note (optional)"><button class="btn sm good" id="vpass">Mark pass</button><button class="btn sm bad" id="vfail">Mark fail</button></div>
+  </div>`;
+}
+
+async function runDetail(id) {
+  const r = await api("GET", `/runs/${id}`);
+  const [out, log] = await Promise.all([fetch(`/runs/${id}/output`).then(x => x.ok ? x.text() : ""), fetch(`/runs/${id}/log`).then(x => x.ok ? x.text() : "")]);
+  page.innerHTML = header("Run", esc(r.request.task.length > 110 ? r.request.task.slice(0, 110) + "…" : r.request.task),
+      `<span class="mono">${esc(r.id)}</span> · ${esc(when(r.started_at))} · session <a href="#sessions">${esc(r.session)}</a>`,
+      `${hpill(r.harness)}${spill(r.status)}<a class="btn" href="#run?session=${esc(r.session)}">Continue this session</a>`) +
+  `<div class="split">
+    <div class="stack">
+      ${r.output?.answer ? `<div class="section"><h2>Answer</h2><div class="panel" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(r.output.answer)}</div></div>` : ""}
+      <div class="section"><div class="row" style="justify-content:space-between"><h2>What the harness did</h2><button class="btn quiet sm" id="rawtoggle">Show raw stream</button></div>
+        <div id="tl">${timelineHtml(out)}</div><pre id="raw" hidden>${esc(out)}</pre></div>
+      ${r.files?.length ? `<div class="section"><h2>Files produced</h2><div class="panel row">${r.files.map(f => `<a class="pill" href="/runs/${esc(r.id)}/files/${esc(f)}" target="_blank">${esc(f)}</a>`).join("")}</div></div>` : ""}
+      <div class="section"><h2>Log <span class="faint">stderr</span></h2><pre style="max-height:220px">${esc(log || "(empty)")}</pre></div>
+    </div>
+    <div class="stack">
+      <div class="section"><h2>Verdict</h2>${verdictHtml(r, id)}</div>
+      <div class="section"><h2>Routing decision</h2>${decisionHtml(r.decision)}</div>
+      <div class="section"><h2>Run</h2><div class="panel"><dl class="kv">
+        <dt>time</dt><dd>${secs(r.latency_s)}</dd><dt>cost</dt><dd>${money(r.output?.cost_usd) || '<span class="faint">not reported</span>'}</dd><dt>exit</dt><dd>${r.exit_code ?? ""}</dd>
+        ${r.request.instructions ? `<dt>instructions</dt><dd>${esc(r.request.instructions)}</dd>` : ""}${r.request.files?.length ? `<dt>inputs</dt><dd>${r.request.files.map(f => esc(f.name)).join(", ")}</dd>` : ""}
+      </dl>${r.usage ? `<details style="margin-top:8px"><summary>usage, as reported</summary><pre style="max-height:260px">${esc(JSON.stringify(r.usage, null, 2))}</pre></details>` : ""}</div></div>
+    </div>
+  </div>`;
+  $("#rawtoggle").onclick = () => { const raw = $("#raw"), tl = $("#tl"); raw.hidden = !raw.hidden; tl.hidden = !raw.hidden; $("#rawtoggle").textContent = raw.hidden ? "Show raw stream" : "Show timeline"; };
+  for (const [sel, success] of [["#vpass", true], ["#vfail", false]])
+    $(sel).onclick = async () => { try { await api("PATCH", `/runs/${id}`, { success, note: $("#vnote").value }); toast("good", "Verdict recorded"); runDetail(id); } catch (e) { toast("bad", e.message); } };
+}
+
+views.run = async (p) => {
+  const hs = await api("GET", "/harnesses");
+  page.innerHTML = header("New run", "Hand a task to a harness", "Name a harness, continue a session, or let the route decide.") +
+  `<div class="split"><div class="stack">
+    <div class="panel stack">
+      <label class="f">Task<textarea id="task" placeholder="What should be done?"></textarea></label>
+      <label class="f">Instructions <span class="faint">written to the harness's instruction file</span><textarea id="instr" style="min-height:64px"></textarea></label>
+      <div class="row">
+        <label class="f grow">Harness<select id="harness"><option value="">let the route decide</option>${hs.map(h => `<option>${esc(h.name)}</option>`).join("")}</select></label>
+        <label class="f grow">Continue session<input type="text" id="session" placeholder="s_…" value="${esc(p.session || "")}"></label>
+        <label class="f grow">Model<input type="text" id="model" placeholder="harness default"></label>
+      </div>
+      <div class="row">
+        <label class="f grow">Files <span class="faint">text files, written into the workspace</span><input type="file" id="files" multiple></label>
+        <label class="f grow">Check <span class="faint">a shell command; exit 0 passes; otherwise the judge decides</span><input type="text" id="check" placeholder="python3 -m unittest -q"></label>
+      </div>
+      <div class="row"><button class="btn primary" id="go">Run</button><button class="btn" id="preview">Preview routing</button><span class="faint" id="rstatus"></span></div>
+    </div>
+    <div id="out"></div>
+  </div><div id="side" class="stack"><div class="panel faint">Preview routing shows which harness the route would choose and the exact request Jev is sent, without running anything. Run streams what the harness does, then shows its verdict here.</div></div></div>`;
+  async function body(stream) { const files = []; for (const f of $("#files").files) files.push({ name: f.name, content: await f.text() });
+    return { task: $("#task").value, instructions: $("#instr").value, harness: $("#harness").value || null, session: $("#session").value || null, model: $("#model").value || null, check: $("#check").value || null, files, stream }; }
+  $("#preview").onclick = async () => { try { const d = await api("POST", "/route/preview", await body(false));
+    $("#side").innerHTML = `<div class="section"><h2>Routing preview</h2>${d.rejected ? `<div class="panel" style="color:var(--bad)">rejected: ${esc(d.rejected)}</div>` : decisionHtml(d.decision)}</div>` +
+      (d.jev_request ? `<div class="section"><h2>What Jev is sent</h2><pre style="max-height:520px">${esc(JSON.stringify(d.jev_request, null, 2))}</pre></div>` : `<div class="faint">Static route: no Jev call.</div>`);
+  } catch (e) { toast("bad", e.message); } };
   $("#go").onclick = async () => {
-    const b = await body(true);
-    if (!b.task.trim()) return note("bad", "task is empty");
-    $("#go").disabled = true; $("#status").textContent = "starting…";
-    $("#out").innerHTML = `<h3>Output</h3><pre id="stream"></pre>`;
+    const b = await body(true); if (!b.task.trim()) return toast("bad", "The task is empty.");
+    $("#go").disabled = true; $("#rstatus").textContent = "starting…"; let text = "";
+    $("#out").innerHTML = `<div class="section"><h2>What the harness is doing</h2><div id="live"><div class="empty">Waiting for the first event…</div></div></div>`;
     try {
       const r = await api("POST", "/runs", b, true);
       const id = r.headers.get("x-run-id"), sid = r.headers.get("x-session-id"), h = r.headers.get("x-harness");
-      $("#status").innerHTML = `run <a href="#runs/${esc(id)}">${esc(id)}</a> · session ${esc(sid)} · harness ${esc(h)}`;
-      const reader = r.body.getReader(), dec = new TextDecoder(), pre = $("#stream");
-      for (;;) { const { value, done } = await reader.read(); if (done) break; pre.textContent += dec.decode(value, { stream: true }); pre.scrollTop = pre.scrollHeight; }
+      $("#rstatus").innerHTML = `run <a href="#runs/${esc(id)}">${esc(id)}</a> · session ${esc(sid)} · ${hpill(h)}`;
+      const reader = r.body.getReader(), dec = new TextDecoder();
+      for (;;) { const { value, done } = await reader.read(); if (done) break; text += dec.decode(value, { stream: true }); $("#live").innerHTML = timelineHtml(text); const tl = $("#live .timeline"); if (tl) tl.scrollTop = tl.scrollHeight; }
       const run = await api("GET", `/runs/${id}`);
-      $("#out").insertAdjacentHTML("afterbegin", `<div class="card">${runSummaryHtml(run)}</div>`);
-    } catch (e) { note("bad", e.message); }
+      $("#side").innerHTML = `<div class="section"><h2>Verdict</h2>${verdictHtml(run, id)}</div><div class="section"><h2>Routing decision</h2>${decisionHtml(run.decision)}</div>` +
+        (run.output?.answer ? `<div class="section"><h2>Answer</h2><div class="panel" style="white-space:pre-wrap;overflow-wrap:anywhere">${esc(run.output.answer)}</div></div>` : "");
+      for (const [sel, success] of [["#vpass", true], ["#vfail", false]]) $(sel).onclick = async () => { try { await api("PATCH", `/runs/${id}`, { success, note: $("#vnote").value }); toast("good", "Verdict recorded"); } catch (e) { toast("bad", e.message); } };
+      toast("good", `Run ${run.status}${verdictOf(run) ? ", " + (verdictOf(run).success ? "delivered" : "not delivered") : ""}`);
+    } catch (e) { toast("bad", e.message); }
     $("#go").disabled = false;
   };
 };
 
-function decisionHtml(d) {
-  if (!d) return `<p class="mute">No routing decision: the session or the request pinned the harness.</p>`;
-  const probs = d.answers?.harness?.probabilities || {};
-  const bars = Object.entries(probs).sort((a, b) => b[1] - a[1]).map(([k, v]) =>
-    `<div><span>${esc(k)} <span class="mute">${(v * 100).toFixed(0)}%</span></span><div class="bar"><i style="width:${(v * 100).toFixed(0)}%"></i></div></div>`).join("");
-  const others = Object.entries(d.answers || {}).filter(([k]) => k !== "harness").map(([k, v]) => `<code>${esc(k)}</code> ${esc(fmt(v))}`).join(" · ");
-  return `<div class="card"><b>${esc(d.harness)}</b> <span class="mute">${esc(d.reason)}${d.confidence != null ? ` · confidence ${d.confidence}` : ""}${d.runner_up ? ` · runner-up ${esc(d.runner_up)}` : ""}</span>
-    ${bars ? `<div style="margin-top:8px">${bars}</div>` : ""}${others ? `<p class="mute">${others}</p>` : ""}</div>`;
-}
-
-function runSummaryHtml(r) {
-  const cost = r.output?.cost_usd;
-  return `<div class="row"><b><a href="#runs/${esc(r.id)}">${esc(r.id)}</a></b><span class="pill">${esc(r.harness)}</span><span class="pill ${r.status === "ok" ? "ok" : "bad"}">${esc(r.status)}</span>${verdictHtml(r.verdict)}
-    <span class="mute">${r.latency_s != null ? r.latency_s + "s" : ""}${cost != null ? " · $" + Number(cost).toFixed(4) : ""}</span></div>
-    ${r.files?.length ? `<p class="mute">files: ${r.files.map(f => `<a href="/runs/${esc(r.id)}/files/${esc(f)}" target="_blank">${esc(f)}</a>`).join(", ")}</p>` : ""}`;
-}
-
-views.runs = async (params) => {
-  if (params.id) return runDetail(params.id);
-  const runs = (await api("GET", "/runs")).sort((a, b) => b.started_at - a.started_at);
-  main.innerHTML = `<h2>Runs</h2><table><tr><th>When</th><th>Task</th><th>Harness</th><th>Status</th><th>Verdict</th><th>Time</th><th>Cost</th></tr>
-    ${runs.map(r => `<tr class="link" onclick="location.hash='#runs/${esc(r.id)}'"><td>${esc(when(r.started_at))}</td><td>${esc(r.request.task.slice(0, 70))}</td><td>${esc(r.harness)}</td>
-      <td class="${r.status === "ok" ? "ok" : "bad"}">${esc(r.status)}</td><td>${verdictHtml(r.verdict)}</td><td>${r.latency_s ?? ""}</td><td>${r.output?.cost_usd != null ? "$" + Number(r.output.cost_usd).toFixed(4) : ""}</td></tr>`).join("")}
-  </table>${runs.length ? "" : '<p class="mute">No runs yet.</p>'}`;
-};
-
-async function runDetail(id) {
-  const r = await api("GET", `/runs/${id}`);
-  const [output, log] = await Promise.all([fetch(`/runs/${id}/output`).then(x => x.ok ? x.text() : ""), fetch(`/runs/${id}/log`).then(x => x.ok ? x.text() : "")]);
-  main.innerHTML = `<h2>Run ${esc(r.id)}</h2>
-    <div class="card">${runSummaryHtml(r)}<p><b>Task:</b> ${esc(r.request.task)}</p>${r.request.instructions ? `<p class="mute"><b>Instructions:</b> ${esc(r.request.instructions)}</p>` : ""}
-      <p class="mute">session <a href="#sessions">${esc(r.session)}</a> · ${esc(when(r.started_at))} · exit ${r.exit_code ?? ""}</p>
-      <div class="row"><button onclick="location.hash='#run?session=${esc(r.session)}'">Continue this session</button></div></div>
-    <h3>Routing decision</h3>${decisionHtml(r.decision)}
-    <h3>Verdict</h3><div class="card">${verdictHtml(r.verdict)} ${r.verdict?.note ? `<span class="mute">${esc(r.verdict.note)}</span>` : ""}
-      ${r.verdict?.answers && Object.keys(r.verdict.answers).length ? `<pre>${esc(JSON.stringify(r.verdict.answers, null, 2))}</pre>` : ""}
-      ${r.check ? `<p class="mute">check <code>${esc(r.check.cmd)}</code> exit ${esc(r.check.exit)}</p><pre>${esc(r.check.output)}</pre>` : ""}
-      <div class="row"><input id="note" class="grow" placeholder="note (optional)"><button id="pass">Mark pass</button><button id="fail" class="danger">Mark fail</button></div></div>
-    ${r.output?.answer ? `<h3>Answer</h3><pre>${esc(r.output.answer)}</pre>` : ""}
-    <h3>Usage</h3><pre>${esc(JSON.stringify(r.usage, null, 2))}</pre>
-    <h3>Output <span class="mute">(the harness's stdout, as streamed)</span></h3><pre>${esc(output)}</pre>
-    <h3>Log <span class="mute">(stderr)</span></h3><pre>${esc(log || "(empty)")}</pre>`;
-  for (const [btn, success] of [["#pass", true], ["#fail", false]])
-    $(btn).onclick = async () => { try { await api("PATCH", `/runs/${id}`, { success, note: $("#note").value }); note("ok", "verdict recorded"); runDetail(id); } catch (e) { note("bad", e.message); } };
-}
-
 views.sessions = async () => {
   const [sessions, runs] = await Promise.all([api("GET", "/sessions"), api("GET", "/runs")]);
   sessions.sort((a, b) => b.created_at - a.created_at);
-  main.innerHTML = `<h2>Sessions</h2>` + sessions.map(s => {
-    const mine = runs.filter(r => r.session === s.id).sort((a, b) => a.started_at - b.started_at);
-    return `<div class="card"><div class="row"><b>${esc(s.id)}</b><span class="pill">${esc(s.harness)}</span><span class="mute">${esc(when(s.created_at))}${s.session_id ? " · resume " + esc(s.session_id) : ""}</span>
-      <button onclick="location.hash='#run?session=${esc(s.id)}'">Continue</button></div>
-      ${mine.map(r => `<div style="margin-top:6px">${runSummaryHtml(r)}<span class="mute">${esc(r.request.task.slice(0, 90))}</span></div>`).join("")}</div>`;
-  }).join("") + (sessions.length ? "" : '<p class="mute">No sessions yet.</p>');
+  page.innerHTML = header("Sessions", "Workspaces that remember", "A session is a directory and the harness's own conversation. A follow-up runs on the harness that started it.") +
+    (sessions.length ? sessions.map(s => { const mine = runs.filter(r => r.session === s.id).sort((a, b) => a.started_at - b.started_at);
+      return `<div class="panel stack"><div class="row" style="justify-content:space-between"><div class="row"><span class="mono">${esc(s.id)}</span>${hpill(s.harness)}<span class="faint">${esc(when(s.created_at))}${s.session_id ? ` · resumes ${esc(s.session_id.slice(0, 18))}…` : " · no resume handle yet"}</span></div>
+        <a class="btn sm" href="#run?session=${esc(s.id)}">Continue</a></div>${runsTable(mine)}</div>`; }).join("") : `<div class="empty">No sessions yet.</div>`);
 };
 
 views.harnesses = async () => {
-  const cards = await api("GET", "/cards");
-  const full = await api("GET", "/harnesses");
-  main.innerHTML = `<h2>Harnesses</h2>` + cards.map(c => { const h = full.find(x => x.name === c.name) || {};
-    return `<div class="card"><div class="row"><b>${esc(c.name)}</b><span class="pill">v${h.version}</span><span class="pill ${h.check_ok ? "ok" : "bad"}">check ${h.check_ok ? "ok" : "failed"}</span>
-      <span class="mute">${(c.labels || []).join(", ")}</span><button class="danger" onclick="delHarness('${esc(c.name)}')">Delete</button></div>
-      <p>${esc(c.description)}</p><p class="mute">${esc(c.evidence)}</p>
-      <details><summary class="mute">resource</summary><pre>${esc(JSON.stringify(h, null, 2))}</pre></details></div>`; }).join("")
-    + `<h3>Apply a harness</h3><div class="card"><label>harness.yaml <span class="mute">(paste, or choose the file; the YAML's folder is its harness_dir only when applied with the CLI, so set <code>dir</code> here)</span></label>
-       <input type="file" id="yfile" accept=".yaml,.yml"><textarea id="yaml" class="tall" placeholder="kind: Harness\nname: …"></textarea>
-       <div class="row" style="margin-top:8px"><button class="primary" id="apply">Apply</button></div></div>`;
+  const [cards, full] = await Promise.all([api("GET", "/cards"), api("GET", "/harnesses")]);
+  page.innerHTML = header("Harnesses", "Registered harnesses", "A harness is a folder with a YAML, a run script and a reporter. Its description is what the router reads.") +
+    `<div class="grid cols-2">${cards.map(c => { const h = full.find(x => x.name === c.name) || {};
+      return cardHtml(c).replace("</div>\n  </div>", "") + `<div class="row" style="justify-content:space-between;margin-top:4px"><span class="faint">v${h.version} · check ${h.check_ok ? "ok" : "failed"} · ${(c.labels || []).join(", ")}</span>
+        <span class="row"><button class="btn quiet sm" onclick="showRes('${esc(c.name)}')">resource</button><button class="btn quiet sm bad" onclick="delHarness('${esc(c.name)}')">delete</button></span></div><pre id="res-${esc(c.name)}" hidden style="margin-top:8px">${esc(JSON.stringify(h, null, 2))}</pre></div>`; }).join("") || '<div class="empty">None yet.</div>'}</div>
+    <div class="section"><h2>Apply a harness</h2><div class="panel stack">
+      <div class="row"><input type="file" id="yfile" accept=".yaml,.yml,.json"><span class="faint">Paste or choose a harness.yaml. Set <span class="mono">dir</span> to the folder that holds its run script.</span></div>
+      <textarea id="yaml" class="code" placeholder="kind: Harness&#10;name: …"></textarea>
+      <div class="row"><button class="btn primary" id="apply">Apply</button></div></div></div>`;
   $("#yfile").onchange = async e => { $("#yaml").value = await e.target.files[0].text(); };
-  $("#apply").onclick = async () => { try { const spec = parseYaml($("#yaml").value); await api("PUT", `/harnesses/${spec.name}`, spec); note("ok", `applied ${spec.name}`); views.harnesses(); } catch (e) { note("bad", e.message); } };
+  $("#apply").onclick = async () => { try { const spec = parseYaml($("#yaml").value); await api("PUT", `/harnesses/${spec.name}`, spec); toast("good", `Applied ${spec.name}`); views.harnesses(); } catch (e) { toast("bad", e.message); } };
 };
-window.delHarness = async name => { if (!confirm(`Delete harness ${name}?`)) return; try { await api("DELETE", `/harnesses/${name}`); views.harnesses(); } catch (e) { note("bad", e.message); } };
+window.showRes = n => { const p = document.getElementById("res-" + n); p.hidden = !p.hidden; };
+window.delHarness = async n => { if (!confirm(`Delete harness ${n}?`)) return; try { await api("DELETE", `/harnesses/${n}`); toast("good", `Deleted ${n}`); views.harnesses(); refreshStatus(); } catch (e) { toast("bad", e.message); } };
 
+const stripMeta = o => Object.fromEntries(Object.entries(o).filter(([k]) => !["version", "applied_at", "check_ok", "check_output"].includes(k)));
 views.route = async () => {
   let route = null; try { route = await api("GET", "/route"); } catch {}
-  main.innerHTML = `<h2>Route</h2>${route ? `<p class="mute">engine <b>${esc(route.engine)}</b> · v${route.version} · default <b>${esc(route.default)}</b>${route.judge ? " · judge on" : " · no judge"}</p>` : '<p class="mute">No route applied.</p>'}
-    <div class="card"><label>Route <span class="mute">(JSON or YAML; applied as a new version)</span></label>
-      <textarea id="rjson" class="tall">${esc(route ? JSON.stringify(stripMeta(route), null, 2) : '{\n  "kind": "Route",\n  "engine": "static",\n  "default": ""\n}')}</textarea>
-      <div class="row" style="margin-top:8px"><button class="primary" id="apply">Apply</button></div></div>
-    <h3>Preview a decision</h3><div class="card"><label>Sample task</label><textarea id="ptask" style="min-height:60px"></textarea>
-      <div class="row" style="margin-top:8px"><button id="prev">Preview</button></div><div id="pout"></div></div>`;
-  $("#apply").onclick = async () => { try { await api("PUT", "/route", parseYaml($("#rjson").value)); note("ok", "route applied"); views.route(); } catch (e) { note("bad", e.message); } };
+  page.innerHTML = header("Route", "How a task picks its harness", route ? `Engine <b>${esc(route.engine)}</b>, version ${route.version}, default <b>${esc(route.default)}</b>${route.judge ? ", judge on" : ", no judge"}.` : "No route applied yet.") +
+  `<div class="split"><div class="section"><h2>Route resource</h2><div class="panel stack"><textarea id="rjson" class="code">${esc(route ? JSON.stringify(stripMeta(route), null, 2) : '{\n  "kind": "Route",\n  "engine": "static",\n  "default": ""\n}')}</textarea>
+      <div class="row"><button class="btn primary" id="apply">Apply as new version</button><span class="faint">JSON or YAML</span></div></div></div>
+    <div class="section"><h2>Try a task</h2><div class="panel stack"><textarea id="ptask" style="min-height:80px" placeholder="A sample task, to see what the route would do"></textarea>
+      <div class="row"><button class="btn" id="prev">Preview decision</button></div></div><div id="pout" class="stack"></div></div></div>`;
+  $("#apply").onclick = async () => { try { await api("PUT", "/route", parseYaml($("#rjson").value)); toast("good", "Route applied"); views.route(); refreshStatus(); } catch (e) { toast("bad", e.message); } };
   $("#prev").onclick = async () => { try { const d = await api("POST", "/route/preview", { task: $("#ptask").value });
-    $("#pout").innerHTML = (d.rejected ? `<div class="msg bad">rejected: ${esc(d.rejected)}</div>` : decisionHtml(d.decision)) + (d.jev_request ? `<h3>What Jev was sent</h3><pre>${esc(JSON.stringify(d.jev_request, null, 2))}</pre>` : "");
-  } catch (e) { note("bad", e.message); } };
+    $("#pout").innerHTML = (d.rejected ? `<div class="panel" style="color:var(--bad)">rejected: ${esc(d.rejected)}</div>` : decisionHtml(d.decision)) + (d.jev_request ? `<h2>What Jev is sent</h2><pre style="max-height:460px">${esc(JSON.stringify(d.jev_request, null, 2))}</pre>` : "");
+  } catch (e) { toast("bad", e.message); } };
 };
-const stripMeta = o => Object.fromEntries(Object.entries(o).filter(([k]) => !["version", "applied_at", "check_ok", "check_output"].includes(k)));
 
 views.secrets = async () => {
   const names = await api("GET", "/secrets");
-  main.innerHTML = `<h2>Secrets</h2><div class="card">${names.length ? names.map(n => `<div><code>${esc(n)}</code></div>`).join("") : '<p class="mute">None stored. The server\'s own environment is the fallback.</p>'}</div>
-    <h3>Store a secret</h3><div class="card"><div class="row"><div class="grow"><label>Name</label><input id="sname" placeholder="ANTHROPIC_API_KEY"></div><div class="grow"><label>Value</label><input id="sval" type="password"></div></div>
-    <div class="row" style="margin-top:8px"><button class="primary" id="put">Store</button><span class="mute">shown never again</span></div></div>`;
-  $("#put").onclick = async () => { try { await api("PUT", `/secrets/${$("#sname").value.trim()}`, $("#sval").value); note("ok", "stored"); views.secrets(); } catch (e) { note("bad", e.message); } };
+  page.innerHTML = header("Secrets", "Provider keys", "Stored by name as files the server owns, injected into a harness process by the names its resource lists. Never shown again.") +
+  `<div class="grid cols-2"><div class="panel stack">${names.length ? names.map(n => `<div class="row" style="justify-content:space-between"><span class="mono">${esc(n)}</span><span class="pill good">stored</span></div>`).join("") : `<div class="faint">None stored. The server's own environment is the fallback.</div>`}</div>
+    <div class="panel stack"><label class="f">Name<input type="text" id="sname" placeholder="ANTHROPIC_API_KEY"></label><label class="f">Value<input type="password" id="sval"></label><div class="row"><button class="btn primary" id="put">Store</button></div></div></div>`;
+  $("#put").onclick = async () => { try { await api("PUT", `/secrets/${$("#sname").value.trim()}`, $("#sval").value); toast("good", "Stored"); views.secrets(); } catch (e) { toast("bad", e.message); } };
 };
 
-// A deliberately small YAML reader: JSON first, then the subset the resources use (maps, lists,
-// folded `>` text, inline [a, b] lists and {a: b} maps, # comments). Anything fancier: paste JSON.
+// A deliberately small YAML reader: JSON first, then the subset the resources use.
 function parseYaml(text) {
-  text = text.trim();
-  if (text.startsWith("{")) return JSON.parse(text);
-  const lines = text.split("\n").filter(l => !/^\s*#/.test(l) && l.trim() !== "");
-  let i = 0;
-  const indentOf = l => l.match(/^ */)[0].length;
-  function scalar(v) {
-    v = v.trim();
-    if (v === "" ) return "";
-    if (/^(true|false)$/.test(v)) return v === "true";
-    if (v === "null" || v === "~") return null;
+  text = text.trim(); if (text.startsWith("{")) return JSON.parse(text);
+  const lines = text.split("\n").filter(l => !/^\s*#/.test(l) && l.trim() !== ""); let i = 0;
+  const ind = l => l.match(/^ */)[0].length;
+  function scalar(v) { v = v.trim(); if (v === "") return ""; if (/^(true|false)$/.test(v)) return v === "true"; if (v === "null" || v === "~") return null;
     if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v);
     if (v.startsWith("[")) return v.slice(1, -1).split(",").map(s => s.trim()).filter(Boolean).map(scalar);
     if (v.startsWith("{")) { const o = {}; v.slice(1, -1).split(",").forEach(p => { const [k, ...r] = p.split(":"); if (k.trim()) o[k.trim()] = scalar(r.join(":")); }); return o; }
     if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) return v.slice(1, -1);
-    return v.replace(/\s+#.*$/, "");
-  }
-  function block(indent) {
-    const isList = lines[i] && lines[i].trim().startsWith("- ");
-    const out = isList ? [] : {};
-    while (i < lines.length && indentOf(lines[i]) === indent) {
-      const line = lines[i].trim();
+    return v.replace(/\s+#.*$/, ""); }
+  function block(indent) { const isList = lines[i] && lines[i].trim().startsWith("- "); const out = isList ? [] : {};
+    while (i < lines.length && ind(lines[i]) === indent) { const line = lines[i].trim();
       if (isList) { i++; out.push(scalar(line.slice(2))); continue; }
       const m = line.match(/^([^:]+):\s*(.*)$/); if (!m) throw new Error("bad line: " + line);
-      const key = m[1].trim(); let val = m[2]; i++;
-      if (val === ">" || val === "|") { const parts = []; while (i < lines.length && indentOf(lines[i]) > indent) parts.push(lines[i].trim()), i++; out[key] = parts.join(val === ">" ? " " : "\n"); }
-      else if (val === "") out[key] = (i < lines.length && indentOf(lines[i]) > indent) ? block(indentOf(lines[i])) : null;
-      else out[key] = scalar(val);
-    }
-    return out;
-  }
-  return block(indentOf(lines[0]));
+      const key = m[1].trim(); const val = m[2]; i++;
+      if (val === ">" || val === "|") { const parts = []; while (i < lines.length && ind(lines[i]) > indent) parts.push(lines[i].trim()), i++; out[key] = parts.join(val === ">" ? " " : "\n"); }
+      else if (val === "") out[key] = (i < lines.length && ind(lines[i]) > indent) ? block(ind(lines[i])) : null;
+      else out[key] = scalar(val); }
+    return out; }
+  return block(ind(lines[0]));
 }
 
-// ── hash router ─────────────────────────────────────────────────────────────────────────
+// ── hash router ───────────────────────────────────────────────────────────────────────────
 function route() {
-  const h = location.hash.slice(1) || "run";
-  const [path, q] = h.split("?"); const [name, id] = path.split("/");
-  const params = Object.fromEntries(new URLSearchParams(q || "")); if (id) params.id = id;
-  document.querySelectorAll("header a").forEach(a => a.classList.toggle("on", a.getAttribute("href") === "#" + name));
-  (views[name] || views.run)(params).catch(e => { main.innerHTML = `<div class="msg bad">${esc(e.message)}</div>`; });
+  const h = location.hash.slice(1) || "overview"; const [path, q] = h.split("?"); const [name, id] = path.split("/");
+  const p = Object.fromEntries(new URLSearchParams(q || "")); if (id) p.id = id;
+  document.querySelectorAll("#nav a").forEach(a => a.classList.toggle("on", a.getAttribute("href") === "#" + name));
+  (views[name] || views.overview)(p).catch(e => { page.innerHTML = `<div class="panel" style="color:var(--bad)">${esc(e.message)}</div>`; });
 }
-addEventListener("hashchange", route); route();
+addEventListener("hashchange", route); route(); refreshStatus(); setInterval(refreshStatus, 20000);
 </script>
 </body>
 </html>

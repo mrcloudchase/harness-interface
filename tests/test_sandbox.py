@@ -6,10 +6,14 @@ from hi.runner import Prepared
 from hi.sandbox import DOOR_PORT, HARDENING, DockerNames, DockerSandbox, Job
 
 
-def test_image_tag_follows_the_dockerfile_content():
+def test_image_tag_follows_the_rendered_dockerfile():
     a, b = Sandbox(name="s", dockerfile="FROM a"), Sandbox(name="s", dockerfile="FROM b")
-    assert DockerSandbox.tag(a) != DockerSandbox.tag(b) and DockerSandbox.tag(a) == DockerSandbox.tag(Sandbox(name="s", dockerfile="FROM a"))
-    assert DockerSandbox.tag(a).startswith("hi/s:")
+    assert DockerSandbox.tag(a, "x") != DockerSandbox.tag(b, "x") and DockerSandbox.tag(a, "x") == DockerSandbox.tag(Sandbox(name="s", dockerfile="FROM a"), "x")
+    assert DockerSandbox.tag(a, "x").startswith("hi/s:")
+    assert DockerSandbox.tag(a, "codex") == DockerSandbox.tag(a, "claude-code")          # no {harness}: one image for all
+    named = Sandbox(name="s", dockerfile="FROM a\nRUN useradd {harness}\nUSER {harness}\nENV X=${HOME}")
+    assert DockerSandbox.tag(named, "codex") != DockerSandbox.tag(named, "claude-code")  # {harness}: one image each
+    assert DockerSandbox.dockerfile(named, "codex") == "FROM a\nRUN useradd codex\nUSER codex\nENV X=${HOME}"
 
 
 def test_run_and_door_argv(tmp_path):
@@ -17,13 +21,13 @@ def test_run_and_door_argv(tmp_path):
     assert sb.mounts(Path("/x"), Path("/y")).workspace == "/workspace"
     prepared = Prepared(argv=["bash", "/harness/run.sh"], env={"HI_TASK": "t", "HI_PROVIDER_KEY": "k", "HOME": "/workspace/.home"},
                         stdin=b"{}", timeout_s=9)
-    job = Job(id="abc", prepared=prepared, workspace=Path("/ws"), harness_dir=Path("/hd"), log_path=tmp_path / "l",
+    job = Job(id="abc", harness="claude-code", prepared=prepared, workspace=Path("/ws"), harness_dir=Path("/hd"), log_path=tmp_path / "l",
               spec=Sandbox(name="default", dockerfile="FROM x"), egress=["api.deepseek.com:443", "pypi.org:443"])
     names = DockerNames.of("abc")
     argv = sb.run_argv(job, "hi/default:deadbeef", "runsc", names)
     assert argv[:2] == ["docker", "run"] and argv[-3:] == ["hi/default:deadbeef", "bash", "/harness/run.sh"]
     assert "--network" in argv and argv[argv.index("--network") + 1] == "hi-net-abc"
-    assert argv[argv.index("--runtime") + 1] == "runsc"
+    assert argv[argv.index("--runtime") + 1] == "runsc" and argv[argv.index("--hostname") + 1] == "claude-code"
     assert all(flag in argv for flag in HARDENING)
     assert "/ws:/workspace" in argv and "/hd:/harness:ro" in argv
     assert f"HTTPS_PROXY=http://hi-door-abc:{DOOR_PORT}" in argv

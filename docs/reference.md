@@ -16,6 +16,11 @@ runtime. `default` ships built in, cannot be changed or deleted, and is as close
 allows (see [The sandbox](#the-sandbox)). Add one when a harness needs more, a package index say,
 and name it on the harness.
 
+`{harness}` in a Dockerfile is replaced with the harness's name before the build. The default
+image uses it to name the unprivileged user, so inside the sandbox `whoami` is the harness, and
+every container's hostname is the harness's name too. A Dockerfile that uses `{harness}` gets one
+image per harness; one that does not is shared.
+
 ```json
 {"name": "python-dev", "dockerfile": "FROM python:3.12 ...", "egress": ["pypi.org"], "runtime": "auto"}
 ```

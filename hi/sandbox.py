@@ -29,6 +29,7 @@ HARDENING = ["--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read
 @dataclass(frozen=True)
 class Job:
     id: str
+    harness: str                                     # the container's hostname, and its user in the default image
     prepared: Prepared
     workspace: Path
     harness_dir: Path
@@ -48,7 +49,7 @@ class Process(Protocol):
 class Sandbox(Protocol):
     runtime: str
     def mounts(self, job_workspace: Path, harness_dir: Path) -> Mounts: ...
-    async def image(self, spec: SandboxSpec) -> str | None: ...
+    async def image(self, spec: SandboxSpec, harness: str) -> str | None: ...
     async def start(self, job: Job) -> Process: ...
 
 
@@ -122,7 +123,7 @@ class LocalSandbox:
     def mounts(self, workspace: Path, harness_dir: Path) -> Mounts:
         return Mounts(workspace=str(workspace), harness=str(harness_dir))
 
-    async def image(self, spec: SandboxSpec) -> str | None:
+    async def image(self, spec: SandboxSpec, harness: str) -> str | None:
         return None
 
     async def start(self, job: Job) -> Process:
@@ -181,18 +182,25 @@ class DockerSandbox:
 
     # image
     @staticmethod
-    def tag(spec: SandboxSpec) -> str:
-        return f"hi/{spec.name}:{hashlib.sha256(spec.dockerfile.encode()).hexdigest()[:12]}"
+    def dockerfile(spec: SandboxSpec, harness: str) -> str:
+        """`{harness}` in a Dockerfile is the harness's name: the default image makes it the user."""
+        return spec.dockerfile.replace("{harness}", harness)
 
-    async def image(self, spec: SandboxSpec) -> str:
+    @classmethod
+    def tag(cls, spec: SandboxSpec, harness: str) -> str:
+        """Tagged by the rendered content: a Dockerfile that names the harness gets one image per
+        harness, one that does not is shared by all of them."""
+        return f"hi/{spec.name}:{hashlib.sha256(cls.dockerfile(spec, harness).encode()).hexdigest()[:12]}"
+
+    async def image(self, spec: SandboxSpec, harness: str) -> str:
         """The image for this Dockerfile, built if this content has not been built before."""
-        tag = self.tag(spec)
+        tag = self.tag(spec, harness)
         async with self._locks.setdefault(tag, asyncio.Lock()):
             code, _ = await docker("image", "inspect", tag)
             if code == 0:
                 return tag
             with tempfile.TemporaryDirectory() as context:
-                code, log = await docker("build", "-t", tag, "-f", "-", context, stdin=spec.dockerfile.encode())
+                code, log = await docker("build", "-t", tag, "-f", "-", context, stdin=self.dockerfile(spec, harness).encode())
             self.build_log_dir.mkdir(parents=True, exist_ok=True)
             (self.build_log_dir / f"build-{spec.name}-{tag.rsplit(':', 1)[1]}.log").write_text(log)
             if code != 0:
@@ -213,8 +221,8 @@ class DockerSandbox:
     # run
     def run_argv(self, job: Job, image: str, runtime: str, names: DockerNames) -> list[str]:
         p = job.prepared
-        argv = ["docker", "run", "--rm", "-i", "--name", names.run, "--network", names.network, "--runtime", runtime,
-                *HARDENING,
+        argv = ["docker", "run", "--rm", "-i", "--name", names.run, "--hostname", job.harness,
+                "--network", names.network, "--runtime", runtime, *HARDENING,
                 "-v", f"{job.workspace}:{self.WORKSPACE}", "-v", f"{job.harness_dir}:{self.HARNESS}:ro", "-w", self.WORKSPACE,
                 "-e", f"HTTPS_PROXY=http://{names.door}:{DOOR_PORT}", "-e", f"HTTP_PROXY=http://{names.door}:{DOOR_PORT}"]
         for k in p.env:                              # names only: the values travel in the docker client's environment
@@ -230,7 +238,7 @@ class DockerSandbox:
                 "python3", "/door/egress.py", f"0.0.0.0:{DOOR_PORT}", *egress]
 
     async def start(self, job: Job) -> Process:
-        image, runtime, names = await self.image(job.spec), await self._runtime(job.spec), DockerNames.of(job.id)
+        image, runtime, names = await self.image(job.spec, job.harness), await self._runtime(job.spec), DockerNames.of(job.id)
         for step in (("network", "create", "--internal", names.network),
                      tuple(self.door_argv(names, job.egress)),
                      ("network", "connect", "bridge", names.door)):

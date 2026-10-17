@@ -16,6 +16,11 @@ runtime. `default` ships built in, cannot be changed or deleted, and is as close
 allows (see [The sandbox](#the-sandbox)). Add one when a harness needs more, a package index say,
 and name it on the harness.
 
+`{harness}` in a Dockerfile is replaced with the harness's name before the build. The default
+image uses it to name the unprivileged user, so inside the sandbox `whoami` is the harness, and
+every container's hostname is the harness's name too. A Dockerfile that uses `{harness}` gets one
+image per harness; one that does not is shared.
+
 ```json
 {"name": "python-dev", "dockerfile": "FROM python:3.12 ...", "egress": ["pypi.org"], "runtime": "auto"}
 ```
@@ -93,7 +98,7 @@ A Responses client sees a valid start and end and may ignore the middle; a clien
 CLI reads its events exactly as it printed them.
 
 A conversation is a chain of responses. `previous_response_id` reuses that response's workspace,
-with the files as the agent left them, and hands the CLI the session id it reported, so Claude
+with the files as the harness left them, and hands the CLI the session id it reported, so Claude
 Code is resumed with `--resume`, Codex with `exec resume`, dsh with `--session-id`. A response
 cannot continue one made on another harness.
 

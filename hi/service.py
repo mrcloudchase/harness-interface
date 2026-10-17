@@ -11,6 +11,7 @@ from .config import Settings
 from .models import Decision, Harness, Run, RunRequest, Session, Verdict
 from .registry import Registry
 from .router import make_judge, make_router
+from .router.jev import JevRouter
 from .runner import Execution, Runner, read_output
 from .storage import JsonStore, SecretStore
 from .workspace import Workspace
@@ -50,6 +51,18 @@ class RunService:
         session = Session(harness=harness.name, workspace="")
         session.workspace = str(self.settings.workspaces / session.id)
         return self.sessions.put(session.id, session), harness, decision
+
+    async def preview(self, request: RunRequest) -> dict:
+        """What the route would do with this request, without running it: the exact Jev request
+        body (None for a static route) and the decision."""
+        route = self.registry.route()
+        if not route:
+            raise LookupError("no route applied (PUT /route)")
+        router = make_router(route, self.secrets, self.settings.jev_base_url, self.settings.jev_secret_name)
+        cards = self.cards()
+        body = ({"model": route.model, "state": router.state(request), "questions": router.questions(cards)}
+                if isinstance(router, JevRouter) else None)
+        return {"engine": route.engine, "jev_request": body, "decision": (await router.choose(request, cards)).model_dump()}
 
     def _harness(self, name: str) -> Harness:
         h = self.registry.get(name)

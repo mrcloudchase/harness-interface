@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Harness Interface</title>
+<style>
+  :root { --bg:#fff; --fg:#1a1a1a; --mute:#6b6b6b; --line:#e3e3e3; --panel:#f6f6f6; --ok:#1f7a3a; --bad:#b4232c; --acc:#2456c9; --accbg:#e8eefc; --mono:ui-monospace,SFMono-Regular,Menlo,monospace; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#111; --fg:#e8e8e8; --mute:#9a9a9a; --line:#2a2a2a; --panel:#1a1a1a; --ok:#4fc27a; --bad:#ff6b73; --acc:#8ab0ff; --accbg:#1b2540; } }
+  * { box-sizing:border-box }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.45 system-ui,-apple-system,Segoe UI,sans-serif }
+  header { display:flex; gap:4px; align-items:center; padding:10px 16px; border-bottom:1px solid var(--line); flex-wrap:wrap }
+  header b { margin-right:12px }
+  header a { color:var(--fg); text-decoration:none; padding:6px 10px; border-radius:6px }
+  header a.on { background:var(--accbg); color:var(--acc) }
+  main { max-width:1100px; margin:0 auto; padding:16px }
+  h2 { font-size:18px; margin:4px 0 12px }
+  h3 { font-size:15px; margin:14px 0 6px }
+  .card { border:1px solid var(--line); border-radius:8px; padding:12px 14px; margin:10px 0; background:var(--panel) }
+  .row { display:flex; gap:12px; flex-wrap:wrap; align-items:center }
+  .grow { flex:1 1 320px }
+  label { display:block; font-size:13px; color:var(--mute); margin:8px 0 3px }
+  input, textarea, select { width:100%; padding:7px 9px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); font:inherit }
+  textarea { min-height:110px; font-family:var(--mono); font-size:13px }
+  textarea.tall { min-height:320px }
+  button { padding:7px 12px; border:1px solid var(--line); border-radius:6px; background:var(--bg); color:var(--fg); font:inherit; cursor:pointer }
+  button.primary { background:var(--acc); border-color:var(--acc); color:#fff }
+  button.danger { color:var(--bad) }
+  button:disabled { opacity:.5; cursor:default }
+  table { width:100%; border-collapse:collapse; font-size:14px }
+  th, td { text-align:left; padding:7px 8px; border-bottom:1px solid var(--line); vertical-align:top }
+  th { color:var(--mute); font-weight:500 }
+  tr.link { cursor:pointer } tr.link:hover { background:var(--panel) }
+  pre { background:var(--panel); border:1px solid var(--line); border-radius:8px; padding:10px; overflow:auto; font:12.5px/1.4 var(--mono); max-height:460px; white-space:pre-wrap; word-break:break-word }
+  .mute { color:var(--mute); font-size:13px }
+  .ok { color:var(--ok) } .bad { color:var(--bad) }
+  .pill { display:inline-block; padding:1px 8px; border-radius:999px; font-size:12px; border:1px solid var(--line) }
+  .bar { height:8px; background:var(--accbg); border-radius:4px; overflow:hidden; margin:3px 0 } .bar i { display:block; height:100%; background:var(--acc) }
+  .msg { padding:8px 10px; border-radius:6px; margin:8px 0 } .msg.bad { background:#fdeaea; color:#8a1c22 } .msg.ok { background:#e8f5ec; color:#1f5a30 }
+  @media (prefers-color-scheme: dark) { .msg.bad { background:#3a1a1c; color:#ffb3b8 } .msg.ok { background:#163122; color:#9ee5b6 } }
+  code { font-family:var(--mono); font-size:13px }
+</style>
+</head>
+<body>
+<header>
+  <b>Harness Interface</b>
+  <a href="#run">New run</a><a href="#runs">Runs</a><a href="#sessions">Sessions</a>
+  <a href="#harnesses">Harnesses</a><a href="#route">Route</a><a href="#secrets">Secrets</a>
+</header>
+<main id="main"></main>
+<script>
+// ── helpers ─────────────────────────────────────────────────────────────────────────────
+const $ = (sel, el=document) => el.querySelector(sel);
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const fmt = v => v == null ? "" : typeof v === "object" ? JSON.stringify(v) : String(v);
+const when = t => t ? new Date(t * 1000).toLocaleString() : "";
+async function api(method, path, body, raw=false) {
+  const opts = { method, headers: {} };
+  if (body !== undefined) { opts.headers["content-type"] = typeof body === "string" ? "text/plain" : "application/json"; opts.body = typeof body === "string" ? body : JSON.stringify(body); }
+  const r = await fetch(path, opts);
+  if (!r.ok) { let d; try { d = await r.json(); } catch { d = { detail: await r.text() }; } throw new Error(fmt(d.detail ?? d)); }
+  return raw ? r : r.json();
+}
+const main = $("#main");
+function note(kind, text) { const d = document.createElement("div"); d.className = "msg " + kind; d.textContent = text; main.prepend(d); setTimeout(() => d.remove(), 6000); }
+function verdictHtml(v) {
+  if (!v) return '<span class="pill">unjudged</span>';
+  const cls = v.success ? "ok" : "bad";
+  return `<span class="pill ${cls}">${v.success ? "success" : "failure"} by ${esc(v.by)}${v.score != null ? " " + v.score : ""}</span>`;
+}
+
+// ── views ───────────────────────────────────────────────────────────────────────────────
+const views = {};
+
+views.run = async (params) => {
+  const harnesses = await api("GET", "/harnesses");
+  main.innerHTML = `<h2>New run</h2>
+  <div class="card">
+    <label>Task</label><textarea id="task" placeholder="What should the harness do?"></textarea>
+    <label>Instructions <span class="mute">(written to the harness's instruction file)</span></label><textarea id="instr" style="min-height:60px"></textarea>
+    <div class="row">
+      <div class="grow"><label>Harness</label><select id="harness"><option value="">let the route decide</option>${harnesses.map(h => `<option>${esc(h.name)}</option>`).join("")}</select></div>
+      <div class="grow"><label>Continue session <span class="mute">(optional)</span></label><input id="session" placeholder="s_…" value="${esc(params.session || "")}"></div>
+      <div class="grow"><label>Model <span class="mute">(optional)</span></label><input id="model"></div>
+    </div>
+    <div class="row">
+      <div class="grow"><label>Files <span class="mute">(text files, written into the workspace)</span></label><input id="files" type="file" multiple></div>
+      <div class="grow"><label>Check <span class="mute">(shell command; exit 0 passes; otherwise the judge decides)</span></label><input id="check" placeholder="python3 -m unittest -q"></div>
+    </div>
+    <div class="row" style="margin-top:12px"><button class="primary" id="go">Run</button><button id="preview">Preview routing</button><span class="mute" id="status"></span></div>
+  </div>
+  <div id="out"></div>`;
+  async function body(stream) {
+    const files = [];
+    for (const f of $("#files").files) files.push({ name: f.name, content: await f.text() });
+    return { task: $("#task").value, instructions: $("#instr").value, harness: $("#harness").value || null,
+             session: $("#session").value || null, model: $("#model").value || null, check: $("#check").value || null, files, stream };
+  }
+  $("#preview").onclick = async () => {
+    try {
+      const d = await api("POST", "/route/preview", await body(false));
+      $("#out").innerHTML = `<h3>Preview</h3>${d.rejected ? `<div class="msg bad">rejected: ${esc(d.rejected)}</div>` : decisionHtml(d.decision)}
+        ${d.jev_request ? `<h3>What Jev was sent</h3><pre>${esc(JSON.stringify(d.jev_request, null, 2))}</pre>` : `<p class="mute">Static route: no Jev call.</p>`}`;
+    } catch (e) { note("bad", e.message); }
+  };
+  $("#go").onclick = async () => {
+    const b = await body(true);
+    if (!b.task.trim()) return note("bad", "task is empty");
+    $("#go").disabled = true; $("#status").textContent = "starting…";
+    $("#out").innerHTML = `<h3>Output</h3><pre id="stream"></pre>`;
+    try {
+      const r = await api("POST", "/runs", b, true);
+      const id = r.headers.get("x-run-id"), sid = r.headers.get("x-session-id"), h = r.headers.get("x-harness");
+      $("#status").innerHTML = `run <a href="#runs/${esc(id)}">${esc(id)}</a> · session ${esc(sid)} · harness ${esc(h)}`;
+      const reader = r.body.getReader(), dec = new TextDecoder(), pre = $("#stream");
+      for (;;) { const { value, done } = await reader.read(); if (done) break; pre.textContent += dec.decode(value, { stream: true }); pre.scrollTop = pre.scrollHeight; }
+      const run = await api("GET", `/runs/${id}`);
+      $("#out").insertAdjacentHTML("afterbegin", `<div class="card">${runSummaryHtml(run)}</div>`);
+    } catch (e) { note("bad", e.message); }
+    $("#go").disabled = false;
+  };
+};
+
+function decisionHtml(d) {
+  if (!d) return `<p class="mute">No routing decision: the session or the request pinned the harness.</p>`;
+  const probs = d.answers?.harness?.probabilities || {};
+  const bars = Object.entries(probs).sort((a, b) => b[1] - a[1]).map(([k, v]) =>
+    `<div><span>${esc(k)} <span class="mute">${(v * 100).toFixed(0)}%</span></span><div class="bar"><i style="width:${(v * 100).toFixed(0)}%"></i></div></div>`).join("");
+  const others = Object.entries(d.answers || {}).filter(([k]) => k !== "harness").map(([k, v]) => `<code>${esc(k)}</code> ${esc(fmt(v))}`).join(" · ");
+  return `<div class="card"><b>${esc(d.harness)}</b> <span class="mute">${esc(d.reason)}${d.confidence != null ? ` · confidence ${d.confidence}` : ""}${d.runner_up ? ` · runner-up ${esc(d.runner_up)}` : ""}</span>
+    ${bars ? `<div style="margin-top:8px">${bars}</div>` : ""}${others ? `<p class="mute">${others}</p>` : ""}</div>`;
+}
+
+function runSummaryHtml(r) {
+  const cost = r.output?.cost_usd;
+  return `<div class="row"><b><a href="#runs/${esc(r.id)}">${esc(r.id)}</a></b><span class="pill">${esc(r.harness)}</span><span class="pill ${r.status === "ok" ? "ok" : "bad"}">${esc(r.status)}</span>${verdictHtml(r.verdict)}
+    <span class="mute">${r.latency_s != null ? r.latency_s + "s" : ""}${cost != null ? " · $" + Number(cost).toFixed(4) : ""}</span></div>
+    ${r.files?.length ? `<p class="mute">files: ${r.files.map(f => `<a href="/runs/${esc(r.id)}/files/${esc(f)}" target="_blank">${esc(f)}</a>`).join(", ")}</p>` : ""}`;
+}
+
+views.runs = async (params) => {
+  if (params.id) return runDetail(params.id);
+  const runs = (await api("GET", "/runs")).sort((a, b) => b.started_at - a.started_at);
+  main.innerHTML = `<h2>Runs</h2><table><tr><th>When</th><th>Task</th><th>Harness</th><th>Status</th><th>Verdict</th><th>Time</th><th>Cost</th></tr>
+    ${runs.map(r => `<tr class="link" onclick="location.hash='#runs/${esc(r.id)}'"><td>${esc(when(r.started_at))}</td><td>${esc(r.request.task.slice(0, 70))}</td><td>${esc(r.harness)}</td>
+      <td class="${r.status === "ok" ? "ok" : "bad"}">${esc(r.status)}</td><td>${verdictHtml(r.verdict)}</td><td>${r.latency_s ?? ""}</td><td>${r.output?.cost_usd != null ? "$" + Number(r.output.cost_usd).toFixed(4) : ""}</td></tr>`).join("")}
+  </table>${runs.length ? "" : '<p class="mute">No runs yet.</p>'}`;
+};
+
+async function runDetail(id) {
+  const r = await api("GET", `/runs/${id}`);
+  const [output, log] = await Promise.all([fetch(`/runs/${id}/output`).then(x => x.ok ? x.text() : ""), fetch(`/runs/${id}/log`).then(x => x.ok ? x.text() : "")]);
+  main.innerHTML = `<h2>Run ${esc(r.id)}</h2>
+    <div class="card">${runSummaryHtml(r)}<p><b>Task:</b> ${esc(r.request.task)}</p>${r.request.instructions ? `<p class="mute"><b>Instructions:</b> ${esc(r.request.instructions)}</p>` : ""}
+      <p class="mute">session <a href="#sessions">${esc(r.session)}</a> · ${esc(when(r.started_at))} · exit ${r.exit_code ?? ""}</p>
+      <div class="row"><button onclick="location.hash='#run?session=${esc(r.session)}'">Continue this session</button></div></div>
+    <h3>Routing decision</h3>${decisionHtml(r.decision)}
+    <h3>Verdict</h3><div class="card">${verdictHtml(r.verdict)} ${r.verdict?.note ? `<span class="mute">${esc(r.verdict.note)}</span>` : ""}
+      ${r.verdict?.answers && Object.keys(r.verdict.answers).length ? `<pre>${esc(JSON.stringify(r.verdict.answers, null, 2))}</pre>` : ""}
+      ${r.check ? `<p class="mute">check <code>${esc(r.check.cmd)}</code> exit ${esc(r.check.exit)}</p><pre>${esc(r.check.output)}</pre>` : ""}
+      <div class="row"><input id="note" class="grow" placeholder="note (optional)"><button id="pass">Mark pass</button><button id="fail" class="danger">Mark fail</button></div></div>
+    ${r.output?.answer ? `<h3>Answer</h3><pre>${esc(r.output.answer)}</pre>` : ""}
+    <h3>Usage</h3><pre>${esc(JSON.stringify(r.usage, null, 2))}</pre>
+    <h3>Output <span class="mute">(the harness's stdout, as streamed)</span></h3><pre>${esc(output)}</pre>
+    <h3>Log <span class="mute">(stderr)</span></h3><pre>${esc(log || "(empty)")}</pre>`;
+  for (const [btn, success] of [["#pass", true], ["#fail", false]])
+    $(btn).onclick = async () => { try { await api("PATCH", `/runs/${id}`, { success, note: $("#note").value }); note("ok", "verdict recorded"); runDetail(id); } catch (e) { note("bad", e.message); } };
+}
+
+views.sessions = async () => {
+  const [sessions, runs] = await Promise.all([api("GET", "/sessions"), api("GET", "/runs")]);
+  sessions.sort((a, b) => b.created_at - a.created_at);
+  main.innerHTML = `<h2>Sessions</h2>` + sessions.map(s => {
+    const mine = runs.filter(r => r.session === s.id).sort((a, b) => a.started_at - b.started_at);
+    return `<div class="card"><div class="row"><b>${esc(s.id)}</b><span class="pill">${esc(s.harness)}</span><span class="mute">${esc(when(s.created_at))}${s.session_id ? " · resume " + esc(s.session_id) : ""}</span>
+      <button onclick="location.hash='#run?session=${esc(s.id)}'">Continue</button></div>
+      ${mine.map(r => `<div style="margin-top:6px">${runSummaryHtml(r)}<span class="mute">${esc(r.request.task.slice(0, 90))}</span></div>`).join("")}</div>`;
+  }).join("") + (sessions.length ? "" : '<p class="mute">No sessions yet.</p>');
+};
+
+views.harnesses = async () => {
+  const cards = await api("GET", "/cards");
+  const full = await api("GET", "/harnesses");
+  main.innerHTML = `<h2>Harnesses</h2>` + cards.map(c => { const h = full.find(x => x.name === c.name) || {};
+    return `<div class="card"><div class="row"><b>${esc(c.name)}</b><span class="pill">v${h.version}</span><span class="pill ${h.check_ok ? "ok" : "bad"}">check ${h.check_ok ? "ok" : "failed"}</span>
+      <span class="mute">${(c.labels || []).join(", ")}</span><button class="danger" onclick="delHarness('${esc(c.name)}')">Delete</button></div>
+      <p>${esc(c.description)}</p><p class="mute">${esc(c.evidence)}</p>
+      <details><summary class="mute">resource</summary><pre>${esc(JSON.stringify(h, null, 2))}</pre></details></div>`; }).join("")
+    + `<h3>Apply a harness</h3><div class="card"><label>harness.yaml <span class="mute">(paste, or choose the file; the YAML's folder is its harness_dir only when applied with the CLI, so set <code>dir</code> here)</span></label>
+       <input type="file" id="yfile" accept=".yaml,.yml"><textarea id="yaml" class="tall" placeholder="kind: Harness\nname: …"></textarea>
+       <div class="row" style="margin-top:8px"><button class="primary" id="apply">Apply</button></div></div>`;
+  $("#yfile").onchange = async e => { $("#yaml").value = await e.target.files[0].text(); };
+  $("#apply").onclick = async () => { try { const spec = parseYaml($("#yaml").value); await api("PUT", `/harnesses/${spec.name}`, spec); note("ok", `applied ${spec.name}`); views.harnesses(); } catch (e) { note("bad", e.message); } };
+};
+window.delHarness = async name => { if (!confirm(`Delete harness ${name}?`)) return; try { await api("DELETE", `/harnesses/${name}`); views.harnesses(); } catch (e) { note("bad", e.message); } };
+
+views.route = async () => {
+  let route = null; try { route = await api("GET", "/route"); } catch {}
+  main.innerHTML = `<h2>Route</h2>${route ? `<p class="mute">engine <b>${esc(route.engine)}</b> · v${route.version} · default <b>${esc(route.default)}</b>${route.judge ? " · judge on" : " · no judge"}</p>` : '<p class="mute">No route applied.</p>'}
+    <div class="card"><label>Route <span class="mute">(JSON or YAML; applied as a new version)</span></label>
+      <textarea id="rjson" class="tall">${esc(route ? JSON.stringify(stripMeta(route), null, 2) : '{\n  "kind": "Route",\n  "engine": "static",\n  "default": ""\n}')}</textarea>
+      <div class="row" style="margin-top:8px"><button class="primary" id="apply">Apply</button></div></div>
+    <h3>Preview a decision</h3><div class="card"><label>Sample task</label><textarea id="ptask" style="min-height:60px"></textarea>
+      <div class="row" style="margin-top:8px"><button id="prev">Preview</button></div><div id="pout"></div></div>`;
+  $("#apply").onclick = async () => { try { await api("PUT", "/route", parseYaml($("#rjson").value)); note("ok", "route applied"); views.route(); } catch (e) { note("bad", e.message); } };
+  $("#prev").onclick = async () => { try { const d = await api("POST", "/route/preview", { task: $("#ptask").value });
+    $("#pout").innerHTML = (d.rejected ? `<div class="msg bad">rejected: ${esc(d.rejected)}</div>` : decisionHtml(d.decision)) + (d.jev_request ? `<h3>What Jev was sent</h3><pre>${esc(JSON.stringify(d.jev_request, null, 2))}</pre>` : "");
+  } catch (e) { note("bad", e.message); } };
+};
+const stripMeta = o => Object.fromEntries(Object.entries(o).filter(([k]) => !["version", "applied_at", "check_ok", "check_output"].includes(k)));
+
+views.secrets = async () => {
+  const names = await api("GET", "/secrets");
+  main.innerHTML = `<h2>Secrets</h2><div class="card">${names.length ? names.map(n => `<div><code>${esc(n)}</code></div>`).join("") : '<p class="mute">None stored. The server\'s own environment is the fallback.</p>'}</div>
+    <h3>Store a secret</h3><div class="card"><div class="row"><div class="grow"><label>Name</label><input id="sname" placeholder="ANTHROPIC_API_KEY"></div><div class="grow"><label>Value</label><input id="sval" type="password"></div></div>
+    <div class="row" style="margin-top:8px"><button class="primary" id="put">Store</button><span class="mute">shown never again</span></div></div>`;
+  $("#put").onclick = async () => { try { await api("PUT", `/secrets/${$("#sname").value.trim()}`, $("#sval").value); note("ok", "stored"); views.secrets(); } catch (e) { note("bad", e.message); } };
+};
+
+// A deliberately small YAML reader: JSON first, then the subset the resources use (maps, lists,
+// folded `>` text, inline [a, b] lists and {a: b} maps, # comments). Anything fancier: paste JSON.
+function parseYaml(text) {
+  text = text.trim();
+  if (text.startsWith("{")) return JSON.parse(text);
+  const lines = text.split("\n").filter(l => !/^\s*#/.test(l) && l.trim() !== "");
+  let i = 0;
+  const indentOf = l => l.match(/^ */)[0].length;
+  function scalar(v) {
+    v = v.trim();
+    if (v === "" ) return "";
+    if (/^(true|false)$/.test(v)) return v === "true";
+    if (v === "null" || v === "~") return null;
+    if (/^-?\d+(\.\d+)?$/.test(v)) return Number(v);
+    if (v.startsWith("[")) return v.slice(1, -1).split(",").map(s => s.trim()).filter(Boolean).map(scalar);
+    if (v.startsWith("{")) { const o = {}; v.slice(1, -1).split(",").forEach(p => { const [k, ...r] = p.split(":"); if (k.trim()) o[k.trim()] = scalar(r.join(":")); }); return o; }
+    if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) return v.slice(1, -1);
+    return v.replace(/\s+#.*$/, "");
+  }
+  function block(indent) {
+    const isList = lines[i] && lines[i].trim().startsWith("- ");
+    const out = isList ? [] : {};
+    while (i < lines.length && indentOf(lines[i]) === indent) {
+      const line = lines[i].trim();
+      if (isList) { i++; out.push(scalar(line.slice(2))); continue; }
+      const m = line.match(/^([^:]+):\s*(.*)$/); if (!m) throw new Error("bad line: " + line);
+      const key = m[1].trim(); let val = m[2]; i++;
+      if (val === ">" || val === "|") { const parts = []; while (i < lines.length && indentOf(lines[i]) > indent) parts.push(lines[i].trim()), i++; out[key] = parts.join(val === ">" ? " " : "\n"); }
+      else if (val === "") out[key] = (i < lines.length && indentOf(lines[i]) > indent) ? block(indentOf(lines[i])) : null;
+      else out[key] = scalar(val);
+    }
+    return out;
+  }
+  return block(indentOf(lines[0]));
+}
+
+// ── hash router ─────────────────────────────────────────────────────────────────────────
+function route() {
+  const h = location.hash.slice(1) || "run";
+  const [path, q] = h.split("?"); const [name, id] = path.split("/");
+  const params = Object.fromEntries(new URLSearchParams(q || "")); if (id) params.id = id;
+  document.querySelectorAll("header a").forEach(a => a.classList.toggle("on", a.getAttribute("href") === "#" + name));
+  (views[name] || views.run)(params).catch(e => { main.innerHTML = `<div class="msg bad">${esc(e.message)}</div>`; });
+}
+addEventListener("hashchange", route); route();
+</script>
+</body>
+</html>

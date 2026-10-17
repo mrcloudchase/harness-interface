@@ -116,3 +116,14 @@ def test_judge_spec_rejects_unknown_reference():
     import pytest
     with pytest.raises(ValueError):
         JudgeSpec(questions={"a": {"type": "noul", "instructions": "?"}}, success_when="b.probability > 0.5")
+
+
+def test_ui_and_preview(client, echo):
+    assert client.get("/ui").status_code == 200 and "<title>" in client.get("/ui").text
+    assert client.get("/", follow_redirects=False).status_code in (302, 307)
+    before = len(client.get("/runs").json())
+    r = client.post("/route/preview", json={"task": "anything"})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["engine"] == "static" and d["jev_request"] is None and d["decision"]["harness"] == "echo"
+    assert len(client.get("/runs").json()) == before            # a preview never runs anything

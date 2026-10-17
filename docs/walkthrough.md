@@ -177,3 +177,12 @@ harness, a fresh routing decision. Attach files again if the new task needs them
 over between sessions.
 
 That is the whole loop: apply resources, send tasks, read records, continue or start fresh.
+
+## The same loop in a browser
+
+Everything above is also at `http://127.0.0.1:8000/ui`. **New run** has the form and streams the
+output live. **Runs** lists every run and opens into the decision as bars, the verdict with pass and
+fail buttons, the answer, usage, output and log, and a "continue this session" button. **Sessions**
+groups runs by session. **Harnesses** shows the cards with their evidence and applies a pasted YAML.
+**Route** edits the route and previews a decision for a sample task, showing the exact Jev request.
+**Secrets** stores values by name.

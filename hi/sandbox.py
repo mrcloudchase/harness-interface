@@ -24,7 +24,7 @@ DOOR_IMAGE = "python:3.12-alpine"
 DOOR_PORT = 3128
 UID = 1000                                           # the sandbox user every image creates; it owns the workspace
 HARDENING = ["--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only",
-             "--tmpfs", "/tmp:rw,size=512m", "--pids-limit", "512", "--memory", "4g"]
+             "--tmpfs", "/tmp:rw,exec,nosuid,nodev,size=512m", "--pids-limit", "512", "--memory", "4g"]
 
 
 @dataclass(frozen=True)

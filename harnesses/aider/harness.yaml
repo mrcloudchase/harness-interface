@@ -8,5 +8,7 @@ provider: anthropic
 run:
   env:
     HOME: "{workspace}/.home"   # .aider* history files and caches live here, so --restore-chat-history works later
+    LITELLM_LOCAL_MODEL_COST_MAP: "True"   # use the bundled price map; the sandbox reaches only the provider
+    AIDER_CHECK_UPDATE: "false"
   stdout: text/plain
   timeout_s: 900

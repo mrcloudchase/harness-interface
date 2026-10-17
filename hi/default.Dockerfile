@@ -45,7 +45,8 @@ RUN found() { p="$(command -v "$1" || find "$HOME" -name "$1" -type f -perm -u+x
  && for b in goose kimi grok jcode; do "$b" --version >/dev/null 2>&1 || { echo "$b does not run"; exit 1; }; done
 
 # Last, on its own layer, so every harness's image shares the layers above and differs only here.
-RUN useradd --create-home --uid 1000 --user-group {harness}
+# The node image already has a `node` user at uid 1000; it makes way for the harness's.
+RUN userdel -r node 2>/dev/null; useradd --create-home --uid 1000 --user-group {harness}
 USER {harness}
 ENV HOME=/workspace/.home
 WORKDIR /workspace

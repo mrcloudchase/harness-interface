@@ -1,14 +1,13 @@
-"""Per-harness evidence for the router: the harness's recent runs, exactly as recorded. No rates,
-no medians, nothing normalized. Each line is what the harness itself reported, and Jev reads the
-lines the way a person would read a log. A card carries a track record, not a summary of one."""
+"""Per-harness evidence from the run log: how often it succeeded, how fast, what it used and what
+it cost. The usage figures are medians of whatever keys the harness itself reports, under the
+harness's own names; nothing is renamed or converted between harnesses. The sentence is appended
+to the harness's description when Jev chooses, so the options compare track records, each in its
+own units, and Jev does the comparing."""
 from __future__ import annotations
 
-import json
+from statistics import median
 
 from .models import Run, Verdict
-
-RECENT = 10          # lines per card: enough history to read, small enough for one Jev state
-TASK_CHARS = 80
 
 
 def label(run: Run) -> Verdict | None:
@@ -20,39 +19,65 @@ def label(run: Run) -> Verdict | None:
     return None
 
 
-def history(runs: list[Run], harness: str, limit: int = RECENT) -> list[dict]:
-    """The newest `limit` finished runs of one harness, as recorded."""
-    mine = sorted((r for r in runs if r.harness == harness and r.status != "running"),
-                  key=lambda r: r.started_at, reverse=True)[:limit]
-    out = []
-    for r in mine:
-        v = label(r)
-        out.append({
-            "task": r.request.task[:TASK_CHARS],
-            "status": r.status,
-            "verdict": ({"success": v.success, "by": v.by, **({"score": v.score} if v.score is not None else {})}
-                        if v else None),
-            "latency_s": r.latency_s,
-            "usage": r.usage,
-            "cost_usd": r.output.get("cost_usd"),
-        })
+def summarize(runs: list[Run]) -> dict[str, dict]:
+    by: dict[str, list[Run]] = {}
+    for r in runs:
+        if r.status != "running":
+            by.setdefault(r.harness, []).append(r)
+    out = {}
+    for name, rs in by.items():
+        verdicts = [v for v in (label(r) for r in rs) if v is not None]
+        successes = sum(1 for v in verdicts if v.success)
+        latencies = [r.latency_s for r in rs if r.latency_s is not None]
+        out[name] = {
+            "runs": len(rs),
+            "judged": len(verdicts),
+            "success_rate": round(successes / len(verdicts), 3) if verdicts else None,
+            "median_latency_s": round(median(latencies), 1) if latencies else None,
+            "median_usage": _median_usage(rs),
+            "median_cost_usd": _median_cost(rs),
+        }
     return out
 
 
-def sentence(lines: list[dict]) -> str:
-    """The history as text for an option's description. Every field as the harness gave it."""
-    if not lines:
-        return "History: no runs yet."
-    rows = []
-    for h in lines:
-        v = h["verdict"]
-        verdict = ("success" if v["success"] else "failure") + f" by {v['by']}" + (f" {v['score']}" if "score" in v else "") if v else "unjudged"
-        bits = [f"task {json.dumps(h['task'])}", f"status {h['status']}", verdict]
-        if h["latency_s"] is not None:
-            bits.append(f"{h['latency_s']}s")
-        if h["cost_usd"] is not None:
-            bits.append(f"cost {h['cost_usd']}")
-        if h["usage"]:
-            bits.append("usage " + json.dumps(h["usage"], separators=(",", ":")))
-        rows.append("; ".join(bits))
-    return "History (newest first): " + " | ".join(rows)
+def _numbers(d: dict, prefix: str = "") -> dict[str, float]:
+    """Every numeric field in a usage object, nested ones joined with dots, names as the harness gave them."""
+    out: dict[str, float] = {}
+    for k, v in d.items():
+        key = f"{prefix}{k}"
+        if isinstance(v, bool):
+            continue
+        if isinstance(v, (int, float)):
+            out[key] = float(v)
+        elif isinstance(v, dict):
+            out.update(_numbers(v, key + "."))
+    return out
+
+
+def _median_usage(rs: list[Run]) -> dict[str, float]:
+    cols: dict[str, list[float]] = {}
+    for r in rs:
+        for k, v in _numbers(r.usage or {}).items():
+            cols.setdefault(k, []).append(v)
+    return {k: round(median(v), 1) for k, v in cols.items()}
+
+
+def _median_cost(rs: list[Run]) -> float | None:
+    costs = [float(r.output["cost_usd"]) for r in rs
+             if isinstance(r.output.get("cost_usd"), (int, float)) and not isinstance(r.output.get("cost_usd"), bool)]
+    return round(median(costs), 4) if costs else None
+
+
+def sentence(stats: dict | None) -> str:
+    if not stats or not stats.get("runs"):
+        return "Evidence: no runs yet."
+    parts = [f"{stats['runs']} runs"]
+    if stats.get("judged"):
+        parts.append(f"{int(stats['success_rate'] * 100)}% successful of {stats['judged']} judged")
+    if stats.get("median_latency_s") is not None:
+        parts.append(f"median {stats['median_latency_s']}s")
+    parts.append(f"median cost ${stats['median_cost_usd']}" if stats.get("median_cost_usd") is not None
+                 else "no cost reported")
+    if stats.get("median_usage"):
+        parts.append("median usage " + ", ".join(f"{k} {v:g}" for k, v in stats["median_usage"].items()))
+    return "Evidence: " + ", ".join(parts) + "."

@@ -121,11 +121,13 @@ order of precedence:
 
 A person can replace any of them with `PATCH /runs/{id}` or `hi verdict <run> pass|fail --note "..."`.
 
-Verdicts are what the router learns from. `GET /cards` shows each harness's description with its
-recent runs exactly as recorded: the task, the status, the verdict, the latency, and the usage and
-cost in whatever form that harness reported them. Nothing is averaged or normalized. When a Jev
-route lists harnesses with `criteria: from_registry`, each option is the description plus that
-history, and Jev compares the harnesses' own numbers the way a person reading two logs would.
+Verdicts are what the router learns from. `GET /cards` shows each harness's description with an
+evidence sentence built from its runs: how many, what share succeeded of those judged, median
+latency, median cost where the harness reports one, and the median of every usage figure it
+reports, under the harness's own names. Nothing is renamed or converted between harnesses:
+Claude Code's `cache_read_input_tokens` and Codex's `cached_input_tokens` sit side by side as
+they are. When a Jev route lists harnesses with `criteria: from_registry`, each option is the
+description plus that sentence, and Jev compares the track records itself.
 
 ## API
 

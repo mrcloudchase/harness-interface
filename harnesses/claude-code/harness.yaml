@@ -1,12 +1,9 @@
 kind: Harness
 name: claude-code
 description: >
-  Anthropic's Claude Code CLI, headless, running Claude Sonnet by default. A general agent
-  with a shell: it reads and writes files, runs any command, fetches web pages, and works in
-  steps until the task is done. Suited to anything: writing and summarizing documents,
-  answering questions that need a lookup, building and debugging code across many files,
-  running tests. Strong on careful multi-step work and instruction following. Reports its own
-  cost per run. Mid cost, mid latency.
+  Claude Code (Anthropic Claude Sonnet). Shell, files, web fetch. Best at careful multi-step
+  work, large or unfamiliar codebases, debugging, precise writing. Weakest on cost for big
+  jobs. Reports cost per run. Mid cost.
 labels: [general, shell, files, web, coding, writing]
 models: [claude-sonnet-5-5, claude-opus-5-5, claude-haiku-5-5]
 secrets: [ANTHROPIC_API_KEY]

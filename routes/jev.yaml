@@ -13,9 +13,8 @@ questions:
   harness:
     type: choice
     instructions: >
-      Which registered harness should run this task? Weigh fit to the kind of work (a question,
-      writing, research, code), the track record in each option's evidence, and cost: for a task
-      that any of them can do, prefer the cheaper one.
+      Which registered harness should run this task? Weigh fit to the kind of work and each
+      option's track record. The task's cost matters only when fit is equal.
     criteria: from_registry
   risky:
     type: noul
@@ -34,19 +33,16 @@ decide:
   - then: use default
 default: claude-code
 
-# A run that carries no `check` is judged: Jev reads the task, the instructions, the harness's
-# answer and the produced files. The verdict is the label each harness's evidence is built from.
+# A run that carries no `check` is judged on delivery: did the harness produce what was asked.
+# Jev reads the task, the instructions, the harness's answer and the produced files. It cannot
+# run code or verify facts, so correctness is the job of a `check` or a person's verdict.
 judge:
   model: jev-latest
   questions:
-    success:
+    completed:
       type: noul
       instructions: >
-        Did the output accomplish the task as asked, completely and correctly? Judge against the
-        task and instructions only: a summary must be faithful and the right length, an answer
-        must be specific and current, code must do what was asked and be runnable.
-    quality:
-      type: score
-      instructions: How good is the output for this task?
-      criteria: [unusable, partly done, done with flaws, done well]
-  success_when: success.probability >= 0.7
+        Was the task completed? Judge delivery against what was asked: the requested file,
+        answer or change exists, matches the instructions (length, format, scope), and the
+        harness reports it finished without error. Do not guess at facts or run anything.
+  success_when: completed.probability >= 0.5

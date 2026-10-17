@@ -1,5 +1,6 @@
 # The routing decision, authored in Jev's own question types (choice / noul / score).
-# `criteria: from_registry` turns every registered harness into an option, described by its card.
+# `criteria: from_registry` turns every registered harness into an option, described by its card:
+# the description from its YAML plus the evidence sentence built from its runs.
 kind: Route
 engine: jev
 model: jev-latest
@@ -11,32 +12,39 @@ state:
 questions:
   harness:
     type: choice
-    instructions: Which registered harness should run this task?
+    instructions: >
+      Which registered harness should run this task? Weigh fit to the kind of work (a question,
+      writing, research, code), the track record in each option's evidence, and cost: for a task
+      that any of them can do, prefer the cheaper one.
     criteria: from_registry
   risky:
     type: noul
-    instructions: Could this task change or delete anything outside its own workspace (deploy, delete, send, pay)?
+    instructions: >
+      Could carrying out this task change or delete anything outside its own workspace, spend
+      money, send messages, or otherwise act on the world (deploy, delete, send, pay)?
   size:
     type: score
     instructions: How much work is this task?
-    criteria: [a one-line change, one file, several files, a whole project]
+    criteria: [a quick answer or lookup, a short piece of work, a multi-step job, a whole project]
 decide:
   - when: risky.probability > 0.8
     then: reject needs a person before an agent acts
-  - when: harness.confidence >= 0.6
+  - when: harness.confidence >= 0.5
     then: use harness.choice
   - then: use default
 default: claude-code
 
 # A run that carries no `check` is judged: Jev reads the task, the instructions, the harness's
-# answer and the produced files. The verdict is the label the evidence sentence on each harness's
-# card is built from, so routing improves from judged history.
+# answer and the produced files. The verdict is the label each harness's evidence is built from.
 judge:
   model: jev-latest
   questions:
     success:
       type: noul
-      instructions: Did the output accomplish the task as asked, completely and correctly?
+      instructions: >
+        Did the output accomplish the task as asked, completely and correctly? Judge against the
+        task and instructions only: a summary must be faithful and the right length, an answer
+        must be specific and current, code must do what was asked and be runnable.
     quality:
       type: score
       instructions: How good is the output for this task?

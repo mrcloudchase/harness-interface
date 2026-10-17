@@ -1,9 +1,12 @@
 kind: Harness
 name: codex
 description: >
-  OpenAI's Codex CLI, headless. A coding agent that edits files and runs commands in the
-  workspace. Best for OpenAI models and GPT-family reasoning on code. Low to mid cost.
-labels: [coding, shell, files, tests]
+  OpenAI's Codex CLI, headless, running GPT-family models. A general agent with a shell: it
+  reads and writes files and runs commands in the workspace, and can fetch the web through the
+  shell. Suited to coding and automation tasks and to document work that happens in files.
+  Prefers to work through commands rather than conversation. Does not report cost, only
+  tokens. Low to mid cost, mid latency.
+labels: [general, shell, files, web, coding, writing]
 models: [gpt-5.3-codex, gpt-5.2-codex]
 secrets: [OPENAI_API_KEY]
 files:

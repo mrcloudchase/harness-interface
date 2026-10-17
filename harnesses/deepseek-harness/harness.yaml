@@ -1,11 +1,12 @@
 kind: Harness
 name: deepseek-harness
 description: >
-  DeepSeek Harness (dsh), headless. A coding agent with read, edit and shell tools that works
-  in the workspace and iterates until the task is done. DeepSeek models only. Low cost;
-  latency comparable to the other coding agents. Good for routine code changes and questions
-  about a codebase.
-labels: [coding, shell, files, tests]
+  DeepSeek Harness (dsh), headless, running DeepSeek models. A general agent with read, edit
+  and shell tools: it works in the workspace step by step and can reach the web through the
+  shell. Suited to routine coding changes, questions about a codebase, and short writing or
+  summarizing tasks. Cheapest of the three per token. Does not report cost, only tokens. Low
+  cost, mid latency.
+labels: [general, shell, files, web, coding, writing]
 models: [deepseek-chat, deepseek-reasoner]
 secrets: [DEEPSEEK_API_KEY]
 files:

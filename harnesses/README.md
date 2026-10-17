@@ -58,8 +58,11 @@ what is 17 × 23", and on the same conversation, "what word did I ask you to rem
 | qwen-code | deepseek-openai | yes | both turns |
 | zeroclaw | deepseek-openai | yes | both turns, in its own `zeroclaw` sandbox |
 
-All run in the built-in `default` sandbox, which has every CLI above installed at the version it
-was tested with, except ZeroClaw, which is built from source in `sandboxes/zeroclaw.yaml`.
+All run in the built-in `default` sandbox, which has every CLI above installed, except ZeroClaw,
+which is built from source in `sandboxes/zeroclaw.yaml`. The npm and PyPI CLIs are pinned to the
+version each was tested with. Goose, Kimi, Grok and JCode come from their vendors' own install
+scripts, which fetch the latest release, so a later build can bring a newer version than the
+one tested.
 
 ## Notes worth knowing
 

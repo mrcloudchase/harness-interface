@@ -8,7 +8,7 @@
 FROM node:22-bookworm-slim
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends git python3 python3-pip python3-venv ca-certificates curl \
+ && apt-get install -y --no-install-recommends git python3 python3-pip python3-venv ca-certificates curl bzip2 xz-utils unzip \
  && rm -rf /var/lib/apt/lists/* \
  && curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 
@@ -29,16 +29,20 @@ RUN for t in "aider-chat==0.86.2" "hermes-agent[anthropic]==0.19.0" "openhands==
  && pip3 install --no-cache-dir --break-system-packages anthropic \
  && chmod -R a+rX /opt/uv
 
-# CLIs with their own installers, moved out of root's home so every user can run them
-RUN curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh \
+# CLIs with their own installers. Each lands somewhere under root's home; `found` stops the build
+# if one is not where its installer said, and the binary is moved to where every user can run it.
+RUN found() { p="$(command -v "$1" || find "$HOME" -name "$1" -type f -perm -u+x | head -1)" && [ -n "$p" ] && readlink -f "$p"; } \
+ && export PATH="$HOME/.local/bin:$HOME/.grok/bin:$PATH" \
+ && curl -fsSL https://github.com/aaif-goose/goose/releases/download/stable/download_cli.sh \
       | CONFIGURE=false GOOSE_BIN_DIR=/usr/local/bin bash \
- && curl -fsSL https://code.kimi.com/kimi-code/install.sh | env KIMI_INSTALL_DIR=/usr/local bash \
+ && curl -fsSL https://code.kimi.com/kimi-code/install.sh | bash \
+ && k="$(found kimi)" && install -m755 "$k" /usr/local/bin/kimi \
  && curl -fsSL https://x.ai/cli/install.sh | bash \
- && install -m755 "$(readlink -f "$(command -v grok)")" /usr/local/bin/grok \
+ && g="$(found grok)" && install -m755 "$g" /usr/local/bin/grok \
  && curl -fsSL https://jcode.sh/install | bash \
- && cp -r "$(dirname "$(readlink -f "$(command -v jcode)")")" /opt/jcode \
- && ln -sf /opt/jcode/jcode /usr/local/bin/jcode \
- && chmod -R a+rX /opt/jcode /usr/local/kimi-code
+ && j="$(found jcode)" && cp -r "$(dirname "$j")" /opt/jcode && ln -sf /opt/jcode/jcode /usr/local/bin/jcode \
+ && chmod -R a+rX /opt/jcode \
+ && for b in goose kimi grok jcode; do "$b" --version >/dev/null 2>&1 || { echo "$b does not run"; exit 1; }; done
 
 # Last, on its own layer, so every harness's image shares the layers above and differs only here.
 RUN useradd --create-home --uid 1000 --user-group {harness}

@@ -23,7 +23,8 @@ RUN npm install -g \
 # CLIs published on PyPI, each in its own environment, on PATH for every user
 ENV UV_TOOL_DIR=/opt/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_DIR=/opt/uv/python
 RUN for t in "aider-chat==0.86.2" "hermes-agent[anthropic]==0.19.0" "openhands==1.16.0" \
-             "nanobot-ai==0.3.5" "opensquilla==0.5.6" "cheetahclaws==3.5.89"; do \
+             "nanobot-ai==0.3.5" "cheetahclaws==3.5.89" \
+             "opensquilla[recommended] @ https://github.com/TokenRhythm/opensquilla/releases/download/v0.5.6/opensquilla-0.5.6-py3-none-any.whl"; do \
       uv tool install --python 3.12 "$t" || exit 1; done \
  && pip3 install --no-cache-dir --break-system-packages anthropic \
  && chmod -R a+rX /opt/uv

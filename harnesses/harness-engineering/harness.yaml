@@ -1,0 +1,18 @@
+kind: Harness
+name: harness-engineering
+description: >
+  The harness from the harness-engineering course (Claude Sonnet through the Anthropic SDK). One
+  shell tool with an order of operations for acting on a computer, compaction when context fills.
+  Best at small, concrete tasks done through the shell: fix a bug, run tests, answer from files.
+  Weakest on long jobs: no session resume. Reports no usage. Mid cost.
+labels: [general, shell, files, coding]
+models: [claude-sonnet-5-5]
+secrets: [ANTHROPIC_API_KEY]
+run:
+  argv: [bash, "{harness_dir}/run.sh"]
+  env:
+    HARNESS_ENGINEERING: /home/user/harness-engineering   # your checkout; harness.py lives here
+    HOME: "{workspace}/.home"
+  stdout: text/plain
+  timeout_s: 900
+check: [uv, --version]

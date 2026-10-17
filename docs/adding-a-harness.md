@@ -29,18 +29,18 @@ quirk goes in `run.sh` or `env:`, never in the server.
 
 ## The answers, side by side
 
-| # | claude-code | codex | deepseek-harness |
-|---|---|---|---|
-| 1 | `claude -p "<task>"` | `codex exec "<task>"` | `dsh --profile headless "<task>"` |
-| 2 | `--dangerously-skip-permissions` | `--dangerously-bypass-approvals-and-sandbox --skip-git-repo-check` | none needed in headless |
-| 3 | `--output-format stream-json --verbose`: `system`, `assistant`, `user`, `result` | `--json`: `thread.started`, `item.completed`, `turn.completed`, `turn.failed` | `--json`: `session`, `status`, `text`, `tool_call`, `tool_result`, `final` |
-| 4 | `ANTHROPIC_API_KEY` env | `codex login --with-api-key` reading stdin, writes `$CODEX_HOME/auth.json` | `DEEPSEEK_API_KEY` env |
-| 5 | `--model` | `-m` | fixed by the profile; `HI_MODEL` unused |
-| 6 | `$HOME/.claude/projects/*.jsonl` | `$CODEX_HOME/sessions/` | `$HOME/.dsh/sessions/` |
-| 7 | `--resume <id>`; id in `system/init` `session_id` | `exec resume --last`; id in `thread.started` `thread_id` | `--session-id <id>`; id in `session` `sessionId` |
-| 8 | `AGENTS.md` (also reads `CLAUDE.md`) | `AGENTS.md` | `AGENTS.md` |
-| 9 | `result`: `usage`, `is_error`, `total_cost_usd` | `turn.completed`: `usage`; `turn.failed` means fail | `status` `step_end`: `usage` per step, summed; `status` `turn_end` `reason.kind` |
-| quirks | `IS_SANDBOX=1` as root | `mkdir -p "$CODEX_HOME"` first | `DSH_TELEMETRY_DISABLED=1` |
+| # | claude-code | codex | deepseek-harness | harness-engineering |
+|---|---|---|---|---|
+| 1 | `claude -p "<task>"` | `codex exec "<task>"` | `dsh --profile headless "<task>"` | `uv run harness.py "<task>"` |
+| 2 | `--dangerously-skip-permissions` | `--dangerously-bypass-approvals-and-sandbox --skip-git-repo-check` | none needed in headless | none; it never asks |
+| 3 | `--output-format stream-json --verbose`: `system`, `assistant`, `user`, `result` | `--json`: `thread.started`, `item.completed`, `turn.completed`, `turn.failed` | `--json`: `session`, `status`, `text`, `tool_call`, `tool_result`, `final` | text: `>` words, `$` commands, `└` results |
+| 4 | `ANTHROPIC_API_KEY` env | `codex login --with-api-key` reading stdin, writes `$CODEX_HOME/auth.json` | `DEEPSEEK_API_KEY` env | `ANTHROPIC_API_KEY` env |
+| 5 | `--model` | `-m` | fixed by the profile; `HI_MODEL` unused | fixed in the file; `HI_MODEL` unused |
+| 6 | `$HOME/.claude/projects/*.jsonl` | `$CODEX_HOME/sessions/` | `$HOME/.dsh/sessions/` | none for a one-off request |
+| 7 | `--resume <id>`; id in `system/init` `session_id` | `exec resume --last`; id in `thread.started` `thread_id` | `--session-id <id>`; id in `session` `sessionId` | none; a follow-up keeps the files only |
+| 8 | `AGENTS.md` (also reads `CLAUDE.md`) | `AGENTS.md` | `AGENTS.md` | none; `run.sh` prepends instructions to the task |
+| 9 | `result`: `usage`, `is_error`, `total_cost_usd` | `turn.completed`: `usage`; `turn.failed` means fail | `status` `step_end`: `usage` per step, summed; `status` `turn_end` `reason.kind` | exit code; the last `>` block is the answer; no usage |
+| quirks | `IS_SANDBOX=1` as root | `mkdir -p "$CODEX_HOME"` first | `DSH_TELEMETRY_DISABLED=1` | needs `uv`; first run builds its env |
 
 ## Where each answer goes
 
@@ -119,8 +119,14 @@ Any of the fields may be left out. Without `answer` the judge reads the tail of 
 `session_id` a follow-up starts the CLI fresh in the same workspace, with the files but not the
 conversation. Without `usage` the run has no cost.
 
-A CLI with no JSON mode at all gets a two-line `run.sh` and no `report.py`: stdout is text, the
-exit code is the status, and the resource's `stdout:` says `text/plain`.
+A CLI with no JSON mode at all gets a short `run.sh` and, at most, a `report.py` that picks the
+answer out of the text. `harnesses/harness-engineering/` is that case: the course's own
+`harness.py`, run as `uv run harness.py "<task>"`. It prints its words after `>`, commands after
+`$` and results under `└`, so the resource says `stdout: text/plain`, its reporter takes the last
+`>` block as the answer, the exit code is the status, and there is no session id or usage to
+report. It has no instruction file either, so `run.sh` prepends the request's instructions to the
+task. The resource points at your checkout through an env var in its YAML, `HARNESS_ENGINEERING`,
+instead of copying the code.
 
 ## Prove it
 

@@ -12,6 +12,8 @@ POST /runs {"task": "..."}  ──►  router picks a harness  ──►  spawn 
                                    (pinned, static, or Jev)      in a workspace          unchanged
 ```
 
+New here? Read [docs/walkthrough.md](docs/walkthrough.md) first.
+
 ## Quick start
 
 ```bash

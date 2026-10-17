@@ -29,6 +29,10 @@ hi run "Fix the failing test" --file prices.py --file test_prices.py --check "py
 
 `hi run` streams the harness's own output to stdout and prints the run record to stderr.
 
+Prefer a browser? The server serves a UI at `http://127.0.0.1:8000/ui`: new runs with live output,
+runs and sessions, verdict overrides, harness and route editing, secrets, and a routing preview that
+shows exactly what Jev would be sent for a task. It is one static page over the same API.
+
 ## The process contract
 
 The server starts your `run.argv` in the session's workspace with:
@@ -136,6 +140,8 @@ description plus that sentence, and Jev compares the track records itself.
 | PUT | `/harnesses/{name}` | apply a Harness (validates, runs `check`, bumps version) |
 | GET / DELETE | `/harnesses[/{name}]` | list, read, remove |
 | PUT / GET | `/route` | apply or read the Route |
+| POST | `/route/preview` | dry run: the decision for a request and the Jev request body, without running |
+| GET | `/ui` | the browser UI (`/` redirects here) |
 | PUT / GET | `/secrets[/{name}]` | store a value (body), list names |
 | POST | `/runs` | run a task; streams the body, or `{"stream": false}` for JSON |
 | GET | `/runs`, `/runs/{id}`, `/runs/{id}/output`, `/runs/{id}/log`, `/runs/{id}/files/{path}` | records, the harness's stdout, its stderr, produced files |
@@ -161,7 +167,8 @@ hi/
   models.py     the schemas: what you author, and what the server stamps on it
   template.py   {a.b.c} placeholders
   storage.py    JSON files and secrets; swap for a database here
-  cli.py        hi serve | apply | secret | run | get
+  cli.py        hi serve | apply | secret | run | verdict | get
+  ui/index.html the browser UI: one static page over the API, no build step
 harnesses/      resources: one folder each (claude-code, codex, deepseek-harness, echo)
 routes/         static.yaml and jev.yaml
 tests/          unit tests, and the whole path through the echo harness

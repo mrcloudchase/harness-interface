@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 
 from .config import Settings
 from .models import Harness, HarnessSpec, Route, RouteSpec, Run, RunRequest, Session, VerdictIn
@@ -43,6 +43,17 @@ def create_app(c: Container | None = None) -> FastAPI:
     def not_found(what: str):
         raise HTTPException(404, what)
 
+    # ui: one static page over the same API
+    ui_page = __import__("pathlib").Path(__file__).parent / "ui" / "index.html"
+
+    @app.get("/", include_in_schema=False)
+    def root():
+        return RedirectResponse("/ui")
+
+    @app.get("/ui", include_in_schema=False)
+    def ui():
+        return FileResponse(ui_page, media_type="text/html")
+
     # harnesses
     @app.put("/harnesses/{name}")
     def apply_harness(name: str, spec: HarnessSpec) -> Harness:
@@ -78,6 +89,16 @@ def create_app(c: Container | None = None) -> FastAPI:
     @app.get("/route")
     def get_route() -> Route:
         return c.registry.route() or not_found("no route applied")
+
+    @app.post("/route/preview")
+    async def preview_route(request: RunRequest) -> dict:
+        """Dry run: what the route would decide for this request, and the Jev request it would send."""
+        try:
+            return await c.service.preview(request)
+        except Rejected as e:
+            return {"rejected": str(e)}
+        except LookupError as e:
+            raise HTTPException(400, str(e))
 
     # secrets
     @app.put("/secrets/{name}")

@@ -1,5 +1,5 @@
-"""`{a.b.c}` placeholders over a context dict. The one templating mechanism, used for argv, env,
-files and route state. Lists and dicts render as JSON; None renders as empty."""
+"""`{a.b}` placeholders over a context dict: the one templating mechanism, for argv, env and
+files. Lists and dicts render as JSON; None renders as empty."""
 from __future__ import annotations
 
 import json
@@ -18,8 +18,6 @@ def lookup(path: str, ctx: dict[str, Any]) -> Any:
     for part in path.split("."):
         if isinstance(cur, dict) and part in cur:
             cur = cur[part]
-        elif hasattr(cur, part):
-            cur = getattr(cur, part)
         else:
             raise TemplateError(path)
     return cur

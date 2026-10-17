@@ -1,10 +1,8 @@
-"""A session's directory: files go in, the harness works, git tells us what changed."""
+"""A conversation's directory: files go in, the harness works, git tells us what changed."""
 from __future__ import annotations
 
 import subprocess
 from pathlib import Path
-
-from .models import FileIn
 
 INTERNAL = (".hi/", ".home/", ".git/", "__pycache__/")   # server and CLI state, and build noise: never "produced"
 
@@ -16,15 +14,12 @@ class Workspace:
     def _git(self, *args: str) -> subprocess.CompletedProcess:
         return subprocess.run(["git", *args], cwd=self.path, capture_output=True, text=True)
 
-    def init(self, files: list[FileIn]) -> None:
+    def init(self) -> None:
         self.path.mkdir(parents=True, exist_ok=True)
         (self.path / ".hi").mkdir(exist_ok=True)
-        for f in files:
-            self.write(f.name, f.content)
         if not (self.path / ".git").exists():
             self._git("init", "-q")
             (self.path / ".gitignore").write_text("".join(f"{d}\n" for d in INTERNAL))
-        self.commit("start")
 
     def write(self, rel: str, content: str) -> None:
         p = self.resolve(rel)
@@ -38,9 +33,9 @@ class Workspace:
         return p
 
     def changed(self) -> list[str]:
-        out = self._git("status", "--porcelain", "-uall").stdout
+        """Paths added or modified since the last commit, the harness's own state excluded."""
         paths = []
-        for line in out.splitlines():
+        for line in self._git("status", "--porcelain", "-uall").stdout.splitlines():
             rel = line[3:].strip().strip('"')
             if " -> " in rel:
                 rel = rel.split(" -> ", 1)[1]

@@ -1,19 +1,13 @@
-kind: Harness
 name: deepseek-harness
 description: >
-  DeepSeek Harness (DeepSeek). Read, edit, shell, web through the shell. Best at routine code
-  edits, summaries, lookups, anything small. Weakest on hard multi-file projects. Reports
-  tokens, not cost. Lowest cost.
-labels: [general, shell, files, web, coding, writing]
-models: [deepseek-chat, deepseek-reasoner]
-secrets: [DEEPSEEK_API_KEY]
+  DeepSeek Harness (dsh), headless. Read, edit, shell. Speaks the OpenAI chat shape through
+  DEEPSEEK_BASE_URL, so its provider is DeepSeek or any OpenAI-compatible endpoint.
+provider: deepseek
 files:
-  AGENTS.md: "{request.instructions}"
+  AGENTS.md: "{instructions}"
 run:
-  argv: [bash, "{harness_dir}/run.sh"]
   env:
     HOME: "{workspace}/.home"   # dsh keeps profiles and sessions under $HOME/.dsh, so resume works later
     DSH_TELEMETRY_DISABLED: "1"
   stdout: application/x-ndjson
   timeout_s: 900
-check: [dsh, --version]

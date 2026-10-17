@@ -1,4 +1,0 @@
-# Before a Jev key exists: every unpinned request goes to one harness.
-kind: Route
-engine: static
-default: claude-code

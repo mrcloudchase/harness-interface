@@ -1,6 +1,6 @@
-"""Pass dsh's NDJSON through untouched; write session id, summed usage and status to HI_OUTPUT.
-`session` carries sessionId; each `status` step_end carries that step's usage; `status` turn_end
-carries the reason; `final` is the answer."""
+"""Pass dsh's NDJSON through untouched; write session id, summed usage, status and the answer to
+HI_OUTPUT. `session` carries sessionId; each `status` step_end carries that step's usage; `status`
+turn_end carries the reason; `final` is the answer."""
 import json
 import os
 import sys

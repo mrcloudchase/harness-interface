@@ -1,7 +1,7 @@
-"""The resource schemas (what people author) and the records (what the server stamps on them).
+"""The three resources you manage, the request, and the record the server writes.
 
-Authored:  HarnessSpec, RouteSpec, RunRequest.
-Stamped:   Harness, Route, Session, Run, Decision.
+Resources:  Provider, Sandbox, Harness.
+Wire:       ResponseRequest in, Response out (OpenAI's Responses shape, plus one `harness` key).
 """
 from __future__ import annotations
 
@@ -11,168 +11,150 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
-
-def new_id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:12]}"
+NAME = r"^[a-z0-9][a-z0-9-]*$"
 
 
-# ── Harness: a command, and how the request reaches it ──────────────────────────────────────────
+# ── resources ───────────────────────────────────────────────────────────────────────────────────
+class Provider(BaseModel):
+    """Where model calls go and what unlocks them. The harness decides which variables want them."""
+    name: str = Field(pattern=NAME)
+    url: str
+    key: str
+
+    @property
+    def host(self) -> str:
+        from urllib.parse import urlsplit
+        u = urlsplit(self.url)
+        return f"{u.hostname}:{u.port or (443 if u.scheme == 'https' else 80)}"
+
+
+class Sandbox(BaseModel):
+    """A Dockerfile, the hosts a run may reach besides its provider, and the container runtime."""
+    name: str = Field(pattern=NAME)
+    dockerfile: str
+    egress: list[str] = []                           # host or host:port; the provider's host is always allowed
+    runtime: Literal["auto", "runsc", "runc"] = "auto"   # auto: gVisor when the host has it
+
+
 class RunSpec(BaseModel):
-    argv: list[str]                                  # templated; see hi/template.py for the context
-    env: dict[str, str] = {}                         # templated; overlaid on the server's environment
-    stdout: str = "application/x-ndjson"             # content type the response body is forwarded as
+    argv: list[str] = ["bash", "{harness_dir}/run.sh"]
+    env: dict[str, str] = {}                         # templated; on top of the contract variables
+    stdout: str = "application/x-ndjson"             # what the harness prints; kept as its output
     timeout_s: int = 900
 
 
-class HarnessSpec(BaseModel):
-    kind: Literal["Harness"] = "Harness"
-    name: str = Field(pattern=r"^[a-z0-9][a-z0-9-]*$")
-    description: str                                 # the routing prompt: what Jev reads to choose this
-    labels: list[str] = []
-    models: list[str] = []
-    secrets: list[str] = []                          # env names injected from the secret store
+class Harness(BaseModel):
+    """Everything needed to run one CLI: its scripts, its command, the files it wants in the
+    workspace, and by name the provider it calls and the sandbox it runs in."""
+    name: str = Field(pattern=NAME)
+    description: str = ""
+    provider: str
+    sandbox: str = "default"
     files: dict[str, str] = {}                       # path -> templated content, written before the run
-    run: RunSpec
-    check: list[str] | None = None                   # readiness probe run at apply time
-    dir: str | None = None                           # where the spec came from; {harness_dir} in templates
+    run: RunSpec = RunSpec()
+    scripts: dict[str, str] = {}                     # filename -> content, mounted at {harness_dir}
 
 
-class Harness(HarnessSpec):
-    version: int = 1
-    check_ok: bool | None = None
-    check_output: str = ""
-    applied_at: float = Field(default_factory=time.time)
-
-    def card(self) -> dict[str, Any]:
-        """What the router sees: enough to choose, nothing about how to run."""
-        return {"name": self.name, "description": self.description,
-                "labels": self.labels, "models": self.models}
+# ── the request: OpenAI's Responses shape ───────────────────────────────────────────────────────
+class InputText(BaseModel):
+    type: Literal["input_text"]
+    text: str
 
 
-# ── Route: the decision, authored in Jev's own question types ───────────────────────────────────
-class Question(BaseModel):
-    type: Literal["choice", "noul", "score"]
-    instructions: str
-    # choice: {option: description} or "from_registry"; score: ordered level descriptions; noul: none
-    criteria: dict[str, str] | list[str] | Literal["from_registry"] | None = None
-
-    @model_validator(mode="after")
-    def _shape(self) -> "Question":
-        if self.type == "choice" and not (isinstance(self.criteria, dict) or self.criteria == "from_registry"):
-            raise ValueError("a choice needs criteria: {option: description} or 'from_registry'")
-        if self.type == "score" and not isinstance(self.criteria, list):
-            raise ValueError("a score needs criteria: an ordered list of level descriptions")
-        return self
+class InputFile(BaseModel):
+    type: Literal["input_file"]
+    filename: str
+    file_data: str                                   # the file's text
 
 
-class Rule(BaseModel):
-    when: str | None = None                          # "<answer.path> <op> <value>"; None = always
-    then: str                                        # "use <harness>" | "use <answer.path>" | "reject <message>"
-
-
-class JudgeSpec(BaseModel):
-    """How a run with no `check` gets its verdict: Jev reads the task and the output and answers
-    these questions; `success_when` over the answers decides."""
-    model: str = "jev-latest"
-    questions: dict[str, Question]
-    success_when: str                                # "<answer.path> <op> <value>"
-
-    @model_validator(mode="after")
-    def _refs(self) -> "JudgeSpec":
-        root = self.success_when.split()[0].split(".")[0]
-        if root not in self.questions:
-            raise ValueError(f"success_when refers to unknown question '{root}'")
-        return self
-
-
-class RouteSpec(BaseModel):
-    kind: Literal["Route"] = "Route"
-    engine: Literal["static", "jev"] = "static"
-    model: str = "jev-latest"
-    state: dict[str, str] = {}                       # templated; what Jev is shown
-    questions: dict[str, Question] = {}
-    decide: list[Rule] = []
-    default: str                                     # the harness when nothing else decides
-    judge: JudgeSpec | None = None                   # labels runs that carry no check
-
-    @model_validator(mode="after")
-    def _refs(self) -> "RouteSpec":
-        for r in self.decide:
-            for expr in (r.when, r.then if "." in r.then else None):
-                if expr:
-                    root = expr.split()[-1 if expr is r.then else 0].split(".")[0]
-                    if root not in self.questions:
-                        raise ValueError(f"rule refers to unknown question '{root}'")
-        return self
-
-
-class Route(RouteSpec):
-    version: int = 1
-    applied_at: float = Field(default_factory=time.time)
-
-
-# ── Request and what the server records about it ────────────────────────────────────────────────
-class FileIn(BaseModel):
-    name: str
-    content: str
-
-
-class RunRequest(BaseModel):
-    task: str
+class ResponseRequest(BaseModel):
+    model: str                                       # "<harness>" or "<harness>/<model>"
+    input: str | list[InputText | InputFile]
     instructions: str = ""
-    model: str | None = None
-    harness: str | None = None                       # pin; skips the router
-    session: str | None = None                       # continue; harness is the session's
-    files: list[FileIn] = []
-    check: str | None = None                         # shell command run in the workspace afterwards
-    stream: bool = True
+    previous_response_id: str | None = None
+    stream: bool = False
+    metadata: dict[str, Any] = {}
+
+    @property
+    def harness(self) -> str:
+        return self.model.partition("/")[0]
+
+    @property
+    def model_name(self) -> str:
+        return self.model.partition("/")[2]
+
+    @property
+    def task(self) -> str:
+        if isinstance(self.input, str):
+            return self.input
+        return "\n".join(i.text for i in self.input if isinstance(i, InputText))
+
+    @property
+    def files(self) -> dict[str, str]:
+        if isinstance(self.input, str):
+            return {}
+        return {i.filename: i.file_data for i in self.input if isinstance(i, InputFile)}
+
+    @model_validator(mode="after")
+    def _some_task(self) -> "ResponseRequest":
+        if not self.task.strip():
+            raise ValueError("input carries no text")
+        return self
 
 
-class Decision(BaseModel):
-    harness: str
-    confidence: float | None = None
-    runner_up: str | None = None
-    reason: str
-    answers: dict[str, Any] = {}
+# ── the record ──────────────────────────────────────────────────────────────────────────────────
+Status = Literal["in_progress", "completed", "failed", "incomplete", "cancelled"]
 
 
-class Verdict(BaseModel):
-    """The one label on a run: did it accomplish the task. From the check, from the judge, or from
-    a person. Later verdicts replace earlier ones; `by` says which."""
-    success: bool
-    by: Literal["check", "jev", "human", "status"]
-    score: float | None = None                       # the judge's probability, when it gave one
-    note: str = ""
-    answers: dict[str, Any] = {}
-    at: float = Field(default_factory=time.time)
-
-
-class VerdictIn(BaseModel):
-    success: bool
-    note: str = ""
-
-
-class Session(BaseModel):
-    id: str = Field(default_factory=lambda: new_id("s"))
-    harness: str
-    session_id: str | None = None                    # the harness's own resume handle
+class HarnessInfo(BaseModel):
+    """What the Responses shape has no field for."""
+    name: str
+    provider: str
+    sandbox: str
+    runtime: str
+    image: str | None = None
     workspace: str
-    created_at: float = Field(default_factory=time.time)
-
-
-class Run(BaseModel):
-    id: str = Field(default_factory=lambda: new_id("r"))
-    session: str
-    harness: str
-    request: RunRequest
-    decision: Decision | None = None
-    status: Literal["running", "ok", "fail", "timeout", "cancelled"] = "running"
+    session_id: str | None = None                    # the harness's own resume handle
     exit_code: int | None = None
-    output: dict[str, Any] = {}                      # what the harness wrote to HI_OUTPUT
-    usage: dict[str, Any] | None = None
-    files: list[str] = []
-    check: dict[str, Any] | None = None
-    verdict: Verdict | None = None
-    started_at: float = Field(default_factory=time.time)
-    ended_at: float | None = None
     latency_s: float | None = None
+    cost_usd: float | None = None
+    files: list[str] = []
+
+
+class Response(BaseModel):
+    id: str = Field(default_factory=lambda: f"resp_{uuid.uuid4().hex[:16]}")
+    object: Literal["response"] = "response"
+    created_at: float = Field(default_factory=time.time)
+    status: Status = "in_progress"
+    model: str
+    instructions: str = ""
+    input: str | list[InputText | InputFile]
+    previous_response_id: str | None = None
+    output: list[dict[str, Any]] = []
+    usage: dict[str, Any] | None = None
+    error: dict[str, str] | None = None
+    incomplete_details: dict[str, str] | None = None
+    metadata: dict[str, Any] = {}
+    harness: HarnessInfo
+
+    def finish(self, status: str, exit_code: int, output: dict[str, Any], files: list[str]) -> None:
+        """Fold what the harness reported into the record. `status` is the run's: ok, fail,
+        timeout or cancelled."""
+        self.harness.exit_code, self.harness.files = exit_code, files
+        self.harness.latency_s = round(time.time() - self.created_at, 3)
+        self.harness.session_id = str(output["session_id"]) if output.get("session_id") else self.harness.session_id
+        cost = output.get("cost_usd")
+        self.harness.cost_usd = float(cost) if isinstance(cost, (int, float)) and not isinstance(cost, bool) else None
+        self.usage = output.get("usage") if isinstance(output.get("usage"), dict) else None
+        answer = output.get("answer")
+        self.output = ([{"type": "message", "role": "assistant", "status": "completed",
+                         "content": [{"type": "output_text", "text": str(answer), "annotations": []}]}]
+                       if isinstance(answer, str) and answer.strip() else [])
+        if status == "ok":
+            self.status = "completed"
+        elif status == "timeout":
+            self.status, self.incomplete_details = "incomplete", {"reason": "timeout"}
+        elif status == "cancelled":
+            self.status = "cancelled"
+        else:
+            self.status, self.error = "failed", {"code": "harness_failed", "message": f"harness status {status}, exit {exit_code}"}

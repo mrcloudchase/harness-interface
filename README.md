@@ -1,198 +1,193 @@
 # harness-interface
 
-Register harnesses as resources. Route requests to them. Pass the response through.
-
-A harness here is any program you can start from a shell: Claude Code, Codex, pi, Hermes, a
-script of your own. You describe it in a YAML resource, the server runs it under one fixed process
-contract, and the bytes it prints are the response. The server has no code for any particular
-harness. Adding one adds a folder, never a server change.
+Providers, sandboxes and harnesses are resources you manage over an API. A harness is any CLI
+you can run from a shell. You call it through the OpenAI Responses wire format, it runs in a
+sandbox, its own output streams back, and the server keeps the record. The server has no code
+for any particular harness, provider or sandbox: adding one is a PUT.
 
 ```
-POST /runs {"task": "..."}  ──►  router picks a harness  ──►  spawn its command  ──►  stdout streams back
-                                   (pinned, static, or Jev)      in a workspace          unchanged
+PUT /providers/deepseek      {url, key}                 where model calls go
+PUT /sandboxes/python-dev    {dockerfile, egress}       where a harness runs   (a locked-down `default` is built in)
+PUT /harnesses/claude-code   {provider, sandbox, run, scripts}   how one CLI is run and reported on
+POST /responses              {model: "claude-code/deepseek-chat", input: "..."}   ──►  the CLI's output, then the record
 ```
-
-New here? Read [docs/walkthrough.md](docs/walkthrough.md) first, then [docs/adding-a-harness.md](docs/adding-a-harness.md).
 
 ## Quick start
 
 ```bash
-uv pip install -e .            # or: pip install -e .
-hi serve                       # http://127.0.0.1:8000, data in ./data
+pip install -e .
+hi serve                       # http://127.0.0.1:8000, state under ./data; needs Docker and git
 
 # in another shell
-hi secret ANTHROPIC_API_KEY    # reads $ANTHROPIC_API_KEY, or paste on stdin
-hi apply harnesses/*/harness.yaml routes/static.yaml
-hi run "What files are in this folder? Answer in one line." --harness claude-code
-hi run "Fix the failing test" --file prices.py --file test_prices.py --check "python -m unittest -q"
+curl -X PUT localhost:8000/providers/deepseek -H 'content-type: application/json' \
+  -d '{"name":"deepseek","url":"https://api.deepseek.com/anthropic","key":"sk-..."}'
+curl -X PUT localhost:8000/harnesses/claude-code -H 'content-type: application/json' \
+  -d "$(hi pack harnesses/claude-code | sed 's/"provider": "anthropic"/"provider": "deepseek"/')"
+curl -N localhost:8000/responses -H 'content-type: application/json' \
+  -d '{"model":"claude-code/deepseek-chat","input":"What files are here? One line.","stream":true}'
 ```
 
-`hi run` streams the harness's own output to stdout and prints the run record to stderr.
+`hi pack <folder>` prints a harness folder (its `harness.yaml` plus every script beside it) as the
+JSON the PUT takes. `hi serve --runtime local` runs harnesses on the host instead of in Docker,
+for development and tests: no isolation and no egress rule, and every record says `runtime: local`.
 
-Prefer a browser? The server serves a UI at `http://127.0.0.1:8000/ui`: new runs with live output,
-runs and sessions, verdict overrides, harness and route editing, secrets, and a routing preview that
-shows exactly what Jev would be sent for a task. It is one static page over the same API.
+## The three resources
+
+**Provider**: where calls go and the key that unlocks them. The server never interprets either; the
+harness decides which variables want them.
+
+```json
+{"name": "deepseek", "url": "https://api.deepseek.com/anthropic", "key": "sk-..."}
+```
+
+**Sandbox**: a Dockerfile, the hosts a run may reach besides its provider, and the container
+runtime. `default` ships built in, cannot be changed or deleted, and is as closed as Docker
+allows (below). Add one when a harness needs more, a package index say, and name it on the harness.
+
+```json
+{"name": "python-dev", "dockerfile": "FROM python:3.12 ...", "egress": ["pypi.org"], "runtime": "auto"}
+```
+
+**Harness**: everything needed to run one CLI, with its scripts inline, and by name the provider it
+calls and the sandbox it runs in.
+
+```yaml
+name: claude-code
+provider: anthropic          # any provider; the run script maps its url and key onto the CLI's variables
+sandbox: default
+files:
+  AGENTS.md: "{instructions}"           # written into the workspace before the run
+run:
+  argv: [bash, "{harness_dir}/run.sh"]
+  env: { HOME: "{workspace}/.home" }    # on top of the contract variables
+  stdout: application/x-ndjson          # what the CLI prints; kept as the response's output
+  timeout_s: 900
+# scripts: {run.sh: ..., report.py: ...}  — `hi pack` adds the folder's files
+```
+
+Templates in `argv`, `env` and `files` take `{task}`, `{instructions}`, `{model}`,
+`{session_id}`, `{workspace}`, `{harness_dir}`, `{provider_url}` and `{provider_key}`.
+
+The keys never come back out: `GET /providers` returns names and urls only.
 
 ## The process contract
 
-The server starts your `run.argv` in the session's workspace with:
+Inside the sandbox the harness's command gets:
 
 | Input | Where |
 |---|---|
-| the whole request as JSON | stdin, and the file at `HI_REQUEST` |
-| `HI_TASK`, `HI_MODEL`, `HI_SESSION_ID` | env (session id is the harness's own resume handle from the last run, or empty) |
+| the request as JSON | stdin, and the file at `HI_REQUEST` |
+| `HI_TASK`, `HI_MODEL`, `HI_SESSION_ID` | env; the session id is the harness's own resume handle from the previous response, or empty |
+| `HI_PROVIDER_URL`, `HI_PROVIDER_KEY` | env; the harness's provider |
 | `HI_WORKSPACE`, `HI_HARNESS_DIR`, `HI_OUTPUT` | env |
-| the secrets the resource names | env, by name |
-| `files:` from the resource | written into the workspace, templated |
+| the harness's `files:` and the request's input files | in the workspace |
 
-And takes back:
+And gives back:
 
 | Output | Where |
 |---|---|
-| response body | stdout, forwarded byte for byte with the resource's `run.stdout` content type |
-| log | stderr, kept at `GET /runs/{id}/log` |
-| `status`, `session_id`, `usage` | optional JSON written to `HI_OUTPUT` |
+| the response body | stdout, kept byte for byte at `GET /responses/{id}/output` |
+| the log | stderr, at `GET /responses/{id}/log` |
+| `status`, `session_id`, `usage`, `answer`, `cost_usd` | optional JSON written to `HI_OUTPUT` |
 | produced files | whatever changed in the workspace, by git diff |
-| status when no `HI_OUTPUT` | exit code zero is `ok` |
 
-That is the whole interface. Anything a CLI emits that you want reshaped, reshape inside your own
-command. See `harnesses/claude-code/report.py` for the pattern: pass lines through, write the
-three fields the server reads.
+That is the whole interface between the server and a harness. Pointing Claude Code at DeepSeek
+is two lines in its run script, `ANTHROPIC_BASE_URL` from `HI_PROVIDER_URL` and the key, and
+nothing in the server. See `harnesses/` for Claude Code, Codex, DeepSeek Harness, the
+harness-engineering course's harness, and an echo harness the tests use.
 
-## A harness resource
+## Calling a harness
 
-```yaml
-kind: Harness
-name: claude-code
-description: >            # the routing prompt: what Jev reads when choosing this harness
-  Anthropic's Claude Code CLI, headless. ...
-labels: [coding, shell]
-models: [claude-sonnet-5-5]
-secrets: [ANTHROPIC_API_KEY]
-files:
-  AGENTS.md: "{request.instructions}"
-run:
-  argv: [bash, "{harness_dir}/run.sh"]
-  env: { HOME: "{workspace}/.home" }
-  stdout: application/x-ndjson
-  timeout_s: 900
-check: [claude, --version]   # readiness probe, run at apply time
-```
+`POST /responses` takes the Responses request shape:
 
-Templates take `{request.*}`, `{workspace}`, `{harness_dir}` and `{session.*}`.
-`hi apply` sets `{harness_dir}` to the YAML's folder, so a resource is a folder you can version.
+| Field | Here |
+|---|---|
+| `model` | the harness name, or `harness/model` to pass a model through as `HI_MODEL` |
+| `input` | the task: a string, or `input_text` and `input_file` items; a file is written into the workspace |
+| `instructions` | available to the harness's `files:` as `{instructions}` |
+| `previous_response_id` | continue that conversation: its workspace, its harness, its resume handle |
+| `stream` | server-sent events, else one JSON object |
+| `metadata` | stored as given |
 
-## The route resource
+The record is a Response object: `id`, `status` (`completed`, `failed`, `incomplete` on timeout,
+`cancelled`), `model`, `output` holding one assistant message with the harness's reported answer,
+`usage` as the harness reported it, `previous_response_id`, `metadata`, and one extension key,
+`harness`: name, provider, sandbox, runtime, image, workspace, session id, exit code, latency,
+cost, produced files.
 
-A request that names no `harness` and no `session` is routed. The decision is authored in Jev's
-own question types; the server resolves `from_registry`, renders `state`, makes one call, and
-walks `decide` top to bottom.
+Streamed, it is SSE in the Responses framing: `response.created` first, one `harness.output`
+event per line of the CLI's own stdout as it arrives, `response.completed` with the record last.
+A Responses client sees a valid start and end and may ignore the middle; a client that knows the
+CLI reads its events exactly as it printed them.
 
-```yaml
-kind: Route
-engine: jev                  # or static
-model: jev-latest
-state:
-  task: "{request.task}"
-questions:
-  harness: {type: choice, instructions: Which registered harness should run this task?, criteria: from_registry}
-  risky:   {type: noul,   instructions: Could this task change anything outside its workspace?}
-  size:    {type: score,  instructions: How much work is this?, criteria: [one line, one file, several files, a project]}
-decide:
-  - when: risky.probability > 0.8
-    then: reject needs a person
-  - when: harness.confidence >= 0.6
-    then: use harness.choice
-  - then: use default
-default: claude-code
-```
+A conversation is a chain of responses. `previous_response_id` reuses that response's workspace,
+with the files as the agent left them, and hands the CLI the session id it reported, so Claude
+Code is resumed with `--resume`, Codex with `exec resume`, dsh with `--session-id`. A response
+cannot continue one made on another harness.
 
-Answers are flattened for the rules: a choice gives `choice`, `confidence`, `runner_up`; a noul
-gives `probability`; a score gives `score`, `level`, `confidence`. The `jev` engine needs the
-`TYPESAFE_API_KEY` secret. Routing happens once, when a session is created; a follow-up with
-`session` always runs on the harness that started it.
+## Endpoints
 
-## Verdicts and evidence
+| Method | Path |
+|---|---|
+| PUT / GET / DELETE | `/providers/{name}`, `/sandboxes/{name}`, `/harnesses/{name}` |
+| GET | `/providers`, `/sandboxes`, `/harnesses` |
+| POST | `/responses` |
+| GET | `/responses`, `/responses/{id}`, `/responses/{id}/output`, `/responses/{id}/log`, `/responses/{id}/files/{path}` |
+| POST | `/responses/{id}/cancel` |
 
-Every finished run gets one label, its `verdict`: did it accomplish the task. Three sources, in
-order of precedence:
+## The sandbox
 
-1. **check** (`by: check`): the request's `check` command passed or failed.
-2. **status** (`by: status`): the harness itself failed, timed out or was cancelled.
-3. **judge** (`by: jev`): no check was given, so the route's `judge` asked Jev. It reads the task, the
-   instructions, the harness's `answer` (reported through `HI_OUTPUT`, else the tail of its stdout)
-   and the produced files, and `success_when` over its answers decides. `routes/jev.yaml` ships one.
+Every response is one `docker run` of the image built from its sandbox's Dockerfile: the
+workspace mounted at `/workspace`, the harness's scripts at `/harness` read-only, the request on
+stdin, the contract variables and the harness's env inside. The image is built the first time a
+Dockerfile with that content is seen and reused after; change the Dockerfile and the next
+response builds and uses the new one, no restart. Every run gets, whatever its sandbox:
 
-A person can replace any of them with `PATCH /runs/{id}` or `hi verdict <run> pass|fail --note "..."`.
+- all capabilities dropped, no privilege escalation, a read-only root filesystem, tmpfs `/tmp`,
+  pid and memory caps;
+- gVisor (`--runtime=runsc`) when the host has it, plain `runc` otherwise, `runtime: runc` or
+  `runsc` on the sandbox to insist; the record says which ran;
+- an internal Docker network of its own, with no route to the internet, the host, or other runs.
+  Its only other member is the egress door.
 
-Verdicts are what the router learns from. `GET /cards` shows each harness's description with an
-evidence sentence built from its runs: how many, what share succeeded of those judged, median
-latency, median cost where the harness reports one, and the median of every usage figure it
-reports, under the harness's own names. Nothing is renamed or converted between harnesses:
-Claude Code's `cache_read_input_tokens` and Codex's `cached_input_tokens` sit side by side as
-they are. When a Jev route lists harnesses with `criteria: from_registry`, each option is the
-description plus that sentence, and Jev compares the track records itself.
-
-## API
-
-| Method | Path | Purpose |
-|---|---|---|
-| PUT | `/harnesses/{name}` | apply a Harness (validates, runs `check`, bumps version) |
-| GET / DELETE | `/harnesses[/{name}]` | list, read, remove |
-| PUT / GET | `/route` | apply or read the Route |
-| POST | `/route/preview` | dry run: the decision for a request and the Jev request body, without running |
-| GET | `/ui` | the browser UI (`/` redirects here) |
-| PUT / GET | `/secrets[/{name}]` | store a value (body), list names |
-| POST | `/runs` | run a task; streams the body, or `{"stream": false}` for JSON |
-| GET | `/runs`, `/runs/{id}`, `/runs/{id}/output`, `/runs/{id}/log`, `/runs/{id}/files/{path}` | records, the harness's stdout, its stderr, produced files |
-| PATCH | `/runs/{id}` | a person's verdict: `{"success": true, "note": "..."}` |
-| POST | `/runs/{id}/cancel` | kill the process |
-| GET | `/cards` | what the router chooses between: each harness's description plus its evidence |
-| GET | `/sessions[/{id}]` | workspaces and resume handles |
-
-Run request fields: `task`, `instructions`, `model`, `harness`, `session`, `files[{name,content}]`,
-`check` (a shell command run in the workspace afterwards; exit zero means pass), `stream`.
-Every `POST /runs` answers with `X-Run-Id`, `X-Session-Id` and `X-Harness` headers.
+The door is a CONNECT-only tunnel (`hi/egress.py`, sixty lines) whose allowlist is the host of the
+harness's provider plus whatever the sandbox's `egress` names. It resolves names itself, so the
+sandbox has no DNS; TLS stays end to end, so it sees nothing; everything that is not a tunnel to
+an allowed host is a 403. The CLI reaches it through `HTTPS_PROXY`. A harness can call its model
+and nothing else, and the door cannot be used for anything but that.
 
 ## Layout
 
 ```
 hi/
-  app.py        HTTP routes, thin
-  service.py    one request end to end: decide, prepare, run, record
-  runner.py     the process contract: prepare env and files, spawn, stream, kill at the cap
-  workspace.py  a session's directory and its git baseline
-  registry.py   Harness and Route resources: validate, probe, version
-  router/       Router protocol; static and Jev engines; the decide-rule evaluator
-  models.py     the schemas: what you author, and what the server stamps on it
-  template.py   {a.b.c} placeholders
-  storage.py    JSON files and secrets; swap for a database here
-  cli.py        hi serve | apply | secret | run | verdict | get
-  ui/index.html the browser UI: one static page over the API, no build step
-harnesses/      resources: one folder each (claude-code, codex, deepseek-harness, echo)
-routes/         static.yaml and jev.yaml
-tests/          unit tests, and the whole path through the echo harness
+  app.py        the routes: validate, call, shape
+  models.py     Provider, Sandbox, Harness, the request, the Response record
+  registry.py   the three resources; the built-in default sandbox; a harness's scripts on disk
+  responses.py  one response end to end, and the wire format mapping in and out
+  runner.py     the process contract: files, env, request.json, output.json
+  sandbox.py    the Sandbox interface: Docker (image, network, door, run, kill) and subprocess
+  egress.py     the door
+  workspace.py  a conversation's directory, its git baseline, produced files by diff
+  store.py      one JsonStore class for the four stores
+  template.py   {a.b} placeholders
+  cli.py        hi serve | hi pack
+  default.Dockerfile
+harnesses/      claude-code, codex, deepseek-harness, harness-engineering, echo
+tests/          every endpoint through the echo harness on the subprocess runtime; the door; the docker command lines
 ```
 
 ## Verified
 
-Through this interface, on the shop task from the harness-engineering repo ("The tests are failing.
-Find out why and fix it." with `check: python3 -m unittest -q`):
-
-| Harness | Result | Follow-up on the same session |
-|---|---|---|
-| claude-code | fixed, check passed, ~10 s | resumed its own session and recalled the change |
-| deepseek-harness | fixed, check passed, ~14 s | resumed its own session and recalled the change |
-| codex | fixed, check passed, ~17 s | resumed its own session and recalled the change |
-
-The `jev` route was exercised live with `TYPESAFE_API_KEY`: Jev returned a probability per registered
-harness, a risk probability and a size level, and the decide table fell through to `default` when the
-choice confidence was under the threshold. Set the threshold from your own run history, not by feel.
+Through this interface, with the real CLIs: Claude Code on Anthropic, Claude Code on DeepSeek's
+Anthropic-compatible endpoint with `deepseek-chat`, Codex on OpenAI, DeepSeek Harness on
+DeepSeek, and the course's own harness.py on Anthropic, each answering the same question; Claude
+Code on DeepSeek, Codex and dsh each continued once with `previous_response_id` and recalled a
+word from the first turn. The docker command lines, the image tagging and the door are covered by
+tests; the live runs above used `--runtime local`, since the box they ran on has no Docker daemon.
 
 ## Trust
 
-Single tenant. The box is the trust boundary: secrets go into the harness process's environment,
-and every harness runs with its own approvals off. Do not expose the port beyond localhost.
-Secrets are stored as mode-600 files under `data/secrets/`; the server's own environment is the fallback.
-A harness process inherits the server's environment, with the resource's `env` and the contract variables on top,
-so start `hi serve` with the environment you want every harness to see and nothing more.
+Single tenant. The API binds to localhost and has no authentication; keep it there. Provider keys
+are stored as mode-600 files under `data/providers/` and enter a run only as environment
+variables inside its container. A harness is code you chose to run; the sandbox limits what it can
+reach, not what it can do to its own workspace.

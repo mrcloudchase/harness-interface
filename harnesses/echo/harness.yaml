@@ -1,13 +1,10 @@
-kind: Harness
+# A fake harness with no model: it echoes the task as NDJSON, writes one file, reports a session
+# id and usage, and answers. Exists so the server can be tested end to end without a provider.
 name: echo
-description: >
-  A fake harness with no model and no keys: it echoes the task as NDJSON, writes one file and
-  reports a session id. Exists so the server can be tested end to end without a provider.
-labels: [test]
+description: Echoes the task. For tests.
+provider: none
 files:
-  AGENTS.md: "{request.instructions}"
+  AGENTS.md: "{instructions}"
 run:
-  argv: [bash, "{harness_dir}/run.sh"]
   stdout: application/x-ndjson
   timeout_s: 30
-check: [bash, --version]

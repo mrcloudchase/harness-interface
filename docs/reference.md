@@ -136,6 +136,16 @@ else, and the door cannot be used for anything but that.
 `hi serve --runtime local` runs harnesses as plain processes on the host instead, for
 development and tests: no isolation and no egress rule, and every record says `runtime: local`.
 
+### Disk
+
+The default image carries every shipped harness's CLI and is several gigabytes. Because its
+Dockerfile names the harness in its last layer, each harness gets its own image, which on
+Docker's classic `overlay2` storage costs one copy of the shared layers plus a few kilobytes per
+harness. Docker's newer containerd image store keeps the build cache and each image's unpacked
+layers separately, which can double that. On a host short of disk, set
+`"features": {"containerd-snapshotter": false}` in `/etc/docker/daemon.json`, or prune the build
+cache once the images are built.
+
 ## Configuration
 
 | Variable | Default | Meaning |

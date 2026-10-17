@@ -85,10 +85,11 @@ and exactly what the sandbox does.
 
 ## Verified with
 
-Claude Code on Anthropic and on DeepSeek, Codex on OpenAI, DeepSeek Harness, and a hand-written
-harness from the [harness-engineering](https://github.com/averagejoeslab/harness-engineering)
-course, each answering the same request through the same endpoint, three of them resuming a
-conversation on a second turn.
+All twenty-five harnesses in [harnesses/](harnesses/) are registered through the API and run in
+the one default sandbox image with plain Docker. Every one with a provider key on hand, twenty-three
+of them, answered the same request, and twenty-one resumed the conversation on a second turn with
+`previous_response_id`. Cline and the harness-engineering course's harness keep no sessions a
+headless run can resume; Gemini CLI and Qoder were not run, for want of a key.
 
 ## Docs
 

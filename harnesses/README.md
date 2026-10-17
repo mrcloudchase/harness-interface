@@ -4,7 +4,8 @@ Twenty-five harnesses ship with the platform, one folder each: a `harness.json`,
 maps the request onto the CLI's own flags, and a `report.py` that passes the CLI's output through
 and writes back what the server reads. They are not server code. Read one, change it, register it
 again, and the next request uses it. Every one runs in the built-in `default` sandbox, which has
-all of their CLIs installed.
+all of their CLIs installed, and every one with a key on hand has been run there, two turns each:
+see Resume below.
 
 ## Register them
 
@@ -77,7 +78,7 @@ latest release.
 - **Base URLs differ by CLI.** Claude Code, Hermes and Goose want the provider url without `/v1`;
   JCode and MiMo want it with `/v1`. Each run script handles its own case in one line.
 - **The sandbox reaches only the provider.** A CLI that fetches anything else at startup, a model
-  catalog or a price list, is told not to: Aider uses its bundled price map, MiMo defaults to a
+  catalog or a price list, is told not to: Aider and litellm use the price map litellm bundles, MiMo defaults to a
   model in its bundled catalog, and OMP is pointed at the egress door through `PI_PROXY`, the
   variable it reads instead of `HTTPS_PROXY`.
 - **stdin carries the request JSON.** OMP and Gemini CLI append stdin to their prompt, so their run

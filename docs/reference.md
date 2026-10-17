@@ -168,13 +168,19 @@ tests/          every endpoint through an echo harness on the subprocess runtime
 
 ## Verified
 
-Through this interface, with the real CLIs, each written as a harness the way the walkthrough
-shows: Claude Code on Anthropic, Claude Code on DeepSeek's Anthropic-compatible endpoint with
-`deepseek-chat`, Codex on OpenAI, DeepSeek Harness on DeepSeek, and the harness-engineering
-course's own harness.py on Anthropic, each answering the same question; Claude Code on DeepSeek,
-Codex and dsh each continued once with `previous_response_id` and recalled a word from the first
-turn. The docker command lines, the image tagging and the door are covered by tests; the live
-runs used `--runtime local`, since the box they ran on had no Docker daemon.
+Live, with Docker on runc: the server installed into a fresh uv venv as the walkthrough says;
+four providers (Anthropic, OpenAI, DeepSeek's Anthropic and OpenAI endpoints) and all twenty-five
+shipped harnesses added through the API with no restart; the default image built once, on the
+first request, and every run after it a new container from that image. Each harness was asked to
+remember a word and answer `17 * 23`, then, with `previous_response_id`, to recall the word.
+Twenty-three answered 391; twenty-one recalled the word. Cline and harness-engineering answer
+but do not resume, as noted in [harnesses/README.md](../harnesses/README.md); Gemini CLI and Qoder
+were not run, for want of a key.
+
+From inside a live run, as the sandbox user: no capabilities, no DNS, no direct connection out,
+no connection to the Docker host; `/etc` and `/usr` read-only and no way to escalate; through the
+door, only the provider's host on its own port, by CONNECT, and nothing else. The docker command
+lines, the image tagging and the door are also covered by tests.
 
 ## Trust
 

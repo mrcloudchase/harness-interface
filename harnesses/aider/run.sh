@@ -8,6 +8,10 @@
 #   LITELLM_LOCAL_MODEL_COST_MAP: use the bundled price map; the sandbox reaches only the provider
 set -euo pipefail
 export ANTHROPIC_API_KEY="$HI_PROVIDER_KEY" ANTHROPIC_API_BASE="${HI_PROVIDER_URL%/}"
+# aider fetches litellm's price map from GitHub whenever its own cache is empty or a day old, and
+# prints the failure into its answer. A fresh, non-empty cache stops the fetch; prices then come
+# from the map litellm bundles.
+mkdir -p "$HOME/.aider/caches"; echo '{"_": {}}' > "$HOME/.aider/caches/model_prices_and_context_window.json"
 if [ -d "$HI_WORKSPACE/.git" ]; then   # aider nags without a git identity, and drops its tags cache in the repo root
   git -C "$HI_WORKSPACE" config user.name aider; git -C "$HI_WORKSPACE" config user.email aider@localhost
   grep -qsx '.aider*' "$HI_WORKSPACE/.git/info/exclude" || echo '.aider*' >> "$HI_WORKSPACE/.git/info/exclude"

@@ -39,6 +39,7 @@ class Job:
 
 
 class Process(Protocol):
+    runtime: str                                     # what actually ran it: runsc, runc, or local
     timed_out: bool
     cancelled: bool
     async def chunks(self) -> AsyncIterator[bytes]: ...
@@ -47,7 +48,6 @@ class Process(Protocol):
 
 
 class Sandbox(Protocol):
-    runtime: str
     def mounts(self, job_workspace: Path, harness_dir: Path) -> Mounts: ...
     async def image(self, spec: SandboxSpec, harness: str) -> str | None: ...
     async def start(self, job: Job) -> Process: ...
@@ -59,6 +59,7 @@ class _Proc:
     proc: asyncio.subprocess.Process
     out_path: Path
     timeout_s: int
+    runtime: str
     timed_out: bool = False
     cancelled: bool = False
     _timer: asyncio.TimerHandle | None = field(default=None, repr=False)
@@ -115,8 +116,6 @@ class _LocalProc(_Proc):
 
 
 class LocalSandbox:
-    runtime = "local"
-
     def __init__(self, out_dir: Path):
         self.out_dir = out_dir
 
@@ -129,7 +128,7 @@ class LocalSandbox:
     async def start(self, job: Job) -> Process:
         p = job.prepared
         proc = await _spawn(p.argv, {**os.environ, **p.env}, job.workspace, p.stdin, job.log_path)
-        local = _LocalProc(proc, self.out_dir / f"{job.id}.out", p.timeout_s)
+        local = _LocalProc(proc, self.out_dir / f"{job.id}.out", p.timeout_s, "local")
         local.arm()
         return local
 
@@ -144,8 +143,8 @@ async def docker(*args: str, stdin: bytes | None = None, env: dict[str, str] | N
 
 
 class _DockerProc(_Proc):
-    def __init__(self, proc: asyncio.subprocess.Process, out_path: Path, timeout_s: int, names: "DockerNames"):
-        super().__init__(proc, out_path, timeout_s)
+    def __init__(self, proc: asyncio.subprocess.Process, out_path: Path, timeout_s: int, runtime: str, names: "DockerNames"):
+        super().__init__(proc, out_path, timeout_s, runtime)
         self.names = names
 
     def kill(self) -> None:
@@ -169,7 +168,6 @@ class DockerNames:
 
 class DockerSandbox:
     """Every run: one internal network, one door on it, one container on it."""
-    runtime = "docker"
     WORKSPACE, HARNESS = "/workspace", "/harness"
 
     def __init__(self, out_dir: Path, build_log_dir: Path):
@@ -249,6 +247,6 @@ class DockerSandbox:
                 raise RuntimeError(f"docker {step[0]} {step[1]} failed: {out[-500:]}")
         argv = self.run_argv(job, image, runtime, names)
         proc = await _spawn(argv, {**os.environ, **job.prepared.env}, None, job.prepared.stdin, job.log_path)
-        d = _DockerProc(proc, self.out_dir / f"{job.id}.out", job.prepared.timeout_s, names)
+        d = _DockerProc(proc, self.out_dir / f"{job.id}.out", job.prepared.timeout_s, runtime, names)
         d.arm()
         return d

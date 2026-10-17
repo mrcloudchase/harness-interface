@@ -1,0 +1,14 @@
+name: qoder
+description: >
+  Qoder CLI (Alibaba), headless. Claude-Code-shaped stream-json (system/init, assistant, result).
+  It speaks only Qoder's own control API behind a Qoder login or personal access token; there is no
+  OpenAI/Anthropic base-URL path, so the provider must be a "qoder" provider holding a Qoder PAT.
+provider: qoder
+files:
+  AGENTS.md: "{instructions}"
+run:
+  env:
+    HOME: "{workspace}/.home"                    # ~/.qoder (auth, sessions, logs) lives in the workspace
+    QODER_CONFIG_DIR: "{workspace}/.home/.qoder" # its own config-root override, pointed at the same place
+  stdout: application/x-ndjson
+  timeout_s: 900

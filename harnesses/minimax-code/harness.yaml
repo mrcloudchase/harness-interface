@@ -1,0 +1,13 @@
+name: minimax-code
+description: >
+  MiniMax Code (mcode), headless via `mcode exec`. Shell, files. A custom BYOK provider takes an
+  Anthropic Messages base URL, so its provider is Anthropic or any endpoint that serves that
+  shape (DeepSeek's /anthropic here). Its built-in MiniMax route needs a MiniMax login instead.
+provider: deepseek
+files:
+  AGENTS.md: "{instructions}"
+run:
+  env:
+    HOME: "{workspace}/.home"   # config.yaml (provider) and sessions live under $HOME/.minimax, so --session works later
+  stdout: application/x-ndjson
+  timeout_s: 900

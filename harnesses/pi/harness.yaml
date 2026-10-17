@@ -1,0 +1,10 @@
+name: pi
+description: >
+  pi coding agent (earendil-works), headless. Read, bash, edit, write tools. Its anthropic
+  provider reads ANTHROPIC_API_KEY; a non-Anthropic base URL would need a models.json entry.
+provider: anthropic
+run:
+  env:
+    HOME: "{workspace}/.home"   # sessions land under $HOME/.pi/agent/sessions, so --session-id resumes later
+  stdout: application/x-ndjson
+  timeout_s: 900

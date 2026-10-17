@@ -48,18 +48,22 @@ of JSON. A new sandbox is a Dockerfile. Change any of them and the next request 
 restart, ever.
 
 **Small enough to read.** The whole server is eleven files and about 1,100 lines. The security
-boundary is sixty of them.
+boundary is sixty of them. The harnesses and sandboxes ship beside it as plain files, so they
+can be maintained, forked and replaced without touching the server.
 
 ## Try it
 
 ```bash
 pip install -e .
 hi serve
+hi apply harnesses/* sandboxes/*          # 26 ready-made harnesses, in another shell
 ```
 
-Then follow the [walkthrough](docs/walkthrough.md): add a provider, keep the default sandbox,
-add Claude Code as a harness in three files, make the first request, continue it. Twenty
-minutes from an empty server to a resumed conversation.
+It ships with harnesses for Claude Code, Codex, OpenCode, Gemini CLI, Aider, Goose, Hermes, pi,
+Qwen Code, Kimi, OpenHands, Cline and fourteen more, each a folder of three files you can read
+and change. They are not server code: edit one, apply it again, and the next request uses it.
+The [walkthrough](docs/walkthrough.md) goes from an empty server to a resumed conversation, and
+[harnesses/](harnesses/) lists what each one needs.
 
 ## How it fits together
 

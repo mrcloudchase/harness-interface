@@ -2,6 +2,10 @@
 
 From an empty server to a resumed conversation. Four PUTs, one POST, all over the API.
 
+In a hurry: `hi apply harnesses/* sandboxes/*` registers every shipped harness and sandbox, and
+you can skip to step 5 once you have added a provider. The steps below show what that command
+does, one resource at a time.
+
 ## 1. Install
 
 The server needs Python 3.11, git, and Docker. gVisor is optional: when `runsc` is registered as
@@ -45,8 +49,9 @@ curl -X PUT localhost:8000/providers/deepseek -H 'content-type: application/json
 ## 3. Add a sandbox, or keep the default
 
 A sandbox is a Dockerfile, and it is where a harness runs. `default` is built in: Node and
-Python with Claude Code, Codex and DeepSeek Harness installed, run as an unprivileged user. You
-do not need to add one to get started.
+Python with the CLI of every shipped harness installed, pinned to the version it was tested
+with, run as an unprivileged user named after the harness. You do not need to add one to get
+started. Its first build takes several minutes; every later response reuses it.
 
 What locks a sandbox down is not the Dockerfile but what every run gets: all capabilities
 dropped, no privilege escalation, a read-only root, tmpfs `/tmp`, pid and memory caps, and a
@@ -59,13 +64,17 @@ host is always allowed; `egress` adds to it.
 ```bash
 curl -X PUT localhost:8000/sandboxes/python-dev -H 'content-type: application/json' -d '{
   "name": "python-dev",
-  "dockerfile": "FROM node:22-bookworm-slim\nRUN apt-get update && apt-get install -y git python3 python3-pip && npm install -g @anthropic-ai/claude-code && useradd -m -u 1000 agent\nUSER 1000\nENV HOME=/workspace/.home\nWORKDIR /workspace\n",
+  "dockerfile": "FROM node:22-bookworm-slim\nRUN apt-get update && apt-get install -y git python3 python3-pip && npm install -g @anthropic-ai/claude-code\nRUN useradd -m -u 1000 {harness}\nUSER {harness}\nENV HOME=/workspace/.home\nWORKDIR /workspace\n",
   "egress": ["pypi.org", "files.pythonhosted.org"]
 }'
 ```
 
 The image is built the first time a response needs it and reused after. Change the Dockerfile
 and the next response builds the new one. `GET /sandboxes/default` shows the built-in one in full.
+`{harness}` in a Dockerfile is the name of the harness running in it.
+
+A sandbox can also live in a file, as the shipped ones do in `sandboxes/`, and be registered with
+`hi apply sandboxes/zeroclaw.yaml`.
 
 ## 4. Add a harness
 
@@ -141,6 +150,9 @@ Register it:
 curl -X PUT localhost:8000/harnesses/claude-code -H 'content-type: application/json' \
   -d "$(hi pack claude-code)"
 ```
+
+`hi apply claude-code` does the same in one step. This exact folder ships in
+`harnesses/claude-code/`, beside twenty-five others.
 
 That is the whole of adding a harness. Nothing on the server changed, and nothing on the server
 knows what `ANTHROPIC_BASE_URL` means.

@@ -1,0 +1,12 @@
+name: zeroclaw
+description: >
+  ZeroClaw, a Rust agent runtime. Its one-shot `agent -m` forgets between processes, so this
+  harness drives `zeroclaw acp` (JSON-RPC on stdio) with a small driver, which keeps sessions in
+  its store and resumes them. Talks to any OpenAI-compatible chat endpoint.
+provider: deepseek-openai
+sandbox: zeroclaw            # its own image: zeroclaw is built from source, see sandboxes/zeroclaw.Dockerfile
+run:
+  env:
+    HOME: "{workspace}/.home"   # config and the session store live here, so resume works later
+  stdout: application/x-ndjson
+  timeout_s: 900

@@ -1,0 +1,13 @@
+name: opencode
+description: >
+  OpenCode (sst), headless. Shell, files, web fetch. Its anthropic provider reads
+  ANTHROPIC_API_KEY and takes a base URL from config, so its provider is Anthropic or any
+  endpoint that serves the Messages shape (DeepSeek, ...).
+provider: anthropic
+files:
+  AGENTS.md: "{instructions}"
+run:
+  env:
+    HOME: "{workspace}/.home"   # sessions live in $HOME/.local/share/opencode/opencode.db, so --session resumes later
+  stdout: application/x-ndjson
+  timeout_s: 900

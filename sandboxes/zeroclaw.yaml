@@ -1,0 +1,18 @@
+# ZeroClaw is published only as a Rust crate, so its sandbox builds it from source in a builder
+# stage and keeps just the binary. Its harness names this sandbox.
+name: zeroclaw
+egress: []
+runtime: auto
+dockerfile: |
+  FROM rust:1-bookworm AS build
+  RUN cargo install zeroclaw --locked --version 0.8.5
+
+  FROM debian:bookworm-slim
+  RUN apt-get update \
+   && apt-get install -y --no-install-recommends python3 git ca-certificates \
+   && rm -rf /var/lib/apt/lists/*
+  COPY --from=build /usr/local/cargo/bin/zeroclaw /usr/local/bin/zeroclaw
+  RUN useradd --create-home --uid 1000 --user-group {harness}
+  USER {harness}
+  ENV HOME=/workspace/.home
+  WORKDIR /workspace

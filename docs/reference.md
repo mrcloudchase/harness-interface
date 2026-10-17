@@ -157,8 +157,10 @@ hi/
   workspace.py  a conversation's directory, its git baseline, produced files by diff
   store.py      one JsonStore class for the four stores
   template.py   {a.b} placeholders
-  cli.py        hi serve | hi pack
+  cli.py        hi serve | hi pack | hi apply
   default.Dockerfile
+harnesses/      the shipped harnesses, one folder each; harnesses/README.md lists them
+sandboxes/      the shipped sandboxes beyond the default, one .yaml each
 docs/           this, the walkthrough, the mascot
 tests/          every endpoint through an echo harness on the subprocess runtime; the door; the docker command lines
 ```

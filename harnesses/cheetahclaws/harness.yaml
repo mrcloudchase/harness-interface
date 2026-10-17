@@ -1,0 +1,14 @@
+name: cheetahclaws
+description: >
+  CheetahClaws (SafeRL-Lab), driven through its REPL on stdin. Shell, files, web. Speaks the
+  OpenAI chat completions shape only, through CUSTOM_BASE_URL, so its provider is OpenAI or any
+  OpenAI-compatible endpoint (DeepSeek's /v1, ...). Text output; no usage in quiet mode.
+provider: openai
+files:
+  CLAUDE.md: "{instructions}"
+run:
+  env:
+    HOME: "{workspace}/.home"   # sessions land under $HOME/.cheetahclaws/sessions, so /resume works later
+    CHEETAH_PT_INPUT: "0"       # plain readline input, no prompt_toolkit
+  stdout: text/plain
+  timeout_s: 900

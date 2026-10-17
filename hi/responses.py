@@ -45,7 +45,7 @@ class ResponseService:
         record = Response(model=req.model, instructions=req.instructions, input=req.input,
                           previous_response_id=req.previous_response_id, metadata=req.metadata,
                           harness=HarnessInfo(name=harness.name, provider=provider.name, sandbox=spec.name,
-                                              runtime=self.sandbox.runtime, workspace="",
+                                              runtime="", workspace="",
                                               session_id=previous.harness.session_id if previous else None))
         record.harness.workspace = previous.harness.workspace if previous else str(self.settings.workspaces / record.id)
 
@@ -59,6 +59,7 @@ class ResponseService:
         job = Job(id=record.id, harness=harness.name, prepared=prepared, workspace=ws.path, harness_dir=harness_dir,
                   log_path=self.log_path(record.id), spec=spec, egress=[provider.host, *spec.egress])
         proc = await self.sandbox.start(job)
+        record.harness.runtime = proc.runtime
         self.live[record.id] = proc
         return self.store.put(record.id, record), proc, ws
 

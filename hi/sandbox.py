@@ -1,7 +1,8 @@
 """Where a harness runs. One interface, two runtimes.
 
 Docker: the sandbox resource's image, on an internal network whose only other member is the
-egress door, with the hardening every run gets. gVisor when the host has it. Subprocess: the
+egress door, with the hardening every run gets, as an unprivileged user named after the harness.
+gVisor when the host has it. Subprocess: the
 same contract on the host itself, for tests and for a laptop without Docker; no isolation and
 no egress rule, and the record says so.
 """
@@ -22,6 +23,7 @@ from .runner import Mounts, Prepared
 
 DOOR_IMAGE = "python:3.12-alpine"
 DOOR_PORT = 3128
+UID = 1000                                           # every harness runs as this uid, under its own name
 HARDENING = ["--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only",
              "--tmpfs", "/tmp:rw,size=512m", "--pids-limit", "512", "--memory", "4g"]
 
@@ -29,7 +31,7 @@ HARDENING = ["--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read
 @dataclass(frozen=True)
 class Job:
     id: str
-    harness: str                                     # the container's hostname, and its user in the default image
+    harness: str                                     # the container's hostname and user name
     prepared: Prepared
     workspace: Path
     harness_dir: Path
@@ -49,7 +51,7 @@ class Process(Protocol):
 class Sandbox(Protocol):
     runtime: str
     def mounts(self, job_workspace: Path, harness_dir: Path) -> Mounts: ...
-    async def image(self, spec: SandboxSpec, harness: str) -> str | None: ...
+    async def image(self, spec: SandboxSpec) -> str | None: ...
     async def start(self, job: Job) -> Process: ...
 
 
@@ -123,7 +125,7 @@ class LocalSandbox:
     def mounts(self, workspace: Path, harness_dir: Path) -> Mounts:
         return Mounts(workspace=str(workspace), harness=str(harness_dir))
 
-    async def image(self, spec: SandboxSpec, harness: str) -> str | None:
+    async def image(self, spec: SandboxSpec) -> str | None:
         return None
 
     async def start(self, job: Job) -> Process:
@@ -182,25 +184,18 @@ class DockerSandbox:
 
     # image
     @staticmethod
-    def dockerfile(spec: SandboxSpec, harness: str) -> str:
-        """`{harness}` in a Dockerfile is the harness's name: the default image makes it the user."""
-        return spec.dockerfile.replace("{harness}", harness)
+    def tag(spec: SandboxSpec) -> str:
+        return f"hi/{spec.name}:{hashlib.sha256(spec.dockerfile.encode()).hexdigest()[:12]}"
 
-    @classmethod
-    def tag(cls, spec: SandboxSpec, harness: str) -> str:
-        """Tagged by the rendered content: a Dockerfile that names the harness gets one image per
-        harness, one that does not is shared by all of them."""
-        return f"hi/{spec.name}:{hashlib.sha256(cls.dockerfile(spec, harness).encode()).hexdigest()[:12]}"
-
-    async def image(self, spec: SandboxSpec, harness: str) -> str:
+    async def image(self, spec: SandboxSpec) -> str:
         """The image for this Dockerfile, built if this content has not been built before."""
-        tag = self.tag(spec, harness)
+        tag = self.tag(spec)
         async with self._locks.setdefault(tag, asyncio.Lock()):
             code, _ = await docker("image", "inspect", tag)
             if code == 0:
                 return tag
             with tempfile.TemporaryDirectory() as context:
-                code, log = await docker("build", "-t", tag, "-f", "-", context, stdin=self.dockerfile(spec, harness).encode())
+                code, log = await docker("build", "-t", tag, "-f", "-", context, stdin=spec.dockerfile.encode())
             self.build_log_dir.mkdir(parents=True, exist_ok=True)
             (self.build_log_dir / f"build-{spec.name}-{tag.rsplit(':', 1)[1]}.log").write_text(log)
             if code != 0:
@@ -219,10 +214,23 @@ class DockerSandbox:
         return "runsc" if "runsc" in self._runtimes else "runc"
 
     # run
+    def identity(self, job: Job) -> tuple[Path, Path]:
+        """A passwd and a group file naming the harness as uid {UID}. Mounted over the image's own,
+        they make `whoami`, `$USER` and the home directory the harness's, with no image per harness
+        and no root inside the container."""
+        passwd = self.out_dir / f"{job.id}.passwd"
+        group = self.out_dir / f"{job.id}.group"
+        passwd.write_text(f"root:x:0:0:root:/root:/bin/sh\n{job.harness}:x:{UID}:{UID}:{job.harness}:{self.WORKSPACE}/.home:/bin/bash\n")
+        group.write_text(f"root:x:0:\n{job.harness}:x:{UID}:\n")
+        return passwd, group
+
     def run_argv(self, job: Job, image: str, runtime: str, names: DockerNames) -> list[str]:
         p = job.prepared
+        passwd, group = self.identity(job)
         argv = ["docker", "run", "--rm", "-i", "--name", names.run, "--hostname", job.harness,
                 "--network", names.network, "--runtime", runtime, *HARDENING,
+                "--user", f"{UID}:{UID}", "-v", f"{passwd}:/etc/passwd:ro", "-v", f"{group}:/etc/group:ro",
+                "-e", f"USER={job.harness}", "-e", f"LOGNAME={job.harness}",
                 "-v", f"{job.workspace}:{self.WORKSPACE}", "-v", f"{job.harness_dir}:{self.HARNESS}:ro", "-w", self.WORKSPACE,
                 "-e", f"HTTPS_PROXY=http://{names.door}:{DOOR_PORT}", "-e", f"HTTP_PROXY=http://{names.door}:{DOOR_PORT}"]
         for k in p.env:                              # names only: the values travel in the docker client's environment
@@ -238,7 +246,7 @@ class DockerSandbox:
                 "python3", "/door/egress.py", f"0.0.0.0:{DOOR_PORT}", *egress]
 
     async def start(self, job: Job) -> Process:
-        image, runtime, names = await self.image(job.spec, job.harness), await self._runtime(job.spec), DockerNames.of(job.id)
+        image, runtime, names = await self.image(job.spec), await self._runtime(job.spec), DockerNames.of(job.id)
         for step in (("network", "create", "--internal", names.network),
                      tuple(self.door_argv(names, job.egress)),
                      ("network", "connect", "bridge", names.door)):

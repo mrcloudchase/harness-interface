@@ -55,7 +55,7 @@ class ResponseService:
         prepared = Runner.prepare(harness, provider, req, record.harness.session_id, ws,
                                   self.sandbox.mounts(ws.path, harness_dir))
         ws.commit("prepare")                         # baseline: only what the harness itself writes counts as produced
-        record.harness.image = await self.sandbox.image(spec, harness.name)
+        record.harness.image = await self.sandbox.image(spec)
         job = Job(id=record.id, harness=harness.name, prepared=prepared, workspace=ws.path, harness_dir=harness_dir,
                   log_path=self.log_path(record.id), spec=spec, egress=[provider.host, *spec.egress])
         proc = await self.sandbox.start(job)

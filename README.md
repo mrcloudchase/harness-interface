@@ -12,19 +12,14 @@ PUT /harnesses/claude-code   {provider, sandbox, run, scripts}   how one CLI is 
 POST /responses              {model: "claude-code/deepseek-chat", input: "..."}   ──►  the CLI's output, then the record
 ```
 
-## Quick start
+## Start here
+
+[docs/walkthrough.md](docs/walkthrough.md): install, add a provider, a sandbox and a harness,
+make the first request, continue it. The whole thing is four PUTs and a POST.
 
 ```bash
 pip install -e .
 hi serve                       # http://127.0.0.1:8000, state under ./data; needs Docker and git
-
-# in another shell
-curl -X PUT localhost:8000/providers/deepseek -H 'content-type: application/json' \
-  -d '{"name":"deepseek","url":"https://api.deepseek.com/anthropic","key":"sk-..."}'
-curl -X PUT localhost:8000/harnesses/claude-code -H 'content-type: application/json' \
-  -d "$(hi pack harnesses/claude-code | sed 's/"provider": "anthropic"/"provider": "deepseek"/')"
-curl -N localhost:8000/responses -H 'content-type: application/json' \
-  -d '{"model":"claude-code/deepseek-chat","input":"What files are here? One line.","stream":true}'
 ```
 
 `hi pack <folder>` prints a harness folder (its `harness.yaml` plus every script beside it) as the
@@ -92,9 +87,9 @@ And gives back:
 | produced files | whatever changed in the workspace, by git diff |
 
 That is the whole interface between the server and a harness. Pointing Claude Code at DeepSeek
-is two lines in its run script, `ANTHROPIC_BASE_URL` from `HI_PROVIDER_URL` and the key, and
-nothing in the server. See `harnesses/` for Claude Code, Codex, DeepSeek Harness, the
-harness-engineering course's harness, and an echo harness the tests use.
+is one line in its run script, `ANTHROPIC_BASE_URL` from `HI_PROVIDER_URL` and the key, and
+nothing in the server. The walkthrough has the complete Claude Code harness, three files, and
+the lines that differ for Codex and DeepSeek Harness.
 
 ## Calling a harness
 
@@ -172,17 +167,18 @@ hi/
   template.py   {a.b} placeholders
   cli.py        hi serve | hi pack
   default.Dockerfile
-harnesses/      claude-code, codex, deepseek-harness, harness-engineering, echo
-tests/          every endpoint through the echo harness on the subprocess runtime; the door; the docker command lines
+docs/           the walkthrough
+tests/          every endpoint through an echo harness on the subprocess runtime; the door; the docker command lines
 ```
 
 ## Verified
 
-Through this interface, with the real CLIs: Claude Code on Anthropic, Claude Code on DeepSeek's
-Anthropic-compatible endpoint with `deepseek-chat`, Codex on OpenAI, DeepSeek Harness on
-DeepSeek, and the course's own harness.py on Anthropic, each answering the same question; Claude
-Code on DeepSeek, Codex and dsh each continued once with `previous_response_id` and recalled a
-word from the first turn. The docker command lines, the image tagging and the door are covered by
+Through this interface, with the real CLIs, each written as a harness the way the walkthrough
+shows: Claude Code on Anthropic, Claude Code on DeepSeek's Anthropic-compatible endpoint with
+`deepseek-chat`, Codex on OpenAI, DeepSeek Harness on DeepSeek, and the harness-engineering
+course's own harness.py on Anthropic, each answering the same question; Claude Code on DeepSeek,
+Codex and dsh each continued once with `previous_response_id` and recalled a word from the first
+turn. The docker command lines, the image tagging and the door are covered by
 tests; the live runs above used `--runtime local`, since the box they ran on has no Docker daemon.
 
 ## Trust

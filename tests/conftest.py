@@ -11,7 +11,7 @@ from hi.app import build, create_app            # noqa: E402
 from hi.cli import packed                       # noqa: E402
 from hi.config import Settings                  # noqa: E402
 
-ECHO = packed(ROOT / "harnesses" / "echo")
+ECHO = packed(Path(__file__).parent / "echo")
 
 
 @pytest.fixture

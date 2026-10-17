@@ -2,7 +2,7 @@
 import asyncio
 import json
 
-from hi.evidence import sentence, summarize
+from hi.evidence import history, sentence
 from hi.models import JudgeSpec, Run, RunRequest, Verdict
 from hi.router.jev import JevJudge
 
@@ -44,26 +44,35 @@ def test_person_overrides(client, echo):
     assert client.patch("/runs/r_nope", json={"success": True}).status_code == 404
 
 
-def test_cards_carry_evidence(client, echo):
-    assert client.get("/cards").json()[0]["evidence"] == "Evidence: no runs yet."
-    client.post("/runs", json={"task": "x", "harness": "echo", "check": "true", "stream": False})
-    client.post("/runs", json={"task": "x", "harness": "echo", "check": "false", "stream": False})
+def test_cards_carry_history_as_recorded(client, echo):
+    assert client.get("/cards").json()[0]["evidence"] == "History: no runs yet."
+    client.post("/runs", json={"task": "first task", "harness": "echo", "check": "true", "stream": False})
+    client.post("/runs", json={"task": "second task", "harness": "echo", "check": "false", "stream": False})
     card = client.get("/cards").json()[0]
-    assert card["stats"]["runs"] == 2 and card["stats"]["judged"] == 2 and card["stats"]["success_rate"] == 0.5
-    assert card["evidence"].startswith("Evidence: 2 runs, 50% successful of 2 judged, median ")
+    h = card["history"]
+    assert [x["task"] for x in h] == ["second task", "first task"]           # newest first
+    assert h[0]["verdict"] == {"success": False, "by": "check"} and h[1]["verdict"]["success"] is True
+    assert h[0]["usage"] == {"input_tokens": 1, "output_tokens": 1} and h[0]["cost_usd"] is None
+    assert card["evidence"].startswith('History (newest first): task "second task"; status ok; failure by check; ')
+    assert 'usage {"input_tokens":1,"output_tokens":1}' in card["evidence"]
 
 
-def test_summarize_and_sentence():
-    def run(h, ok, lat):
-        r = Run(session="s", harness=h, request=RunRequest(task="t"), status="ok", latency_s=lat)
+def test_history_and_sentence():
+    def run(h, ok, lat, usage=None, cost=None, started=0.0):
+        r = Run(session="s", harness=h, request=RunRequest(task="t"), status="ok", latency_s=lat,
+                usage=usage, output={"cost_usd": cost} if cost is not None else {}, started_at=started)
         if ok is not None:
-            r.verdict = Verdict(success=ok, by="check")
+            r.verdict = Verdict(success=ok, by="jev", score=0.9 if ok else 0.2)
         return r
-    stats = summarize([run("a", True, 2.0), run("a", False, 4.0), run("a", None, 6.0), run("b", None, 1.0)])
-    assert stats["a"] == {"runs": 3, "judged": 2, "success_rate": 0.5, "median_latency_s": 4.0}
-    assert stats["b"]["judged"] == 0 and stats["b"]["success_rate"] is None
-    assert sentence(stats["b"]) == "Evidence: 1 runs, median 1.0s."
-    assert sentence(None) == "Evidence: no runs yet."
+    runs = [run("a", True, 2.0, {"in": 10}, 0.01, started=1), run("a", None, 6.0, started=2), run("b", None, 1.0)]
+    h = history(runs, "a")
+    assert [x["latency_s"] for x in h] == [6.0, 2.0]
+    assert h[1] == {"task": "t", "status": "ok", "verdict": {"success": True, "by": "jev", "score": 0.9},
+                    "latency_s": 2.0, "usage": {"in": 10}, "cost_usd": 0.01}
+    assert sentence(h) == ('History (newest first): task "t"; status ok; unjudged; 6.0s | '
+                           'task "t"; status ok; success by jev 0.9; 2.0s; cost 0.01; usage {"in":10}')
+    assert history(runs, "a", limit=1) == h[:1]
+    assert sentence([]) == "History: no runs yet."
 
 
 class FakeJev:

@@ -78,7 +78,9 @@ class JevRouter:
             raise Rejected(target[len("reject:"):])
         if target not in {c["name"] for c in cards}:
             raise LookupError(f"route chose '{target}', which is not a registered harness")
-        choice = next((a for a in answers.values() if "choice" in a and a["choice"] == target), {})
+        # The choice question's own confidence and runner-up, whichever rule decided: a fall to
+        # the default still records how sure Jev was of the harness it would have picked.
+        choice = next((a for a in answers.values() if "choice" in a), {})
         return Decision(harness=target, confidence=choice.get("confidence"),
                         runner_up=choice.get("runner_up"), reason=reason, answers=answers)
 

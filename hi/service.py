@@ -27,9 +27,12 @@ class RunService:
 
     # ── cards: what the router chooses between ────────────────────────────────────────────────
     def cards(self) -> list[dict]:
-        stats = evidence.summarize(self.runs.list())
-        return [{**c, "stats": stats.get(c["name"]), "evidence": evidence.sentence(stats.get(c["name"]))}
-                for c in self.registry.cards()]
+        runs = self.runs.list()
+        out = []
+        for c in self.registry.cards():
+            lines = evidence.history(runs, c["name"])
+            out.append({**c, "history": lines, "evidence": evidence.sentence(lines)})
+        return out
 
     # ── decide ────────────────────────────────────────────────────────────────────────────────
     async def decide(self, request: RunRequest) -> tuple[Session, Harness, Decision | None]:

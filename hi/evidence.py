@@ -1,11 +1,14 @@
-"""Per-harness evidence from the run log: how often it succeeded, how fast. The sentence this
-produces is appended to a harness's description when Jev chooses, so a card carries a track
-record and not only a promise."""
+"""Per-harness evidence for the router: the harness's recent runs, exactly as recorded. No rates,
+no medians, nothing normalized. Each line is what the harness itself reported, and Jev reads the
+lines the way a person would read a log. A card carries a track record, not a summary of one."""
 from __future__ import annotations
 
-from statistics import median
+import json
 
 from .models import Run, Verdict
+
+RECENT = 10          # lines per card: enough history to read, small enough for one Jev state
+TASK_CHARS = 80
 
 
 def label(run: Run) -> Verdict | None:
@@ -17,32 +20,39 @@ def label(run: Run) -> Verdict | None:
     return None
 
 
-def summarize(runs: list[Run]) -> dict[str, dict]:
-    by: dict[str, list[Run]] = {}
-    for r in runs:
-        if r.status != "running":
-            by.setdefault(r.harness, []).append(r)
-    out = {}
-    for name, rs in by.items():
-        verdicts = [v for v in (label(r) for r in rs) if v is not None]
-        judged = verdicts
-        successes = sum(1 for v in verdicts if v.success)
-        latencies = [r.latency_s for r in rs if r.latency_s is not None]
-        out[name] = {
-            "runs": len(rs),
-            "judged": len(judged),
-            "success_rate": round(successes / len(judged), 3) if judged else None,
-            "median_latency_s": round(median(latencies), 1) if latencies else None,
-        }
+def history(runs: list[Run], harness: str, limit: int = RECENT) -> list[dict]:
+    """The newest `limit` finished runs of one harness, as recorded."""
+    mine = sorted((r for r in runs if r.harness == harness and r.status != "running"),
+                  key=lambda r: r.started_at, reverse=True)[:limit]
+    out = []
+    for r in mine:
+        v = label(r)
+        out.append({
+            "task": r.request.task[:TASK_CHARS],
+            "status": r.status,
+            "verdict": ({"success": v.success, "by": v.by, **({"score": v.score} if v.score is not None else {})}
+                        if v else None),
+            "latency_s": r.latency_s,
+            "usage": r.usage,
+            "cost_usd": r.output.get("cost_usd"),
+        })
     return out
 
 
-def sentence(stats: dict | None) -> str:
-    if not stats or not stats.get("runs"):
-        return "Evidence: no runs yet."
-    parts = [f"{stats['runs']} runs"]
-    if stats.get("judged"):
-        parts.append(f"{int(stats['success_rate'] * 100)}% successful of {stats['judged']} judged")
-    if stats.get("median_latency_s") is not None:
-        parts.append(f"median {stats['median_latency_s']}s")
-    return "Evidence: " + ", ".join(parts) + "."
+def sentence(lines: list[dict]) -> str:
+    """The history as text for an option's description. Every field as the harness gave it."""
+    if not lines:
+        return "History: no runs yet."
+    rows = []
+    for h in lines:
+        v = h["verdict"]
+        verdict = ("success" if v["success"] else "failure") + f" by {v['by']}" + (f" {v['score']}" if "score" in v else "") if v else "unjudged"
+        bits = [f"task {json.dumps(h['task'])}", f"status {h['status']}", verdict]
+        if h["latency_s"] is not None:
+            bits.append(f"{h['latency_s']}s")
+        if h["cost_usd"] is not None:
+            bits.append(f"cost {h['cost_usd']}")
+        if h["usage"]:
+            bits.append("usage " + json.dumps(h["usage"], separators=(",", ":")))
+        rows.append("; ".join(bits))
+    return "History (newest first): " + " | ".join(rows)

@@ -46,7 +46,7 @@ def test_low_confidence_falls_to_default():
     fake = FakeJev({"harness": {"type": "choice", "choice": "codex", "confidence": 0.4, "probabilities": {}},
                     "risky": {"type": "noul", "noul": 0.0}})
     d = asyncio.run(JevRouter(route(), fake).choose(RunRequest(task="x"), CARDS))
-    assert d.harness == "claude-code" and d.reason == "use default"
+    assert d.harness == "claude-code" and d.reason == "use default" and d.confidence == 0.4
 
 
 def test_reject():

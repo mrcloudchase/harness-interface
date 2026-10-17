@@ -1,0 +1,19 @@
+kind: Harness
+name: claude-code
+description: >
+  Claude Code (Anthropic Claude Sonnet). Shell, files, web fetch. Best at careful multi-step
+  work, large or unfamiliar codebases, debugging, precise writing. Weakest on cost for big
+  jobs. Reports cost per run. Mid cost.
+labels: [general, shell, files, web, coding, writing]
+models: [claude-sonnet-5-5, claude-opus-5-5, claude-haiku-5-5]
+secrets: [ANTHROPIC_API_KEY]
+files:
+  AGENTS.md: "{request.instructions}"
+run:
+  argv: [bash, "{harness_dir}/run.sh"]
+  env:
+    HOME: "{workspace}/.home"   # transcripts land inside the workspace, so --resume works later
+    IS_SANDBOX: "1"             # claude refuses --dangerously-skip-permissions as root without this
+  stdout: application/x-ndjson
+  timeout_s: 900
+check: [claude, --version]

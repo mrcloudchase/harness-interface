@@ -1,0 +1,19 @@
+kind: Harness
+name: codex
+description: >
+  Codex (OpenAI GPT). Shell, files, web through the shell. Best at coding and automation done
+  in files, test-driven changes. Weakest at conversational answers. Reports tokens, not cost.
+  Low to mid cost.
+labels: [general, shell, files, web, coding, writing]
+models: [gpt-5.3-codex, gpt-5.2-codex]
+secrets: [OPENAI_API_KEY]
+files:
+  AGENTS.md: "{request.instructions}"
+run:
+  argv: [bash, "{harness_dir}/run.sh"]
+  env:
+    HOME: "{workspace}/.home"
+    CODEX_HOME: "{workspace}/.home/.codex"   # sessions live here, so `resume --last` is this session's
+  stdout: application/x-ndjson
+  timeout_s: 900
+check: [codex, --version]

@@ -1,0 +1,48 @@
+# The routing decision, authored in Jev's own question types (choice / noul / score).
+# `criteria: from_registry` turns every registered harness into an option, described by its card:
+# the description from its YAML plus the evidence sentence built from its runs.
+kind: Route
+engine: jev
+model: jev-latest
+state:
+  task: "{request.task}"
+  instructions: "{request.instructions}"
+  files: "{request.file_names}"
+  model_requested: "{request.model}"
+questions:
+  harness:
+    type: choice
+    instructions: >
+      Which registered harness should run this task? Weigh fit to the kind of work and each
+      option's track record. The task's cost matters only when fit is equal.
+    criteria: from_registry
+  risky:
+    type: noul
+    instructions: >
+      Could carrying out this task change or delete anything outside its own workspace, spend
+      money, send messages, or otherwise act on the world (deploy, delete, send, pay)?
+  size:
+    type: score
+    instructions: How much work is this task?
+    criteria: [a quick answer or lookup, a short piece of work, a multi-step job, a whole project]
+decide:
+  - when: risky.probability > 0.8
+    then: reject needs a person before an agent acts
+  - when: harness.confidence >= 0.5
+    then: use harness.choice
+  - then: use default
+default: claude-code
+
+# A run that carries no `check` is judged on delivery: did the harness produce what was asked.
+# Jev reads the task, the instructions, the harness's answer and the produced files. It cannot
+# run code or verify facts, so correctness is the job of a `check` or a person's verdict.
+judge:
+  model: jev-latest
+  questions:
+    completed:
+      type: noul
+      instructions: >
+        Was the task completed? Judge delivery against what was asked: the requested file,
+        answer or change exists, matches the instructions (length, format, scope), and the
+        harness reports it finished without error. Do not guess at facts or run anything.
+  success_when: completed.probability >= 0.5

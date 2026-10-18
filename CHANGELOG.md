@@ -3,6 +3,11 @@
 Every release has a section here; the release workflow publishes it as the release's notes. Add
 to "Unreleased" as you change things, and rename it to the version when you bump it.
 
+## [Unreleased]
+
+- **The harness guide says what a harness is, and whose choices it holds:** three files, and every
+  CLI setting (permissions, MCP servers, skills, hooks) is the harness author's to configure.
+
 ## [1.0.2]
 
 - **Docs checked line by line against the code,** and corrected wherever they had drifted.

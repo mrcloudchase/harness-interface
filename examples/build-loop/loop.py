@@ -12,8 +12,9 @@ budget. You stop prompting the harness; the loop does, and the tests decide when
   workers: each task starts a fresh conversation seeded with the repository's files. Accepted
   work is committed; failed work is rolled back.
 - **Different harnesses check each other.** A second harness reviews every change that passes;
-  its objections get a round of revision, but it advises, and the tests still decide. A stuck
-  task escalates to the next harness in line.
+  its objections get a round of revision, but it advises, and the tests still decide; an
+  objection a change is accepted over is in the report. A stuck task escalates to the next
+  harness in line.
 - **Everything is visible.** Each harness's own output streams to the terminal as it works, and
   each turn's diff is shown after it. Every turn is in .loop/log.jsonl, and `hi show <id>` or
   `hi diff <id>` replays any of them.
@@ -248,7 +249,9 @@ class Task:
     tests: list[str] = field(default_factory=list)
     status: str = "todo"                                                   # todo, done, failed
     harness: str = ""
-    tries: int = 0
+    turns: int = 0
+    revisions: int = 0                                                     # turns spent on a reviewer's notes
+    objection: str = ""                                                    # the review it was accepted over
 
 
 class Loop:
@@ -262,7 +265,7 @@ class Loop:
         self.home = self.repo.path / ".loop"
         self.home.mkdir(exist_ok=True)
         self.tasks: list[Task] = []
-        self.spent, self.turns = 0.0, 0
+        self.spent, self.turns, self.unpriced = 0.0, 0, 0                   # unpriced: turns that reported no cost
         self.started, self.best = time.time(), 0
         self.deadline = self.started + args.minutes * 60
         self.timer = threading.Timer(args.minutes * 60, self.api.cancel)  # at the deadline, stop the run in flight
@@ -299,6 +302,7 @@ class Loop:
         cost = h.get("cost_usd") or 0.0
         self.spent += cost
         self.turns += 1
+        self.unpriced += h.get("cost_usd") is None
         entry = {"time": round(time.time() - self.started, 1), "phase": phase, "harness": h["name"],
                  "response": record["id"], "status": record["status"], "cost_usd": cost,
                  "files": h.get("files", []), "deleted": h.get("deleted", []), **extra}
@@ -339,12 +343,14 @@ class Loop:
             say(f"{DIM}  task {task.id}: its tests already pass{OFF}")
             return True
         for worker in self.args.workers:
-            previous, prompt, reviews = None, self.brief(task), 0
+            previous, prompt, reviews, revising = None, self.brief(task), 0, False
             for attempt in range(1, self.args.tries + 1):
                 if self.stopped():
                     return False
-                task.tries += 1
-                banner(f"TASK {task.id}/{len(self.tasks)} · {task.title} · {worker} · try {attempt}", self.status())
+                task.turns += 1
+                task.revisions += revising
+                step = f"revision {reviews}" if revising else f"try {attempt}"
+                banner(f"TASK {task.id}/{len(self.tasks)} · {task.title} · {worker} · {step}", self.status())
                 record = self.api.turn(worker, prompt, files=None if previous else self.repo.files(), previous=previous)
                 previous = record["id"]
                 tampered = self.repo.apply(self.api, record)
@@ -357,7 +363,9 @@ class Loop:
                 self.best = max(self.best, len(verdict.passed))
                 say(f"{BOLD}  verify:{OFF} {len(verdict.passed)}/{len(self.names)} passing · task {len(task.tests) - len(missing)}/{len(task.tests)}"
                     + (f" · {RED}broke {', '.join(sorted(broke))}{OFF}" if broke else ""))
-                self.log("build", record, task=task.id, attempt=attempt, passing=len(verdict.passed), tampered=tampered)
+                self.log("revise" if revising else "build", record, task=task.id, attempt=attempt,
+                         passing=len(verdict.passed), tampered=tampered)
+                revising = False
                 if missing or broke:
                     prompt = verdict.feedback() + ("\n\nThese passed before your change and must pass again: " + ", ".join(sorted(broke)) if broke else "")
                     continue
@@ -365,10 +373,11 @@ class Loop:
                 if approved or reviews >= self.args.review_rounds or attempt == self.args.tries:
                     # the tests passed: a review that still objects is noted, and never undoes passing work
                     task.status, task.harness = "done", worker
+                    task.objection = "" if approved else notes
                     over = "" if approved else " over the reviewer's objections"
                     say(f"{GREEN}{BOLD}  ✓ accepted{over} · checkpoint {self.repo.commit(f'task {task.id}: {task.title}')}{OFF}")
                     return True
-                reviews += 1
+                reviews, revising = reviews + 1, True
                 prompt = f"A reviewer asked for changes:\n{notes}\n\nAddress them. The tests must keep passing."
             say(f"{YELLOW}  {worker} did not finish task {task.id}; rolling back" +
                 (f" and escalating to {self.args.workers[self.args.workers.index(worker) + 1]}" if worker != self.args.workers[-1] else "") + OFF)
@@ -399,7 +408,7 @@ class Loop:
             with APPROVE, or with REJECT: followed by the specific problems to fix.
             """).strip(), files={"SPEC.md": (self.repo.path / "SPEC.md").read_text(), "change.diff": diff})
         verdict = self.answer(record).strip()
-        self.log("review", record, task=task.id, verdict=verdict[:200])
+        self.log("review", record, task=task.id, verdict=verdict)
         approved = not verdict.upper().startswith("REJECT")
         say(f"  {(GREEN + 'APPROVE') if approved else (RED + 'REJECT')}{OFF} {clip(verdict.split(':', 1)[-1] if not approved else '', WIDTH - 20)}")
         return approved, verdict
@@ -449,10 +458,14 @@ class Loop:
         banner("RESULT", self.status())
         for t in self.tasks:
             mark = {"done": f"{GREEN}✓", "failed": f"{RED}✗"}.get(t.status, f"{DIM}·")
-            say(f"  {mark} {t.id}. {t.title}{OFF} {DIM}{t.status}{' by ' + t.harness if t.harness else ''}, {t.tries} tries{OFF}")
+            say(f"  {mark} {t.id}. {t.title}{OFF} {DIM}{t.status}{' by ' + t.harness if t.harness else ''}, {t.turns} turns"
+                + (f", {t.revisions} on review notes" if t.revisions else "") + OFF)
+            if t.objection:
+                say(f"    {YELLOW}accepted over: {clip(t.objection, WIDTH - 20)}{OFF}")
         say(f"\n  {BOLD}{len(final.passed)}/{len(self.names)} acceptance tests pass{OFF} on the last checkpoint"
             + (f" · stopped: out of {why}" if why else ""))
-        say(f"  {self.turns} harness turns · ${self.spent:.2f} reported · repository {self.repo.path} · log {self.home / 'log.jsonl'}")
+        say(f"  {self.turns} harness turns · ${self.spent:.2f} reported"
+            + (f" ({self.unpriced} turns reported no cost)" if self.unpriced else "") + f" · repository {self.repo.path} · log {self.home / 'log.jsonl'}")
         say(f"  {DIM}replay any turn: hi show <id> · hi diff <id> · hi output <id>{OFF}")
 
 
@@ -464,10 +477,10 @@ def main() -> None:
     p.add_argument("--planner", default="claude-code")
     p.add_argument("--workers", default="claude-code,codex", type=lambda s: s.split(","), help="in escalation order")
     p.add_argument("--reviewers", default="codex,claude-code", type=lambda s: s.split(","), help="the first that isn't the worker reviews")
-    p.add_argument("--tries", type=int, default=3, help="tries per task, per worker")
+    p.add_argument("--tries", type=int, default=3, help="turns per task, per worker, revisions included")
     p.add_argument("--review-rounds", type=int, default=1, help="revisions a reviewer can ask for before the tests alone decide")
     p.add_argument("--minutes", type=float, default=20)
-    p.add_argument("--budget", type=float, default=10.0, help="dollars, as the harnesses report them")
+    p.add_argument("--budget", type=float, default=10.0, help="dollars, as the harnesses report them; a turn that reports none counts as 0")
     p.add_argument("--check-image", required=True, help="an image with the project's toolchain, for running the tests")
     Loop(p.parse_args()).run()
 

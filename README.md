@@ -113,18 +113,39 @@ own CLI is two files away ([write a harness](docs/guides/harnesses.md#write-your
   - its produced files;
   - its usage and cost;
   - the session to resume.
-- **Built for loops.** Drive harnesses from a program, not by hand.
-  [examples/build-loop](examples/build-loop/) builds a project from a spec and its tests:
-  - it plans, builds, verifies in a container, reviews with a second harness, and checkpoints;
-  - it escalates between harnesses, and stops cleanly at a deadline or budget.
-
-  [Watch it run](docs/guides/loops.md#watch-one).
+- **Built for loops.** Drive harnesses from a program, not by hand
+  ([below](#loop-engineering-made-easier)).
 - **See everything.** Each harness's stdout and stderr stream live. Every file it adds, changes
   or deletes is recorded, and each turn's diff can be read, even while it's running.
 - **Change anything live.** Add or change a provider, sandbox or harness, and the next request
   uses it. No restarts.
 - **Small enough to read.** About 1,200 lines of Python. The sandbox and its egress door are
   about 250 of them.
+
+## Loop engineering, made easier
+
+Stop prompting your harness; write a loop around it. The loop sends the task, checks the work
+with something the harness can't argue with, such as tests, and sends back what failed, until
+it's done. Everything a loop needs is built in, the same for every harness:
+
+| A loop needs to | harness-interface gives it |
+|---|---|
+| run any harness the same way | one request shape: `model` names the harness |
+| send the failures back | `previous_response_id`, which resumes the harness's own session |
+| check the work from outside | each turn's `/diff` and `/files`, even while it runs |
+| stop at a deadline or a budget | `POST /responses/{id}/cancel`, and the cost each harness reports |
+| run unattended | every turn in a sandbox that reaches only its provider |
+| show what happened | each harness's stdout and stderr, streamed live and kept |
+
+<p align="center">
+  <img src="docs/media/build-loop.gif" alt="The build loop building switchboard: Claude Code builds each task, the acceptance tests run in a container, Codex reviews each change, and each accepted task is committed">
+</p>
+<p align="center"><sub><a href="examples/build-loop/">examples/build-loop</a> building a small API server from its spec and 16 acceptance tests. Claude Code builds, Codex reviews, the tests decide: 16 of 16 pass in 7 minutes. Shown at 6× speed.</sub></p>
+
+The loop is one Python file. It plans, builds, verifies in a container, has a second harness
+review each change, and checkpoints in git. It escalates a stuck task to another harness, and
+stops cleanly at its deadline or budget. [Run harnesses in a loop](docs/guides/loops.md) has the
+whole run and how to write your own.
 
 ## Use it from code
 
@@ -147,7 +168,7 @@ curl, streaming and everything else: [Call the API from code](docs/guides/api-cl
 | | |
 |---|---|
 | [Getting started](docs/getting-started.md) | install, run a harness, continue it, read what it did |
-| [How-to guides](docs/README.md#how-to-guides) | install, providers, harnesses, sandboxes, API clients, troubleshooting |
+| [How-to guides](docs/README.md#how-to-guides) | install, providers, harnesses, sandboxes, API clients, loops, troubleshooting |
 | [Reference](docs/README.md#reference) | the CLI, the HTTP API, the harness contract, configuration |
 | [Concepts](docs/README.md#concepts) | architecture and security |
 

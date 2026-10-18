@@ -18,8 +18,8 @@ plan ─► for each task: build ─► verify ─► review ─► checkpoint
 | a harness "fixes" the tests instead of the code | its edits to the tests are thrown away, and it's told so |
 | a bad turn wrecks good work | each accepted task is a git commit; unaccepted work is rolled back |
 | one harness gets stuck | after `--tries`, the task escalates to the next of `--workers` |
-| code passes the tests but is wrong or messy | a different harness reviews each passing change; its objections get one round of revision, but the tests still decide |
-| it runs forever | `--minutes` and `--budget`: at either, it cancels the run in flight and stops cleanly |
+| code passes the tests but is wrong or messy | a different harness reviews each passing change; its objections get one round of revision, but the tests still decide, and an objection a change is accepted over is shown in the result |
+| it runs forever | `--minutes` and `--budget`: at either, it cancels the run in flight and stops cleanly. The result says how many turns reported no cost, which the budget can't count. |
 | it crashes halfway | state is saved after each task; run it again with the same `--repo` and it resumes |
 | you can't see what happened | each harness's own output streams to the terminal as it works, each turn's diff is shown after it, and every turn is in `.loop/log.jsonl` |
 
@@ -64,15 +64,22 @@ The built project ends up in `--repo`: a git repository with one commit per acce
 
 ## A real run
 
-Given 20 minutes and a $15 budget, the loop built switchboard from its spec in 7 minutes, for
-$1.54 as the harnesses reported it. All 16 acceptance tests pass.
+Given 20 minutes and a $15 budget, the loop built switchboard from its spec in 7 minutes. All 16
+acceptance tests pass. Claude Code reported $1.54 for its turns; Codex reports tokens, not
+dollars, so its seven reviews aren't in that figure.
+
+Every task passed its tests on Claude Code's first try. Each then took one revision for Codex's
+review:
 
 | Task | |
 |---|---|
-| 1. App structure and harness storage | Claude Code, 2 tries. Codex rejected name validation that accepted a trailing newline; fixed, then approved. |
-| 2. Run execution | Claude Code, 2 tries. Codex flagged timeouts that killed only the process, not its group; accepted on passing tests after the one revision round. |
+| 1. App structure and harness storage | Codex rejected name validation that accepted a trailing newline; fixed, then approved. |
+| 2. Run execution | Codex flagged timeouts that killed only the process, not its group. The revision didn't fix it: its kill code looks for the process in the wrong place, so it never runs. Codex said so, and the change was accepted on its passing tests, with the objection shown in the result. |
 | 3. Timeouts | already passing after task 2; no turn spent |
-| 4. Continuing runs | Claude Code, 2 tries. Codex caught truthiness checks on an id; fixed, then approved. |
+| 4. Continuing runs | Codex caught truthiness checks on an id; fixed, then approved. |
+
+Task 2 is the lesson: the reviewer found a real bug that no acceptance test covers. When that
+happens, add a test for it, and the next run's tests decide it.
 
 Watch it: [build-loop.gif](../../docs/media/build-loop.gif) at 6× speed, or the full recording
 with `asciinema play docs/media/build-loop.cast`.
@@ -86,8 +93,8 @@ with `asciinema play docs/media/build-loop.cast`.
 | `--planner` | the harness that turns the spec into tasks (default `claude-code`) |
 | `--workers` | the harnesses that build, in escalation order (default `claude-code,codex`) |
 | `--reviewers` | the first of these that isn't the worker reviews (default `codex,claude-code`) |
-| `--tries` | tries per task per worker (default 3) |
+| `--tries` | turns per task per worker, revisions included (default 3) |
 | `--review-rounds` | revisions a reviewer can ask for (default 1) |
-| `--minutes`, `--budget` | when to stop: wall time, and dollars as the harnesses report them |
+| `--minutes`, `--budget` | when to stop: wall time, and dollars as the harnesses report them (a turn that reports none counts as 0) |
 | `--check-image` | the image the tests run in |
 | `--url` | the harness-interface server (default `http://127.0.0.1:8000`) |

@@ -4,22 +4,11 @@
 `--json` shows exactly what the API answered. The one exception is `hi server`, which starts
 and stops the server itself.
 
-## Install
+`hi` comes with the server: see [setup.md](setup.md) to install both. To talk to a server
+other than `http://127.0.0.1:8000`, set `HI_URL`, or put `--url URL` before the command
+(`hi --url URL ls`).
 
-```bash
-curl -fsSL https://raw.githubusercontent.com/mrcloudchase/harness-interface/main/install.sh | sh
-```
-
-You need git and, for sandboxed runs, Docker. The installer brings everything else:
-1. It installs [uv](https://docs.astral.sh/uv/) if it is missing.
-2. uv installs Python and the package from GitHub.
-3. You get two commands: `hi` and `harness-interface`, the server.
-
-To pick a version, set `HI_REF` to a tag, a branch or a commit, e.g.
-`curl … | HI_REF=v1.0.0 sh`. To uninstall, run `uv tool uninstall harness-interface`. Your
-data in `~/.harness-interface` stays.
-
-## Start
+## Server
 
 ```bash
 hi server start          # in the background; its log is ~/.harness-interface/server.log
@@ -28,12 +17,8 @@ hi server logs
 hi server stop
 ```
 
-The server keeps everything under `~/.harness-interface/data`. It runs every harness in Docker,
-and won't start without Docker. To run harnesses directly on this machine instead, with no
-sandbox, start it with `HI_RUNTIME=local hi server start`.
-
-`hi` talks to `http://127.0.0.1:8000`. To use another server, set `HI_URL` or pass `--url`;
-`hi server start` then starts the server on that address.
+`hi server start` starts the server on the address `hi` talks to, and waits until it answers. If
+the server can't start (no Docker, no git), `hi` shows why.
 
 ## Set up
 
@@ -93,7 +78,10 @@ hi files ID PATH          # a file from its workspace
 hi cancel ID              # stop it
 ```
 
-## From a checkout
+## Exit codes
 
-Inside a clone of the repository, `uv run hi …` runs the CLI and `uv run harness-interface` runs
-the server, both straight from the source.
+| | |
+|---|---|
+| `0` | the command worked; for `hi run`, the run completed |
+| `1` | it didn't: an API error, no server, or a run that failed, timed out or was cancelled with `hi cancel` |
+| `130` | `hi run` was cancelled with Ctrl-C |

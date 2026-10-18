@@ -11,33 +11,39 @@ harness decides which variables want them.
 {"name": "deepseek", "url": "https://api.deepseek.com/anthropic", "key": "sk-..."}
 ```
 
-**Sandbox**: a Dockerfile, the hosts a run may reach besides its provider, and the container
-runtime. `default` ships built in, cannot be changed or deleted, and is as closed as Docker
-allows (see [The sandbox](#the-sandbox)). Add one when a harness needs more, a package index say,
-and name it on the harness.
+**Sandbox**: a Dockerfile, and the hosts a run may reach besides its provider. `default` ships
+built in, cannot be changed or deleted, has the CLI of every harness in `harnesses/` installed,
+and runs as the unprivileged user `agent`. Add one when a harness needs more, a package index
+say, and name it on the harness.
 
 ```json
-{"name": "python-dev", "dockerfile": "FROM python:3.12 ...", "egress": ["pypi.org"], "runtime": "auto"}
+{"name": "python-dev", "dockerfile": "FROM python:3.12 ...", "egress": ["pypi.org"]}
 ```
-
-`runtime` is `auto` (gVisor when the host has it), `runsc` or `runc`.
 
 **Harness**: everything needed to run one CLI, with its scripts inline, and by name the provider it
 calls and the sandbox it runs in.
 
-```yaml
-name: claude-code
-provider: anthropic          # any provider; the run script maps its url and key onto the CLI's variables
-sandbox: default
-files:
-  AGENTS.md: "{instructions}"           # written into the workspace before the run
-run:
-  argv: [bash, "{harness_dir}/run.sh"]
-  env: { HOME: "{workspace}/.home" }    # on top of the contract variables
-  stdout: application/x-ndjson          # what the CLI prints; kept as the response's output
-  timeout_s: 900
-# scripts: {run.sh: ..., report.py: ...}  — `hi pack` adds the folder's files
+```json
+{
+  "name": "claude-code",
+  "provider": "anthropic",
+  "sandbox": "default",
+  "files": {"AGENTS.md": "{instructions}"},
+  "run": {
+    "argv": ["bash", "{harness_dir}/run.sh"],
+    "env": {"HOME": "{workspace}/.home"},
+    "stdout": "application/x-ndjson",
+    "timeout_s": 900
+  },
+  "scripts": {"run.sh": "...", "report.py": "..."}
+}
 ```
+
+`provider` is any provider; the run script maps its url and key onto the CLI's own variables.
+`files` are written into the workspace before the run. `run.env` is set on top of the contract
+variables. `run.stdout` is the content type of what the CLI prints, kept as the response's output.
+`sandbox` defaults to `default`. `run.argv` defaults to `bash {harness_dir}/run.sh`. `scripts` are
+the harness's own files, mounted read-only at `{harness_dir}`.
 
 Templates in `argv`, `env` and `files` take `{task}`, `{instructions}`, `{model}`,
 `{session_id}`, `{workspace}`, `{harness_dir}`, `{provider_url}` and `{provider_key}`.
@@ -93,7 +99,7 @@ A Responses client sees a valid start and end and may ignore the middle; a clien
 CLI reads its events exactly as it printed them.
 
 A conversation is a chain of responses. `previous_response_id` reuses that response's workspace,
-with the files as the agent left them, and hands the CLI the session id it reported, so Claude
+with the files as the harness left them, and hands the CLI the session id it reported, so Claude
 Code is resumed with `--resume`, Codex with `exec resume`, dsh with `--session-id`. A response
 cannot continue one made on another harness.
 
@@ -115,10 +121,11 @@ stdin, the contract variables and the harness's env inside. The image is built t
 Dockerfile with that content is seen and reused after; change the Dockerfile and the next
 response builds and uses the new one, no restart. Every run gets, whatever its sandbox:
 
-- all capabilities dropped, no privilege escalation, a read-only root filesystem, tmpfs `/tmp`,
-  pid and memory caps;
-- gVisor (`--runtime=runsc`) when the host has it, plain `runc` otherwise, `runtime: runc` or
-  `runsc` on the sandbox to insist; the record says which ran;
+- all capabilities dropped, no privilege escalation, a read-only root filesystem, pid and memory
+  caps, and a tmpfs `/tmp` that allows exec, as a normal `/tmp` does, because CLIs unpack native
+  modules there;
+- a workspace owned by the sandbox user, uid 1000: a server running as root hands it over before
+  each run;
 - an internal Docker network of its own, with no route to the internet, the host, or other runs.
   Its only other member is the egress door.
 
@@ -152,21 +159,28 @@ hi/
   workspace.py  a conversation's directory, its git baseline, produced files by diff
   store.py      one JsonStore class for the four stores
   template.py   {a.b} placeholders
-  cli.py        hi serve | hi pack
+  cli.py        hi serve
   default.Dockerfile
+harnesses/      twenty-five harnesses, one folder each; harnesses/README.md registers them
 docs/           this, the walkthrough, the mascot
 tests/          every endpoint through an echo harness on the subprocess runtime; the door; the docker command lines
 ```
 
 ## Verified
 
-Through this interface, with the real CLIs, each written as a harness the way the walkthrough
-shows: Claude Code on Anthropic, Claude Code on DeepSeek's Anthropic-compatible endpoint with
-`deepseek-chat`, Codex on OpenAI, DeepSeek Harness on DeepSeek, and the harness-engineering
-course's own harness.py on Anthropic, each answering the same question; Claude Code on DeepSeek,
-Codex and dsh each continued once with `previous_response_id` and recalled a word from the first
-turn. The docker command lines, the image tagging and the door are covered by tests; the live
-runs used `--runtime local`, since the box they ran on had no Docker daemon.
+Live, with Docker on runc: the server installed into a fresh uv venv as the walkthrough says;
+four providers (Anthropic, OpenAI, DeepSeek's Anthropic and OpenAI endpoints) and all twenty-five
+shipped harnesses added through the API with no restart; the default image built once, on the
+first request, and every run after it a new container from that image. Each harness was asked to
+remember a word and answer `17 * 23`, then, with `previous_response_id`, to recall the word.
+Twenty-three answered 391; twenty-one recalled the word. Cline and harness-engineering answer
+but do not resume, as noted in [harnesses/README.md](../harnesses/README.md); Gemini CLI and Qoder
+were not run, for want of a key.
+
+From inside a live run, as the sandbox user: no capabilities, no DNS, no direct connection out,
+no connection to the Docker host; `/etc` and `/usr` read-only and no way to escalate; through the
+door, only the provider's host on its own port, by CONNECT, and nothing else. The docker command
+lines, the image tagging and the door are also covered by tests.
 
 ## Trust
 

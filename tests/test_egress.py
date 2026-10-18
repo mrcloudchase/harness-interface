@@ -3,7 +3,7 @@ import asyncio
 
 import pytest
 
-from hi.egress import Door, normalize
+from harness_interface.egress import Door, normalize
 
 
 def test_normalize():

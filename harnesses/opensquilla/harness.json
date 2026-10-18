@@ -1,0 +1,18 @@
+{
+  "name": "opensquilla",
+  "description": "OpenSquilla (TokenRhythm), one agent turn per run. Shell, files, web. Its anthropic provider reads the key from the env var the config names and takes a base_url, so the provider is Anthropic or any endpoint that serves the Messages shape. One JSON object on stdout.",
+  "provider": "anthropic",
+  "files": {
+    "AGENTS.md": "{instructions}"
+  },
+  "run": {
+    "env": {
+      "HOME": "{workspace}/.home",
+      "OPENSQUILLA_TRUST_ENV": "1",
+      "OPENSQUILLA_TELEMETRY_DISABLED": "1",
+      "OPENSQUILLA_UPDATE_CHECK_DISABLED": "1"
+    },
+    "stdout": "application/json",
+    "timeout_s": 900
+  }
+}

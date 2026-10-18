@@ -1,0 +1,13 @@
+{
+  "name": "jcode",
+  "description": "J-Code, headless: `jcode run --json` sends one message and prints one JSON result with the answer, usage and session id. Native Anthropic provider; many others by flag.",
+  "provider": "anthropic",
+  "run": {
+    "env": {
+      "HOME": "{workspace}/.home",
+      "JCODE_NO_TELEMETRY": "1"
+    },
+    "stdout": "application/json",
+    "timeout_s": 900
+  }
+}

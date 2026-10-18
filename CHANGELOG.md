@@ -3,6 +3,13 @@
 Every release has a section here; the release workflow publishes it as the release's notes. Add
 to "Unreleased" as you change things, and rename it to the version when you bump it.
 
+## [1.0.1]
+
+- **OpenHands follows the request's instructions.** It reads `AGENTS.md` only as untrusted
+  context for code style, so a model such as Claude ignored a role or rule given there. Its harness
+  now puts the instructions ahead of the task.
+- **The CI badge** in the README renders everywhere, the GitHub mobile app included.
+
 ## [1.0.0]
 
 The first release. harness-interface runs any harness in a sandbox, as a Python library and as an

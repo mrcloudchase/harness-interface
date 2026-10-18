@@ -55,8 +55,8 @@ uv run --extra dev pytest tests/test_harness.py -k cancel    # one file, some te
 uv run --extra dev pytest -m docker            # against a real Docker daemon
 ```
 
-CI runs the whole suite on every pull request, on Python 3.11 and 3.13, and the Docker tests
-beside it. [Testing](testing.md) says what each suite proves, and how to write a test.
+CI runs the whole suite on every pull request, on Python 3.11 (the oldest supported), 3.13 (the
+installer's) and 3.14, and the Docker tests beside it. [Testing](testing.md) says what each suite proves, and how to write a test.
 
 ## Lint
 

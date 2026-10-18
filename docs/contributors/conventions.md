@@ -93,4 +93,4 @@ happens, with a real example, in plain sentences.
 
 - One change per pull request, on its own branch, with its tests and docs.
 - The commit message says what changed and why, in the present tense.
-- CI must be green: the tests on Python 3.11 and 3.13, the Docker tests, and the lint.
+- CI must be green: the tests on Python 3.11, 3.13 and 3.14, the Docker tests, and the lint.

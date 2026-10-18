@@ -11,7 +11,7 @@
 | **curl** | for the installer |
 
 You don't need Python. The installer brings [uv](https://docs.astral.sh/uv/), and uv brings
-Python 3.12.
+Python 3.13.
 
 ## Install
 

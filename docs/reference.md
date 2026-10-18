@@ -16,6 +16,9 @@ uv run --extra dev pytest              # the tests; they need no Docker and no k
 | `HI_DATA_DIR` | `./data` | resources, records, logs and workspaces |
 | `HI_RUNTIME` | `docker` | where harnesses run: `docker`, or `local` for plain processes on the host |
 
+With `docker`, the server checks at startup that Docker is reachable, and refuses to start if it
+is not: start Docker, or set `HI_RUNTIME=local`.
+
 ## The three resources
 
 Each is added with `PUT /<kind>/{name}`; the name in the path must match the `name` in the body.
@@ -123,12 +126,16 @@ That is the whole interface between the server and a harness.
 
 The record is a Response object:
 - `id`;
-- `status`: `completed`, `failed`, `incomplete` on timeout, or `cancelled`;
+- `status`: `in_progress` while it runs, then `completed`, `failed`, `incomplete` on timeout, or `cancelled`;
 - `model`;
 - `output`: one assistant message holding the harness's reported answer;
 - `usage`, as the harness reported it;
 - `previous_response_id` and `metadata`;
-- `error` and `incomplete_details`;
+- `error` when it failed, with a `code`:
+  - `harness_failed`: the harness ran and failed;
+  - `setup_failed`: the sandbox could not be set up, so the harness never ran;
+  - `server_restarted`: the server restarted while it ran;
+- `incomplete_details` when it timed out;
 - one extension key, `harness`, holding:
   - name, provider and sandbox;
   - runtime and image;
@@ -136,14 +143,27 @@ The record is a Response object:
   - exit code, latency and cost;
   - produced files.
 
+`POST /responses` checks the request, prepares the workspace and starts the run, then answers at
+once. The run belongs to the server, not to the request that started it: it goes on, and is
+recorded, whether or not the client is still there.
+
 Streamed, the record arrives as SSE in the Responses framing:
-1. `response.created`;
+1. `response.created`, sent at once, before the sandbox is set up;
 2. one `harness.output` event, `{"line": ...}`, for each line of the CLI's stdout as it arrives;
 3. `response.completed`, carrying the record.
 
 A Responses client sees a valid start and end and can ignore the middle. A client that knows the
-CLI reads its events exactly as printed. If the client disconnects, the run still finishes and is
-recorded.
+CLI reads its events exactly as printed. A client that disconnects only stops following; the
+record, `/output` and `/log` have everything once the run is done. Without `stream`, the request
+waits for the run and returns the finished record.
+
+Runs go side by side: many clients, many harnesses, many conversations at once. A conversation
+has one run at a time: a follow-up sent while its conversation still has a run in progress gets a
+409.
+
+`POST /responses/{id}/cancel` stops a run at any point. Cancelled while its sandbox is still being
+set up, the harness never starts. Cancelled while running, the harness is killed. Either way the
+record ends `cancelled`.
 
 A conversation is a chain of responses. A follow-up:
 - reuses its predecessor's workspace, with the files as the harness left them;
@@ -173,19 +193,25 @@ Errors:
   - a follow-up on another harness;
   - a bad script name or template;
   - writing or deleting `default`.
+- 409 means the conversation already has a run in progress.
 - 422 means the request body does not fit its shape, for example an `input` with no text.
-- 500 means a sandbox image failed to build, or Docker failed to set a run up. The build log is in `data/logs/`.
+
+A sandbox that fails to build, or a run Docker cannot set up, is not an HTTP error: the request
+was fine. The record ends `failed`, with `setup_failed` and the reason. Image build logs are in
+`data/logs/`.
 
 ## A request end to end
 
-What happens on `POST /responses`, in order, and where in the code:
+What happens on `POST /responses`, in order, and where in the code. Steps 1 to 5 happen inside the
+request; a problem there is an HTTP error. Steps 6 to 10 are the run, a background task the
+server owns; a problem there is recorded on the response.
 
 1. **Resolve** (`responses.py`). Look up the harness named by `model`, then its provider, then its
    sandbox. With `previous_response_id`, load that record and check it was made on the same
    harness.
 2. **Record** (`models.py`). Create a `Response` with `status: in_progress`. Its workspace is the
    previous response's, or `data/workspaces/{id}` for a new conversation. Its session id is the
-   previous response's.
+   previous response's. If that workspace already has a run in progress, answer 409.
 3. **Workspace** (`workspace.py`). Create the directory with `.hi/` inside it. On first use, run
    `git init` and write a `.gitignore` for the internal paths.
 4. **Prepare** (`runner.py`).
@@ -194,11 +220,14 @@ What happens on `POST /responses`, in order, and where in the code:
    - Build the environment: the `HI_*` contract plus the harness's templated `run.env`.
    - Template `run.argv`.
 5. **Baseline**. Commit the workspace with git, so only what the harness itself writes counts as produced.
-6. **Image** (`sandbox.py`).
+   Steps 3 to 5 run in a worker thread, so a large workspace never holds up other clients.
+   Then save the record, start the run in the background, and answer: `response.created` when
+   streaming.
+6. **Image** (`docker.py`).
    - The tag is `harness-interface/{sandbox}:{first 12 hex of sha256(Dockerfile)}`.
    - If that image exists, use it. Otherwise `docker build` it from the Dockerfile with an empty context, one build per tag at a time.
    - The build log goes to `data/logs/build-{sandbox}-{hash}.log`.
-7. **Network and door**.
+7. **Network and door**. If the run was cancelled during the build, it ends here, `cancelled`.
    - Hand the workspace to uid 1000 if the server runs as root.
    - Create an internal network, `harness-net-{id}`.
    - Start the egress door, `harness-door-{id}`, on it: `python:3.12-alpine` running `egress.py` with the allowlist.
@@ -211,19 +240,25 @@ What happens on `POST /responses`, in order, and where in the code:
    - the environment passed by name, so values never appear on a command line;
    - the request JSON on stdin and stderr to `data/logs/{id}.log`.
 
-   The record is saved, and the timeout clock starts.
-9. **Stream**. Copy stdout to `data/logs/{id}.out` as it arrives. With `stream`, each line also
-   goes out as a `harness.output` event.
+   The timeout clock starts. If anything in steps 6 to 8 fails, the door and network are
+   removed and the record ends `setup_failed`.
+9. **Pump**. Copy stdout to `data/logs/{id}.out` as it arrives, and hand each line to whoever is
+   following the run, which a streaming client sends on as a `harness.output` event.
 10. **Finish**.
-    - Wait for the exit code, then remove the door and the network.
+    - Wait for the exit code, then remove the run's container, door and network.
     - Read `.hi/output.json`.
     - Decide the status: timeout or cancel wins, then the reported `status`, then the exit code.
     - Fold the answer, usage, cost and session id into the record.
-    - List the produced files with `git status`, then commit the workspace again.
-    - Save the record and return it, or send it as `response.completed`.
+    - List the produced files with `git status`, then commit the workspace again, in a worker thread.
+    - Save the record, free the conversation, and tell followers the run is done: a streaming
+      client gets `response.completed`, a waiting one gets the record.
 
-With `HI_RUNTIME=local`, steps 6 to 8 are a plain subprocess in the workspace directory, with
-the same environment and stdin, killed by process group on timeout or cancel.
+With `HI_RUNTIME=local` (`local.py`), steps 6 to 8 are a plain subprocess in the workspace
+directory, with the same environment and stdin, killed by process group on timeout or cancel.
+
+At startup the server closes out what a restart cut off: every record still `in_progress` ends
+`failed` with `server_restarted`, and the Docker runtime removes the containers and networks
+those runs left (`harness-run-*`, `harness-door-*`, `harness-net-*`).
 
 ## The sandbox
 
@@ -270,13 +305,16 @@ workspaces/{id}/             one per conversation, named after its first respons
 
 ```
 harness_interface/
-  app.py           the routes, and main(), the entry point
-  config.py        Settings, from the environment
+  app.py           the routes, startup, and main(), the entry point
+  config.py        Settings, from the environment, and where each file lives
+  errors.py        the refusals, and the HTTP status of each
   models.py        Provider, Sandbox, Harness, the request, the Response record
   registry.py      the three resources; the built-in default sandbox; a harness's scripts on disk
-  responses.py     one response end to end, and the wire format in and out
+  responses.py     one response end to end: start, the run in the background, following it, cancel, restart
   runner.py        the process contract: files, env, request.json, output.json
-  sandbox.py       Docker (image, network, door, run, kill) and the local subprocess runtime
+  runtime.py       the Runtime interface, a running Process, spawning one
+  docker.py        the Docker runtime: image, network, door, run, teardown, recovery
+  local.py         the local runtime: a plain process on the host
   egress.py        the door
   workspace.py     a conversation's directory, its git baseline, produced files
   store.py         one JsonStore class for the four stores
@@ -284,7 +322,8 @@ harness_interface/
   default.Dockerfile
 harnesses/         twenty-five harnesses, one folder each; harnesses/README.md registers them
 docs/              this, the walkthrough, media
-tests/             every endpoint through an echo harness on the local runtime; the door; the docker command lines
+tests/             every endpoint through an echo harness on the local runtime; runs that outlive their client,
+                   cancel, one run per conversation, runs side by side, restart; the door; the docker command lines
 ```
 
 ## Verified
@@ -309,8 +348,16 @@ A probe ran inside a live run, as the sandbox user. It found:
 - `/etc` and `/usr` read-only;
 - through the door, only the provider's host on its own port, from the very first instant of the run, and nothing else.
 
-The tests also cover the docker command lines, the image tagging, the wait for the door and the
-door itself.
+Runs, live on Docker:
+- a streaming client that disconnected mid-run left a run that still finished, `completed`, with its whole output kept;
+- cancel killed a running harness, and its container, door and network were removed;
+- a follow-up sent while its conversation was busy got a 409;
+- a server killed mid-run left a record that the next start closed as `server_restarted`, and the containers and network it left were removed;
+- the 23 harnesses ran six at a time.
+
+The tests cover these on the local runtime against a real server, along with cancel during
+setup, a failed setup, runs side by side, the docker command lines, the image tagging, the wait
+for the door and the door itself.
 
 ## Trust
 

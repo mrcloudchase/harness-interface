@@ -1,41 +1,29 @@
-"""`{a.b}` placeholders over a context dict: the one templating mechanism, for argv, env and
-files. Lists and dicts render as JSON; None renders as empty."""
+"""`{name}` placeholders over a context of strings: the one templating mechanism, for a harness's
+argv, env and files. Only `{identifier}` is a placeholder, so other braces pass through."""
 from __future__ import annotations
 
-import json
 import re
 from typing import Any
 
-_PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_.]*)\}")
+from .errors import ClientError
+
+_PLACEHOLDER = re.compile(r"\{([A-Za-z_][A-Za-z0-9_]*)\}")
 
 
-class TemplateError(KeyError):
+class TemplateError(ClientError):
     pass
 
 
-def lookup(path: str, ctx: dict[str, Any]) -> Any:
-    cur: Any = ctx
-    for part in path.split("."):
-        if isinstance(cur, dict) and part in cur:
-            cur = cur[part]
-        else:
-            raise TemplateError(path)
-    return cur
+def render(template: str, ctx: dict[str, str]) -> str:
+    def value(m: re.Match) -> str:
+        if m.group(1) not in ctx:
+            raise TemplateError(f"unknown placeholder {m.group(0)}")
+        return ctx[m.group(1)]
+    return _PLACEHOLDER.sub(value, template)
 
 
-def _text(v: Any) -> str:
-    if v is None:
-        return ""
-    if isinstance(v, (list, dict)):
-        return json.dumps(v)
-    return str(v)
-
-
-def render(template: str, ctx: dict[str, Any]) -> str:
-    return _PLACEHOLDER.sub(lambda m: _text(lookup(m.group(1), ctx)), template)
-
-
-def render_obj(obj: Any, ctx: dict[str, Any]) -> Any:
+def render_obj(obj: Any, ctx: dict[str, str]) -> Any:
+    """Render every string in a list or dict's values; anything else is returned as it is."""
     if isinstance(obj, str):
         return render(obj, ctx)
     if isinstance(obj, list):

@@ -1,28 +1,29 @@
-"""What the Docker sandbox would run, without a daemon: the image tag, the door, the container."""
+"""What the Docker runtime would run, without a daemon: the image tag, the door, the container."""
 from pathlib import Path
 
 import pytest
 
 from harness_interface.models import Sandbox
 from harness_interface.runner import Prepared
-from harness_interface.sandbox import DOOR_PORT, HARDENING, DockerNames, DockerSandbox, Job
+from harness_interface.docker import DOOR_PORT, HARDENING, LOCKDOWN, DockerNames, DockerRuntime
+from harness_interface.runtime import Job
 
 
 def test_image_tag_follows_the_dockerfile_content():
     a, b = Sandbox(name="s", dockerfile="FROM a"), Sandbox(name="s", dockerfile="FROM b")
-    assert DockerSandbox.tag(a) != DockerSandbox.tag(b) and DockerSandbox.tag(a) == DockerSandbox.tag(Sandbox(name="s", dockerfile="FROM a"))
-    assert DockerSandbox.tag(a).startswith("harness-interface/s:")
+    assert DockerRuntime.tag(a) != DockerRuntime.tag(b) and DockerRuntime.tag(a) == DockerRuntime.tag(Sandbox(name="s", dockerfile="FROM a"))
+    assert DockerRuntime.tag(a).startswith("harness-interface/s:")
 
 
 def test_run_and_door_argv(tmp_path):
-    sb = DockerSandbox(tmp_path, tmp_path)
+    sb = DockerRuntime(tmp_path)
     assert sb.mounts(Path("/x"), Path("/y")).workspace == "/workspace"
     prepared = Prepared(argv=["bash", "/harness/run.sh"], env={"HI_TASK": "t", "HI_PROVIDER_KEY": "k", "HOME": "/workspace/.home"},
                         stdin=b"{}", timeout_s=9)
     job = Job(id="abc", prepared=prepared, workspace=Path("/ws"), harness_dir=Path("/hd"), log_path=tmp_path / "l",
-              spec=Sandbox(name="default", dockerfile="FROM x"), egress=["api.deepseek.com:443", "pypi.org:443"])
+              image="harness-interface/default:deadbeef", egress=["api.deepseek.com:443", "pypi.org:443"])
     names = DockerNames.of("abc")
-    argv = sb.run_argv(job, "harness-interface/default:deadbeef", names)
+    argv = sb.run_argv(job, names)
     assert argv[:2] == ["docker", "run"] and argv[-3:] == ["harness-interface/default:deadbeef", "bash", "/harness/run.sh"]
     assert "--network" in argv and argv[argv.index("--network") + 1] == "harness-net-abc"
     assert "--runtime" not in argv
@@ -35,37 +36,38 @@ def test_run_and_door_argv(tmp_path):
     assert door[:2] == ["run", "-d"] and door[-2:] == ["api.deepseek.com:443", "pypi.org:443"]
     assert "--network" in door and door[door.index("--network") + 1] == "harness-net-abc"
     assert any(x.endswith("egress.py:/door/egress.py:ro") for x in door)
+    assert all(flag in door for flag in LOCKDOWN)                          # the door is locked down like the run
 
 
 def test_hand_over_gives_the_workspace_to_the_sandbox_user(tmp_path):
     import os
-    from harness_interface.sandbox import UID
+    from harness_interface.docker import UID
     if os.geteuid() != 0:
         pytest.skip("only a server running as root changes ownership")
     (tmp_path / "a" / "b").mkdir(parents=True)
     (tmp_path / "a" / "f.txt").write_text("x")
-    DockerSandbox.hand_over(tmp_path)
+    DockerRuntime.hand_over(tmp_path)
     assert {p.stat().st_uid for p in [tmp_path, *tmp_path.rglob("*")]} == {UID}
 
 
 @pytest.mark.anyio
 async def test_the_run_waits_for_the_door(monkeypatch):
-    from harness_interface import sandbox
+    from harness_interface import docker
     logs = iter(["", "", "door listening\n"])
     calls = []
 
     async def fake_docker(*args, **_):
         calls.append(args)
         return 0, next(logs)
-    monkeypatch.setattr(sandbox, "docker", fake_docker)
-    await DockerSandbox.door_ready(DockerNames.of("abc"))
+    monkeypatch.setattr(docker, "docker", fake_docker)
+    await DockerRuntime.door_ready(DockerNames.of("abc"))
     assert calls == [("logs", "harness-door-abc")] * 3
 
     async def gone(*args, **_):                   # the door exited: docker logs fails, the run does not start
         return 1, "No such container"
-    monkeypatch.setattr(sandbox, "docker", gone)
+    monkeypatch.setattr(docker, "docker", gone)
     with pytest.raises(RuntimeError, match="egress door did not start"):
-        await DockerSandbox.door_ready(DockerNames.of("abc"))
+        await DockerRuntime.door_ready(DockerNames.of("abc"))
 
 
 @pytest.fixture

@@ -27,7 +27,8 @@ The environment configures it:
 
 Keep it on localhost. There is no authentication, and provider keys pass through this process.
 
-`HI_RUNTIME=local uv run harness-interface` needs no Docker. Use it to try things out or to
+With the default `docker` runtime, the server checks at startup that Docker is reachable and
+will not start without it. `HI_RUNTIME=local uv run harness-interface` needs no Docker. Use it to try things out or to
 develop a harness. A local run has no isolation and no egress rule, and its record says
 `"runtime": "local"`.
 
@@ -209,12 +210,16 @@ curl -N localhost:8000/responses -H 'content-type: application/json' -d '{
 into the workspace before the run.
 
 With `"stream": true` the response comes back as server-sent events:
-1. `response.created`, carrying the record while it is in progress;
+1. `response.created`, at once, carrying the record while it is in progress;
 2. one `harness.output` event for each line Claude Code prints, exactly as printed, until it exits;
 3. `response.completed`, carrying the finished record.
 
 Leave `stream` out and the finished record comes back as one JSON object once the run is done.
 Either way, the `X-Response-Id` header carries the id.
+
+The run belongs to the server, not to your connection. Close the stream, or lose the connection,
+and the harness keeps going; its record, output and log are all there when it is done. Many
+clients can run harnesses at once, each request in its own sandbox.
 
 The record:
 
@@ -251,6 +256,10 @@ curl localhost:8000/responses                          # every record
 curl -X POST localhost:8000/responses/resp_…/cancel    # stop a run in progress
 ```
 
+Cancel works at any point: while the sandbox is still being built the harness never starts, and
+once it is running it is killed. The record ends `cancelled`. A run that could not start, because
+its sandbox failed to build for example, ends `failed` with `"code": "setup_failed"` and the reason.
+
 ## 7. Continue
 
 A conversation is a chain of responses. Name the response to continue from:
@@ -265,7 +274,8 @@ curl localhost:8000/responses -H 'content-type: application/json' -d '{
 
 The run reuses that response's workspace, with the files as the harness left them, and hands the
 CLI the session id it reported as `HI_SESSION_ID`, so it remembers the earlier turn. A response
-can only continue one made on the same harness. Leave `previous_response_id` out to start a new
-conversation in a new workspace.
+can only continue one made on the same harness, and a conversation has one run at a time: a
+follow-up sent while the previous one is still running gets a 409. Leave `previous_response_id`
+out to start a new conversation in a new workspace.
 
 That is the whole loop: add resources once, post requests, read the records, continue or start over.

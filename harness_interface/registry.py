@@ -5,6 +5,7 @@ from __future__ import annotations
 import shutil
 from pathlib import Path
 
+from .errors import ClientError
 from .models import Harness, Provider, Sandbox
 from .store import JsonStore
 
@@ -30,22 +31,23 @@ class Resources:
 
     def put_sandbox(self, spec: Sandbox) -> Sandbox:
         if spec.name == DEFAULT_SANDBOX:
-            raise ValueError(f"'{DEFAULT_SANDBOX}' is built in; add a sandbox under another name")
+            raise ClientError(f"'{DEFAULT_SANDBOX}' is built in; add a sandbox under another name")
         return self.sandboxes.put(spec.name, spec)
 
     def delete_sandbox(self, name: str) -> bool:
         if name == DEFAULT_SANDBOX:
-            raise ValueError(f"'{DEFAULT_SANDBOX}' is built in and cannot be deleted")
+            raise ClientError(f"'{DEFAULT_SANDBOX}' is built in and cannot be deleted")
         return self.sandboxes.delete(name)
 
     # harnesses
     def put_harness(self, spec: Harness) -> Harness:
+        bad = [n for n in spec.scripts if "/" in n or n.startswith(".")]
+        if bad:                                      # checked before anything on disk changes
+            raise ClientError(f"script name must be a plain filename: {bad[0]!r}")
         d = self.harness_dir(spec.name)
         shutil.rmtree(d, ignore_errors=True)
         d.mkdir(parents=True)
         for name, content in spec.scripts.items():
-            if "/" in name or name.startswith("."):
-                raise ValueError(f"script name must be a plain filename: {name!r}")
             (d / name).write_text(content)
         return self.harnesses.put(spec.name, spec)
 

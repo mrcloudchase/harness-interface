@@ -29,7 +29,8 @@ def container(tmp_path):
 
 @pytest.fixture
 def client(container):
-    return TestClient(create_app(container))
+    with TestClient(create_app(container)) as c:     # one event loop for the test, so background runs live on
+        yield c
 
 
 @pytest.fixture
@@ -39,3 +40,27 @@ def echo(client):
     r = client.put("/harnesses/echo", json=ECHO.model_dump(mode="json"))
     assert r.status_code == 200, r.text
     return ECHO
+
+
+@pytest.fixture
+def live(container, echo):
+    """The app on a real server, for what a test client cannot show: streams that are still
+    running, clients that leave, requests at the same time."""
+    import socket
+    import threading
+    import time
+
+    import httpx
+    import uvicorn
+    with socket.socket() as s:
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+    server = uvicorn.Server(uvicorn.Config(create_app(container), host="127.0.0.1", port=port, log_level="warning"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    while not server.started:
+        time.sleep(0.01)
+    with httpx.Client(base_url=f"http://127.0.0.1:{port}", timeout=30) as c:
+        yield c
+    server.should_exit = True
+    thread.join(10)

@@ -51,6 +51,10 @@ dropped and the root filesystem is read-only. Its private network has exactly on
 tunnel to the harness's provider. The harness can call its model and nothing else, and it cannot
 use the tunnel for anything else either.
 
+**Runs belong to the server.** Many clients run harnesses at once, each request in its own
+sandbox. A client can disconnect and the run still finishes and is recorded. Any run can be
+cancelled, even while its sandbox is still being built.
+
 **Adding anything is a PUT.** A provider is three fields. A sandbox is a Dockerfile. A harness is
 a folder of small files. Change any of them and the next request uses the change, with no restart.
 
@@ -58,7 +62,7 @@ a folder of small files. Change any of them and the next request uses the change
 registered with one loop. The built-in sandbox already has every one of their CLIs. Every one is
 tested on a first turn and on a resumed second turn.
 
-**Small enough to read.** The whole server is eleven Python modules and about 1,100 lines.
+**Small enough to read.** The whole server is fourteen Python modules and about 1,200 lines.
 
 ## Try it
 

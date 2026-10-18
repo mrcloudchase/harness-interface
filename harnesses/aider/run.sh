@@ -6,6 +6,8 @@
 # Set in harness.json:
 #   HOME: .aider* history files and caches live here, so --restore-chat-history works later
 #   LITELLM_LOCAL_MODEL_COST_MAP: use the bundled price map; the sandbox reaches only the provider
+#   AIDER_CHECK_UPDATE: no update check; the sandbox reaches only the provider
+#   files AGENTS.md: the request's instructions; aider reads no instruction file, so this script passes it with --read
 set -euo pipefail
 export ANTHROPIC_API_KEY="$HI_PROVIDER_KEY" ANTHROPIC_API_BASE="${HI_PROVIDER_URL%/}"
 # aider fetches litellm's price map from GitHub whenever its own cache is empty or a day old, and

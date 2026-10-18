@@ -4,6 +4,7 @@
 # empty: omp appends stdin to the prompt, and the server's stdin carries the request JSON.
 # Set in harness.json:
 #   HOME: sessions and agent.db land under $HOME/.omp/agent, so --resume works later
+#   files AGENTS.md: the request's instructions, which omp reads from its working directory
 set -euo pipefail
 export ANTHROPIC_API_KEY="$HI_PROVIDER_KEY"
 # omp sends model calls through PI_PROXY, not HTTPS_PROXY; in the sandbox the egress door is the only way out.

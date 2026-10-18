@@ -3,6 +3,8 @@
 # --resume <session_id>; the chat file lives under $HOME/.qwen, keyed by the workspace path.
 # Set in harness.json:
 #   HOME: chats land under $HOME/.qwen/projects/<cwd>/chats, so --resume works later
+#   QWEN_CODE_SUPPRESS_YOLO_WARNING: no warning about yolo approvals in the output
+#   files QWEN.md: the request's instructions, under the only name qwen reads
 set -euo pipefail
 mkdir -p "$HOME"   # qwen refuses to start when HOME does not exist yet
 export OPENAI_BASE_URL="${HI_PROVIDER_URL%/}" OPENAI_API_KEY="$HI_PROVIDER_KEY"

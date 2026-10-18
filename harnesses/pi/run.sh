@@ -3,6 +3,7 @@
 # session id, which pi creates on first use.
 # Set in harness.json:
 #   HOME: sessions land under $HOME/.pi/agent/sessions, so --session-id resumes later
+#   files AGENTS.md: the request's instructions, which pi reads from its working directory
 set -euo pipefail
 export ANTHROPIC_API_KEY="$HI_PROVIDER_KEY"
 # pi wants --model whenever --provider is given, so the harness picks a default model.

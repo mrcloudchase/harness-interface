@@ -5,6 +5,7 @@
 #   HOME: sessions land under $HOME/.gjc/agent/sessions, so -r resumes later
 #   GJC_NO_TMUX: never wrap the run in a tmux session
 #   GJC_NOTIFY: no desktop notifications from a headless run
+#   files AGENTS.md: the request's instructions, which gjc reads from its working directory
 set -euo pipefail
 base="${HI_PROVIDER_URL%/}"
 export ANTHROPIC_BASE_URL="${base%/v1}" ANTHROPIC_API_KEY="$HI_PROVIDER_KEY"

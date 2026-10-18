@@ -8,6 +8,7 @@
 # Set in harness.json:
 #   HOME: config and sessions live under $HOME/.nanobot, so -s <id> resumes later
 #   COLUMNS: Rich hard-wraps the answer at 80 columns otherwise
+#   files .home/.nanobot/workspace/AGENTS.md: the request's instructions, in the workspace nanobot works in
 set -euo pipefail
 [ -f "$HOME/.nanobot/config.json" ] || nanobot onboard >/dev/null 2>&1
 python3 - "$HI_PROVIDER_URL" "$HI_PROVIDER_KEY" "${HI_MODEL:-claude-sonnet-4-5}" <<'PY'

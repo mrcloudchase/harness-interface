@@ -1,11 +1,18 @@
 # Use and write harnesses
 
 A harness is any program you can start from a shell and hand a task to. To harness-interface, a
-harness is a folder:
-- a `harness.json` that says how the program runs;
-- the scripts it runs.
+harness is a folder, usually of three files:
 
-The server has no code for any harness. Everything specific to a CLI lives in its folder.
+| File | |
+|---|---|
+| `harness.json` | its provider and sandbox, the files to write before each turn, and how to run it |
+| `run.sh` | the command: maps the request onto the CLI's own flags, and runs it |
+| `report.py` | reads what the CLI printed, and writes back the answer, session, usage and cost |
+
+Only `harness.json` is required. `run.sh` is what runs unless `harness.json` says otherwise, and
+`report.py` is how the shipped harnesses report; every other file in the folder is a script the
+run can use. That is all a harness is. The server has no code for any harness, and how a harness
+is configured is decided by whoever writes it.
 
 ## Use the shipped harnesses
 
@@ -149,6 +156,28 @@ folder, some read it only once told to, and some read no file at all, or treat i
 only. For those, the run script hands the instructions over with a flag, or puts them ahead of
 the task. The shipped harnesses have an example of each
 ([notes](../../harnesses/README.md#notes-worth-knowing)).
+
+### Configure it your way
+
+How a CLI behaves is the harness's to decide: its settings, permissions, tool allow and deny
+lists, MCP servers, skills, hooks, anything the CLI reads. harness-interface doesn't read any of
+it, ships no defaults for it, and has no opinion on it. It gives you two places to put it:
+- **`files` in `harness.json`:** any file, at any path in the workspace, written before every
+  turn, with [placeholders](harness-contract.md#templates) filled in. A CLI's own configuration
+  files go here. Under `.home/`, the CLI's home if you set `HOME` there, they are never listed,
+  diffed or served as the harness's work.
+- **`run.sh`:** flags on the CLI's command line, or anything else the script does before it runs
+  the CLI.
+
+A different configuration is a different harness: copy the folder, give it a new name in
+`harness.json`, and add it. A request picks a configuration the way it picks a CLI, by name.
+
+Two things a configuration can't do on its own:
+- **Bring what it calls on.** A CLI or an MCP server it starts must be installed in the sandbox
+  image, and any host it reaches must be in the sandbox's `egress` ([sandboxes](sandboxes.md)).
+  The sandbox, not the CLI's settings, is what limits every run.
+- **Keep a secret.** A harness's `files` and `run.env` are stored as plain configuration and
+  returned by `GET /harnesses`. Only a provider's key is kept secret.
 
 ### Develop it
 

@@ -5,6 +5,7 @@
 # Set in harness.json:
 #   HOME: sessions live in $HOME/.local/share/goose/sessions/sessions.db, so --resume works later
 #   GOOSE_MODE: approve tool calls without asking
+#   files AGENTS.md: the request's instructions, which goose reads from its working directory
 set -euo pipefail
 base="${HI_PROVIDER_URL%/}"
 export ANTHROPIC_HOST="${base%/v1}" ANTHROPIC_API_KEY="$HI_PROVIDER_KEY"

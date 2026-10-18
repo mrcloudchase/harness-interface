@@ -5,6 +5,7 @@
 # Set in harness.json:
 #   HOME: sessions land under $HOME/.cheetahclaws/sessions, so /resume works later
 #   CHEETAH_PT_INPUT: plain readline input, no prompt_toolkit
+#   files CLAUDE.md: the request's instructions, under the only name cheetahclaws reads
 set -euo pipefail
 mkdir -p "$HOME"   # cheetahclaws creates ~/.cheetahclaws but not its parent
 export CUSTOM_BASE_URL="${HI_PROVIDER_URL%/}" CUSTOM_API_KEY="$HI_PROVIDER_KEY"

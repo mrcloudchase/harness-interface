@@ -3,6 +3,7 @@
 # `-s <id>` continues a session stored under $HOME. Models are named provider/model.
 # Set in harness.json:
 #   HOME: sessions live in $HOME/.local/share/kilo/kilo.db, so --session resumes later
+#   files AGENTS.md: the request's instructions, which kilo reads from its working directory
 set -euo pipefail
 export ANTHROPIC_API_KEY="$HI_PROVIDER_KEY"
 # The anthropic provider appends /messages itself, so the base URL must end in /v1.

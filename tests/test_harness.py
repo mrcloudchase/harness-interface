@@ -1,8 +1,11 @@
 """Layer 3: the harness contract gives every harness exactly what it promises and reads back exactly
-what it reports; the key reaches only the environment; every shipped harness loads and prepares;
+what it reports; the key reaches only the environment; every shipped harness loads, prepares, and
+puts the artifacts dropped in its folder in place, never outside its home;
 a turn runs end to end on a runtime, and can be cancelled at any point."""
 import asyncio
 import json
+import os
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -123,6 +126,38 @@ def test_every_shipped_harness_loads_and_prepares(tmp_path):
         ws.init()
         spec = prepare(h, PROVIDER, Request("x", instructions="be brief"), ws, folder)
         assert spec.command and {k for k in spec.env if k.startswith("HI_")} == CONTRACT, h.name
+
+
+def artifacts_block(run_sh: Path) -> str:
+    lines = run_sh.read_text().split("\n")
+    start = next(i for i, line in enumerate(lines) if line.startswith("# Artifacts:"))
+    return "\n".join(lines[start:lines.index("fi", start) + 1])
+
+
+def place(block: str, folder: Path, home: Path) -> subprocess.CompletedProcess:
+    return subprocess.run(["bash", "-c", f"set -euo pipefail\n{block}"], capture_output=True, text=True,
+                          env={"PATH": os.environ["PATH"], "HOME": str(home), "HI_HARNESS_DIR": str(folder)})
+
+
+def test_every_shipped_harness_puts_dropped_artifacts_in_place(tmp_path):
+    blocks = {artifacts_block(p) for p in (ROOT / "harnesses").glob("*/run.sh")}
+    assert len(blocks) == 1                                            # the same few lines in every harness
+    block = blocks.pop()
+    folder, home = tmp_path / "harness", tmp_path / "home"
+    folder.mkdir()
+    assert place(block, folder, home).returncode == 0 and not home.exists()     # no artifacts file: nothing to do
+    (folder / "review.md").write_text("# review")
+    (folder / "settings.json").write_text("{}")
+    (folder / "artifacts").write_text("# file  where under $HOME\n\nreview.md .claude/skills/review/SKILL.md\n"
+                                      "  settings.json   .claude/settings.json")   # no final newline
+    assert place(block, folder, home).returncode == 0
+    assert (home / ".claude/skills/review/SKILL.md").read_text() == "# review"
+    assert (home / ".claude/settings.json").read_text() == "{}"
+    for line in ("review.md ../out.md", "review.md /tmp/out.md", "review.md a/../../out.md", "review.md",
+                 "../review.md x.md", "missing.md x.md"):
+        (folder / "artifacts").write_text(line + "\n")
+        assert place(block, folder, home).returncode != 0, line
+    assert not (tmp_path / "out.md").exists()
 
 
 # ── a turn ─────────────────────────────────────────────────────────────────────────────────────

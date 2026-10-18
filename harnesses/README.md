@@ -88,9 +88,29 @@ Each folder is a working template. To change how a harness runs, copy its folder
 - **`run.sh`** opens by saying what it runs, and what each setting in `harness.json` is for. Its
   CLI's flags are in the command it runs.
 - **`harness.json`** names the provider and sandbox, sets `HOME` inside the workspace's `.home`, and
-  writes the instructions file. Any other file the CLI reads, such as its settings, permissions,
-  MCP servers, skills or hooks, can be written the same way, through `files`.
+  writes the instructions file.
 - **`report.py`** opens by saying what it reads from the CLI's output.
+
+### Bring artifacts
+
+To run a harness with its CLI's settings, permissions, MCP servers, skills, hooks or anything
+else it reads, drop the files in the folder and list each in a file named `artifacts`:
+
+```
+# file in this folder   where it goes under $HOME
+review.md               .claude/skills/review/SKILL.md
+settings.json           .claude/settings.json
+```
+
+Every shipped `run.sh` opens with the same few lines that put them in place before each turn.
+Where each CLI looks is in its own docs; for the CLIs whose home is set elsewhere, it is under
+`$HOME` too: `.codex/` for Codex, `.hermes/` for Hermes, `.kimi-code/` for Kimi Code. A run stops
+with an error, before the CLI starts, if a listed file is missing or a destination would leave
+`$HOME`.
+
+A few harnesses write a file of their own each turn, after the artifacts, so an artifact at the
+same path is replaced: Grok's `.grok/config.toml`, OpenSquilla's `.opensquilla/config.toml`, and
+nanobot's `.nanobot/config.json`, which it edits in place. To change those, change the `run.sh`.
 
 What to configure, and how, is up to you; the server reads none of it.
 [Use and write harnesses](../docs/users/harnesses.md#configure-it-your-way) has the details.

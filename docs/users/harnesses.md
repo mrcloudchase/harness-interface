@@ -161,16 +161,31 @@ the task. The shipped harnesses have an example of each
 
 How a CLI behaves is the harness's to decide: its settings, permissions, tool allow and deny
 lists, MCP servers, skills, hooks, anything the CLI reads. harness-interface doesn't read any of
-it, ships no defaults for it, and has no opinion on it. It gives you two places to put it:
-- **`files` in `harness.json`:** any file, at any path in the workspace, written before every
-  turn, with [placeholders](harness-contract.md#templates) filled in. A CLI's own configuration
-  files go here. Under `.home/`, the CLI's home if you set `HOME` there, they are never listed,
+it, ships no defaults for it, and has no opinion on it. It gives you three places to put it:
+- **Artifacts:** drop the files in the harness's folder, and list each one in a file named
+  `artifacts`, with where it goes under the CLI's home:
+
+  ```
+  # file in this folder   where it goes under $HOME
+  review.md               .claude/skills/review/SKILL.md
+  settings.json           .claude/settings.json
+  ```
+
+  Every shipped `run.sh` puts them in place before each turn, as they are, so this works the same
+  for every harness; only where each CLI looks differs. Under the CLI's home, they are never listed,
   diffed or served as the harness's work.
+- **`files` in `harness.json`:** any file, at any path in the workspace, written before every
+  turn, with [placeholders](harness-contract.md#templates) filled in. Use it for short config
+  that needs a value from the request; an artifact's text is never templated, so a `{name}` in it
+  stays as written.
 - **`run.sh`:** flags on the CLI's command line, or anything else the script does before it runs
   the CLI.
 
 A different configuration is a different harness: copy the folder, give it a new name in
 `harness.json`, and add it. A request picks a configuration the way it picks a CLI, by name.
+
+A harness folder holds plain files only, not folders, and they must be text: a skill that is
+a folder of files becomes one line in `artifacts` per file.
 
 Two things a configuration can't do on its own:
 - **Bring what it calls on.** A CLI or an MCP server it starts must be installed in the sandbox

@@ -17,6 +17,7 @@ d["providers"]["anthropic"].update(apiKey=sys.argv[2], apiBase=sys.argv[1].rstri
 d["agents"]["defaults"].update(provider="anthropic", model="anthropic/" + sys.argv[3].split("/")[-1])
 json.dump(d, open(p, "w"), indent=2)
 PY
+chmod 600 "$HOME/.nanobot/config.json"   # it holds the provider key
 session="${HI_SESSION_ID:-$(python3 -c 'import uuid; print(uuid.uuid4())')}"
 echo "session_id: $session" >&2
 nanobot agent --no-markdown -s "$session" -m "$HI_TASK" 2>&1 | python3 "$HI_HARNESS_DIR/report.py" "$session"

@@ -14,6 +14,7 @@
   <img src="https://img.shields.io/badge/runs-sandboxed%20in%20Docker-2496ed" alt="Runs sandboxed in Docker">
   <img src="https://img.shields.io/badge/API-OpenAI%20Responses-412991" alt="OpenAI Responses API">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License: Apache 2.0"></a>
+  <a href="https://github.com/mrcloudchase/harness-interface/actions/workflows/test.yml"><img src="https://github.com/mrcloudchase/harness-interface/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
 </p>
 
 <p align="center">
@@ -65,10 +66,60 @@ hi run claude-code "Now give it a title." -c
 The first run builds the sandbox image, which takes a few minutes. Every run after that starts in
 seconds. [Getting started](docs/getting-started.md) walks through it.
 
+**It runs on your machine, for you.** The server listens on `127.0.0.1` with no authentication,
+and anyone who can reach it can run harnesses with your provider keys. Don't expose it to a
+network ([security](docs/concepts/security.md)).
+
+## How it works
+
+```mermaid
+flowchart LR
+  C["Your code, hi,<br>or the OpenAI SDK"] -->|OpenAI Responses API| S["harness-interface<br>the execution layer"]
+  S -->|starts, streams, records| H
+  subgraph SB["A fresh sandbox for every run"]
+    H["Your harness<br>harness.json + a script<br>around any CLI"]
+  end
+  H -->|its only way out| P["Its model provider"]
+```
+
+The server is the execution layer, and a harness is configuration:
+- **The server owns the run:** the sandbox, the conversation's workspace and session, streaming,
+  cancelling, timeouts, and the record of what happened.
+- **A harness owns everything about its CLI.** It is a folder: a `harness.json`, and a script
+  that turns the request into the CLI's own flags. It decides where instructions go, how a
+  session resumes, which API the CLI speaks, and how its output becomes an answer.
+
+### No new harness protocol
+
+Clients use the OpenAI Responses API they already know. Inside, a harness is any program that
+reads a few environment variables (`HI_TASK`, `HI_PROVIDER_KEY` and the rest) and may write one
+JSON file back. That is the whole [harness contract](docs/reference/harness-contract.md). No
+harness has to implement a shared protocol, so a CLI works the way it ships, and adding one never
+changes the server.
+
+The trade-off: the server doesn't translate harnesses into a common vocabulary. Every run gets
+the same record (the answer, usage, cost, the files it changed and their diff) beside the
+harness's own output, byte for byte. There is no shared event schema, and no capability
+discovery across harnesses.
+
+### When to use it
+
+A good fit for:
+- running harnesses from your own code or loops, on a machine you control;
+- wrapping your own CLI, or one nobody else supports, without changing the server;
+- running the same task on several harnesses, each sandboxed and recorded.
+
+Not a fit, today, for:
+- a hosted service for many users: there is no authentication or tenancy;
+- fast, high-volume decisions such as classifying or routing: every run starts a container and
+  a workspace, which costs seconds, not milliseconds.
+
 ## Supported harnesses
 
-Every harness here ships with harness-interface, and has been run end to end: a first request,
-then a continued second one, in the default sandbox. `hi harness add --builtin` registers them.
+Every harness here ships with harness-interface, and has been run end to end in the default
+sandbox: a first request, then a continued second one that kept the request's instructions.
+`hi harness add --builtin` registers them. [How it is verified](docs/concepts/architecture.md#how-it-is-verified)
+has the details.
 
 | Harness | Default provider | Runs | Continues |
 |---|---|:-:|:-:|

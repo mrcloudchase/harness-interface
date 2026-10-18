@@ -139,7 +139,7 @@ class DockerRuntime:
                     raise RuntimeError(f"docker {step[0]} {step[1]} failed: {out[-500:]}")
             await self.door_ready(names)
             proc = await spawn(self.run_argv(job, names), {**os.environ, **job.prepared.env}, None,
-                               job.prepared.stdin, job.log_path)
+                               job.prepared.stdin)
         except BaseException:
             await self.teardown(names)
             raise

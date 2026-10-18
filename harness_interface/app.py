@@ -2,12 +2,14 @@
 `main` is the entry point: `uv run harness-interface`."""
 from __future__ import annotations
 
+import mimetypes
 from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
+from fastapi.responses import Response as HTTPResponse
 
 from .config import Settings
 from .docker import DockerRuntime
@@ -152,11 +154,30 @@ def create_app(c: Container | None = None) -> FastAPI:
         p = c.settings.log_path(response_id)
         return FileResponse(p, media_type="text/plain") if p.exists() else not_found("no log")
 
+    def workspace_of(response_id: str) -> tuple[Response, Workspace]:
+        record = c.responses.get(response_id) or not_found(f"no response {response_id}")
+        return record, Workspace(Path(record.harness.workspace))
+
+    @app.get("/responses/{response_id}/diff")
+    def response_diff(response_id: str):
+        """What this response changed, as a unified diff: so far, while it runs; in full, after."""
+        record, ws = workspace_of(response_id)
+        if not record.harness.base:
+            not_found("no diff for this response")
+        return PlainTextResponse(ws.diff(record.harness.base, record.harness.commit), media_type="text/x-diff")
+
+    @app.get("/responses/{response_id}/files")
+    def response_files(response_id: str) -> list[str]:
+        """Every file in the workspace as this response left it; while it runs, as it is now."""
+        record, ws = workspace_of(response_id)
+        return ws.files(record.harness.commit)
+
     @app.get("/responses/{response_id}/files/{path:path}")
     def response_file(response_id: str, path: str):
-        record = c.responses.get(response_id) or not_found(f"no response {response_id}")
-        p = Workspace(Path(record.harness.workspace)).resolve(path)
-        return FileResponse(p) if p.is_file() else not_found(f"no file {path}")
+        """A file as this response left it; while it runs, as it is now."""
+        record, ws = workspace_of(response_id)
+        data = ws.read(path, record.harness.commit)
+        return HTTPResponse(data, media_type=mimetypes.guess_type(path)[0] or "application/octet-stream") if data is not None else not_found(f"no file {path}")
 
     return app
 

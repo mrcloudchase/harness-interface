@@ -49,9 +49,9 @@ echo "a long task" | hi run codex -                    # the task from stdin
 ```
 
 While a run is going:
-- the harness's own output streams to stderr;
+- everything the harness prints, stdout and stderr, streams to your terminal (on stderr);
 - when it ends, the answer goes to stdout, so `hi run … > answer.txt` keeps just the answer;
-- a summary line goes to stderr: status, time, cost, produced files, and the response id.
+- a summary line goes to stderr: status, time, cost, files changed and deleted, and the response id.
 
 `hi run` exits 0 when the run completed, and 1 otherwise.
 
@@ -74,7 +74,9 @@ hi ls                     # every response
 hi show ID                # its record
 hi output ID              # the harness's stdout, byte for byte
 hi log ID                 # its stderr
-hi files ID PATH          # a file from its workspace
+hi diff ID                # what it changed, as a diff; live while it runs
+hi files ID               # every file in its workspace, as it left them
+hi files ID PATH          # one of them
 hi cancel ID              # stop it
 ```
 

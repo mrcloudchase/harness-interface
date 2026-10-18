@@ -83,10 +83,10 @@ Reading stdin is optional: a harness that ignores it is fine.
 
 | | Where |
 |---|---|
-| its output | stdout, streamed to clients and kept byte for byte (`GET /responses/{id}/output`) |
-| its log | stderr (`GET /responses/{id}/log`) |
+| its output | stdout, streamed to clients as it prints (`harness.output`) and kept byte for byte (`GET /responses/{id}/output`) |
+| its log | stderr, streamed the same way (`harness.log`) and kept (`GET /responses/{id}/log`) |
 | what the record reports | optional JSON written to the file at `HI_OUTPUT` (below) |
-| produced files | anything it adds or changes in the workspace |
+| its changes | whatever it adds, changes or deletes in the workspace: the record lists `files` and `deleted`, and `GET /responses/{id}/diff` shows them |
 
 The `HI_OUTPUT` file holds a JSON object. Every key is optional:
 
@@ -105,5 +105,8 @@ The `HI_OUTPUT` file holds a JSON object. Every key is optional:
 - **Internal paths are never produced files.** That covers `.hi/` (the server's own),
   `.home/`, `.git/` and `__pycache__/`. Set `"HOME": "{workspace}/.home"` so a CLI's own state
   survives between turns without being listed.
-- **Produced files are found with git:** whatever changed since the run began.
+- **Changes are found with git:** each turn starts and ends with a commit, so its diff and its
+  files can be read later, as it left them.
+- **A `.gitignore` is the project's own.** The internal paths are ignored by the server
+  separately, so a request or harness can add or replace `.gitignore` freely.
 - **Owned by uid 1000 in Docker,** which is why a sandbox's image needs a user with that uid.

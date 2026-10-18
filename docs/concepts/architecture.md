@@ -61,7 +61,7 @@ What happens on `POST /responses`:
    - Write the request's input files and the harness's templated `files`.
    - Write the request to `.hi/request.json`.
    - Build the environment: the `HI_*` variables, plus the harness's `run.env`.
-5. **Baseline.** Commit the workspace, so only what the harness writes counts as produced. Steps
+5. **Baseline.** Commit the workspace, so only what the harness writes counts as its change. Steps
    3–5 run in a worker thread, so a large workspace never holds up other clients. Then save the
    record, start the run in the background, and answer: a streaming client gets
    `response.created` at once.
@@ -81,12 +81,14 @@ What happens on `POST /responses`:
 
    The timeout clock starts. If anything in steps 6–8 fails, everything is removed, and the
    record ends `failed` with `setup_failed`.
-9. **Pump.** Keep stdout byte for byte, and hand each line to whoever is following the run.
+9. **Pump.** Keep stdout and stderr byte for byte, and hand each line of both to whoever is
+   following the run, as it arrives. While it runs, `/diff` shows its changes so far.
 10. **Finish.**
     - Wait for the exit, then remove the container, the door and the network.
     - Read what the harness reported. The status is timeout or cancel first, then the reported
       status, then the exit code.
-    - List the produced files, and commit the workspace.
+    - List the files it added, changed and deleted, and commit the workspace. That commit is how
+      `/diff` and `/files` show this turn as it left things, later.
     - Save the record, free the conversation, and send `response.completed`.
 
 On the local runtime, steps 6–8 are a plain process in the workspace directory, with the same

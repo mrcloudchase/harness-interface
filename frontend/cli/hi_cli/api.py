@@ -77,6 +77,12 @@ class Api:
     def file(self, response_id: str, path: str) -> bytes:
         return self._send("GET", f"/responses/{response_id}/files/{path}").content
 
+    def files(self, response_id: str) -> list[str]:
+        return self._send("GET", f"/responses/{response_id}/files").json()
+
+    def diff(self, response_id: str) -> str:
+        return self._send("GET", f"/responses/{response_id}/diff").text
+
 
 def _detail(r: httpx.Response) -> str:
     try:

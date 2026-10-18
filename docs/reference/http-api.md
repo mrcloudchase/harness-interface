@@ -20,7 +20,9 @@ FastAPI also serves the schema at `/openapi.json`, and interactive docs at `/doc
 | GET | `/responses`, `/responses/{id}` | list every record, or get one |
 | GET | `/responses/{id}/output` | the harness's stdout, byte for byte, in its declared content type |
 | GET | `/responses/{id}/log` | its stderr |
-| GET | `/responses/{id}/files/{path}` | a file from the response's workspace |
+| GET | `/responses/{id}/diff` | what the response changed, as a unified diff; live while it runs |
+| GET | `/responses/{id}/files` | every file in the workspace, as the response left it |
+| GET | `/responses/{id}/files/{path}` | one file, as the response left it |
 | POST | `/responses/{id}/cancel` | `{"cancelled": true}` if the run was in flight |
 
 ## Resources
@@ -80,13 +82,18 @@ event: response.created
 data: {"type": "response.created", "response": {…the record, in_progress…}}
 
 event: harness.output
-data: {"type": "harness.output", "line": "…one line the harness printed…"}
+data: {"type": "harness.output", "line": "…one line the harness printed on stdout…"}
+
+event: harness.log
+data: {"type": "harness.log", "line": "…one line the harness printed on stderr…"}
 
 event: response.completed
 data: {"type": "response.completed", "response": {…the finished record…}}
 ```
 
-There is one `harness.output` event for every line the harness prints, in order. A client that
+There is one `harness.output` event for every line the harness prints on stdout, and one
+`harness.log` event for every line on stderr, as they arrive. Together they are everything the
+harness prints, as if you were watching it in a terminal. A client that
 disconnects only stops following.
 
 ### Continuing
@@ -119,7 +126,8 @@ A conversation runs one request at a time; a second one gets a 409 until the fir
     "name": "claude-code", "provider": "anthropic", "sandbox": "default", "runtime": "docker",
     "image": "harness-interface/default:ae0ffeef761f", "workspace": "…/workspaces/resp_254e3da1d07b4a5f",
     "session_id": "863ff72c-…", "exit_code": 0, "latency_s": 21.1, "cost_usd": 0.1174,
-    "files": []
+    "files": ["switchboard/app.py"], "deleted": [],
+    "base": "3f1c9e2…", "commit": "a77d1b0…"
   }
 }
 ```
@@ -131,7 +139,7 @@ A conversation runs one request at a time; a second one gets a 409 until the fir
 | `usage` | as the harness reported it, in its own keys |
 | `error` | when `failed`: `{"code", "message"}`, where `code` is `harness_failed`, `setup_failed` or `server_restarted` |
 | `incomplete_details` | when it timed out: `{"reason": "timeout"}` |
-| `harness` | what the Responses shape has no field for: where it ran, the session to resume, exit code, latency, cost, produced files |
+| `harness` | what the Responses shape has no field for: where it ran, the session to resume, exit code, latency, cost; `files` it added or changed and `deleted`; and the workspace commits before (`base`) and after (`commit`) the turn |
 
 ## Errors
 
@@ -144,3 +152,18 @@ A conversation runs one request at a time; a second one gets a 409 until the fir
 
 A 400, 404 or 409 body is `{"detail": "<what went wrong>"}`. A 422 body is FastAPI's list of
 validation errors. A run that fails is not an HTTP error: its record says why.
+
+## Seeing everything a harness did
+
+Every turn ends in a commit in the conversation's workspace, so each response can be read as it
+left things, even after later turns have changed them:
+
+| | |
+|---|---|
+| `GET /responses/{id}/diff` | the turn's changes: added, modified and deleted files, as a unified diff. While the run is going, the changes so far. |
+| `GET /responses/{id}/files` | every file in the workspace after the turn (now, while it runs) |
+| `GET /responses/{id}/files/{path}` | one file after the turn; 404 if the turn deleted it |
+| `GET /responses/{id}/output`, `/log` | everything it printed, byte for byte |
+
+The harness's own state (`.home/`, where CLIs keep sessions and credentials) and the server's
+(`.hi/`) are never committed, diffed, listed or served.

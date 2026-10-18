@@ -113,6 +113,14 @@ own CLI is two files away ([write a harness](docs/guides/harnesses.md#write-your
   - its produced files;
   - its usage and cost;
   - the session to resume.
+- **Built for loops.** Drive harnesses from a program, not by hand.
+  [examples/build-loop](examples/build-loop/) builds a project from a spec and its tests:
+  - it plans, builds, verifies in a container, reviews with a second harness, and checkpoints;
+  - it escalates between harnesses, and stops cleanly at a deadline or budget.
+
+  [Watch it run](docs/guides/loops.md#watch-one).
+- **See everything.** Each harness's stdout and stderr stream live. Every file it adds, changes
+  or deletes is recorded, and each turn's diff can be read, even while it's running.
 - **Change anything live.** Add or change a provider, sandbox or harness, and the next request
   uses it. No restarts.
 - **Small enough to read.** About 1,200 lines of Python. The sandbox and its egress door are

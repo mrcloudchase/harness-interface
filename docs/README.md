@@ -21,6 +21,7 @@ nothing installed to a conversation you've continued.
 | [Use and write harnesses](guides/harnesses.md) | the shipped harnesses, and how to wrap any CLI as your own |
 | [Customize sandboxes](guides/sandboxes.md) | add tools or hosts a harness needs, with your own Dockerfile |
 | [Call the API from code](guides/api-clients.md) | curl, Python, the OpenAI SDK, streaming, continuing, cancelling |
+| [Run harnesses in a loop](guides/loops.md) | stop prompting: a loop that builds a project from a spec and its tests |
 | [Troubleshoot](guides/troubleshooting.md) | what an error means, and what to do about it |
 
 ## Reference

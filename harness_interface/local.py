@@ -22,7 +22,7 @@ class LocalRuntime:
 
     async def start(self, job: Job) -> Process:
         p = job.prepared
-        proc = await spawn(p.argv, {**os.environ, **p.env}, job.workspace, p.stdin, job.log_path)
+        proc = await spawn(p.argv, {**os.environ, **p.env}, job.workspace, p.stdin)
 
         def kill() -> None:
             try:

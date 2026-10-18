@@ -60,6 +60,8 @@ def test_add_run_continue_and_read(hi, monkeypatch):
     assert json.loads(hi("show", first)[1])["status"] == "completed"
     assert '"type":"text"' in hi("output", first)[1]
     assert hi("files", first, "hello.txt")[1] == "hello from echo\n"
+    assert "hello.txt" in hi("files", first)[1].split()                      # no path: the list
+    assert "+hello from echo" in hi("diff", first)[1]
     assert hi("cancel", first)[0] == 1                                     # already over
     assert hi("harness", "rm", "echo")[0] == 0 and hi("harness", "rm", "echo")[0] == 1
 

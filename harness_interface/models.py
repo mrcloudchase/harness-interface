@@ -118,7 +118,10 @@ class HarnessInfo(BaseModel):
     exit_code: int | None = None
     latency_s: float | None = None
     cost_usd: float | None = None
-    files: list[str] = []
+    files: list[str] = []                            # added or modified by this turn
+    deleted: list[str] = []                          # deleted by this turn
+    base: str | None = None                          # the workspace's commit before the turn
+    commit: str | None = None                        # and after it: /files and /diff read these
 
 
 class Response(BaseModel):

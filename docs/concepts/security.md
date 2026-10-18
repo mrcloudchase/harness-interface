@@ -50,6 +50,9 @@ A run's network has one other member: its egress door (`egress.py`). It is the o
 - **In a run:** passed to the container as environment variables, by name. The value travels in
   the Docker client's environment, so it never appears on a command line or in `ps`.
 - **In `hi`:** read from an environment variable, a prompt or stdin, never from an argument.
+- **In a CLI's own state:** CLIs keep sessions and credentials in the workspace's `.home/`. The
+  server ignores it in `.git/info/exclude`, where no request can change that, so it is never
+  committed, diffed, listed or served, not even while a run is going.
 
 ## What is not protected
 

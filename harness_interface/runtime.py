@@ -19,14 +19,13 @@ class Job:
     prepared: Prepared
     workspace: Path
     harness_dir: Path
-    log_path: Path                                   # where its stderr goes
     image: str | None                                # the sandbox's image, already built; None for local
     egress: list[str]                                # host:port the run may reach
 
 
 class Process:
-    """One running harness: its stdout, its exit code, and how to stop it. A timer stops it at
-    the harness's timeout."""
+    """One running harness: its stdout and stderr as they come, its exit code, and how to stop
+    it. A timer stops it at the harness's timeout."""
 
     def __init__(self, proc: asyncio.subprocess.Process, timeout_s: int, kill: Callable[[], None],
                  cleanup: Callable[[], Awaitable[None]] | None = None):
@@ -35,9 +34,11 @@ class Process:
         self._loop = asyncio.get_running_loop()
         self._timer = self._loop.call_later(timeout_s, self._end, "timeout")
 
-    async def chunks(self) -> AsyncIterator[bytes]:
-        assert self.proc.stdout
-        while chunk := await self.proc.stdout.read(65536):
+    async def chunks(self, stderr: bool = False) -> AsyncIterator[bytes]:
+        """Its stdout, or with `stderr` its stderr, as it arrives."""
+        stream = self.proc.stderr if stderr else self.proc.stdout
+        assert stream
+        while chunk := await stream.read(65536):
             yield chunk
 
     async def wait(self) -> int:
@@ -66,12 +67,11 @@ class Runtime(Protocol):
     async def recover(self) -> None: ...             # at startup: remove whatever runs lost to a restart left behind
 
 
-async def spawn(argv: list[str], env: dict[str, str], cwd: Path | None, stdin: bytes, log_path: Path) -> asyncio.subprocess.Process:
-    """Start a process in its own process group, stderr to the log, stdin written and closed."""
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    with open(log_path, "wb") as log:
-        proc = await asyncio.create_subprocess_exec(*argv, cwd=cwd, env=env, stdin=asyncio.subprocess.PIPE,
-                                                    stdout=asyncio.subprocess.PIPE, stderr=log, start_new_session=True)
+async def spawn(argv: list[str], env: dict[str, str], cwd: Path | None, stdin: bytes) -> asyncio.subprocess.Process:
+    """Start a process in its own process group, stdout and stderr piped, stdin written and closed."""
+    proc = await asyncio.create_subprocess_exec(*argv, cwd=cwd, env=env, stdin=asyncio.subprocess.PIPE,
+                                                stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                                                start_new_session=True)
     assert proc.stdin
     try:
         proc.stdin.write(stdin)

@@ -20,7 +20,7 @@ def test_run_and_door_argv(tmp_path):
     assert sb.mounts(Path("/x"), Path("/y")).workspace == "/workspace"
     prepared = Prepared(argv=["bash", "/harness/run.sh"], env={"HI_TASK": "t", "HI_PROVIDER_KEY": "k", "HOME": "/workspace/.home"},
                         stdin=b"{}", timeout_s=9)
-    job = Job(id="abc", prepared=prepared, workspace=Path("/ws"), harness_dir=Path("/hd"), log_path=tmp_path / "l",
+    job = Job(id="abc", prepared=prepared, workspace=Path("/ws"), harness_dir=Path("/hd"),
               image="harness-interface/default:deadbeef", egress=["api.deepseek.com:443", "pypi.org:443"])
     names = DockerNames.of("abc")
     argv = sb.run_argv(job, names)

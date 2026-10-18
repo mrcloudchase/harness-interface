@@ -82,7 +82,8 @@ A streamed response is three kinds of event:
 | Event | Data |
 |---|---|
 | `response.created` | `{"type": …, "response": <the record, in_progress>}`, sent at once |
-| `harness.output` | `{"type": …, "line": "<one line the harness printed>"}`, as each line arrives |
+| `harness.output` | `{"type": …, "line": "<one line the harness printed on stdout>"}`, as each line arrives |
+| `harness.log` | `{"type": …, "line": "<one line on stderr>"}`, the same way |
 | `response.completed` | `{"type": …, "response": <the finished record>}` |
 
 The `X-Response-Id` header carries the response id from the start. A client that disconnects
@@ -95,7 +96,9 @@ only stops following: the run finishes and is recorded, and `GET /responses/{id}
 | `GET /responses/{id}` | the record: status, answer, usage, cost, produced files, session |
 | `GET /responses/{id}/output` | the harness's stdout, byte for byte |
 | `GET /responses/{id}/log` | its stderr |
-| `GET /responses/{id}/files/{path}` | a file from the conversation's workspace |
+| `GET /responses/{id}/diff` | what the run changed, as a diff; live while it runs |
+| `GET /responses/{id}/files` | every file in the workspace, as the run left them |
+| `GET /responses/{id}/files/{path}` | one file, as the run left it |
 | `POST /responses/{id}/cancel` | stop it: `{"cancelled": true}` if it was running |
 
 ## Errors to handle

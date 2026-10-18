@@ -26,22 +26,22 @@ def sse(event: str, data: dict) -> bytes:
 
 
 class Run:
-    """A response in flight: its record, the lines its harness has printed so far, and how to
-    stop it. Any number of clients can follow it."""
+    """A response in flight: its record, every line its harness has printed so far, on stdout
+    ("output") or stderr ("log"), and how to stop it. Any number of clients can follow it."""
 
     def __init__(self, record: Response):
         self.record = record
         self.created = record.model_dump()           # the record as it was when the run began
-        self.lines: list[str] = []
+        self.lines: list[tuple[str, str]] = []      # (kind, line), in the order they arrived
         self.proc: Process | None = None
         self.cancelled = False
         self.done = asyncio.Event()
         self._news = asyncio.Condition()
         self.task: asyncio.Task | None = None
 
-    async def publish(self, line: str) -> None:
+    async def publish(self, kind: str, line: str) -> None:
         async with self._news:
-            self.lines.append(line)
+            self.lines.append((kind, line))
             self._news.notify_all()
 
     async def close(self) -> None:
@@ -49,8 +49,8 @@ class Run:
             self.done.set()
             self._news.notify_all()
 
-    async def follow(self) -> AsyncIterator[str]:
-        """Every line, from the first, as it arrives, until the run is done."""
+    async def follow(self) -> AsyncIterator[tuple[str, str]]:
+        """Every (kind, line), from the first, as it arrives, until the run is done."""
         seen = 0
         while True:
             async with self._news:
@@ -126,7 +126,7 @@ class ResponseService:
         ws.init()
         prepared = prepare(harness, provider, req, record.harness.session_id, ws,
                            self.runtime.mounts(ws.path, self.resources.harness_dir(harness.name)))
-        ws.commit("prepare")                         # baseline: only what the harness itself writes counts as produced
+        record.harness.base = ws.commit("prepare")   # baseline: only what the harness itself writes counts as produced
         return prepared
 
     async def _execute(self, run: Run, harness: Harness, provider: Provider, sandbox: Sandbox,
@@ -140,7 +140,7 @@ class ResponseService:
                 if not run.cancelled:
                     run.proc = await self.runtime.start(Job(
                         id=record.id, prepared=prepared, workspace=ws.path, harness_dir=self.resources.harness_dir(harness.name),
-                        log_path=self.settings.log_path(record.id), image=record.harness.image, egress=[provider.host, *sandbox.egress]))
+                        image=record.harness.image, egress=[provider.host, *sandbox.egress]))
             except Exception as e:                   # the sandbox could not be set up; the harness never ran
                 setup_error = str(e) or type(e).__name__
             if run.proc:
@@ -151,7 +151,8 @@ class ResponseService:
             proc = run.proc
             status = ("timeout" if proc and proc.timed_out else "cancelled" if run.cancelled
                       else "fail" if setup_error else None)
-            output, files = await asyncio.to_thread(self._collect, ws, record.id)
+            output, files, deleted, commit = await asyncio.to_thread(self._collect, ws, record.id)
+            record.harness.deleted, record.harness.commit = deleted, commit
             record.finish(status or str(output.get("status") or ("ok" if code == 0 else "fail")), code, output, files, setup_error)
         except Exception as e:                       # a bug, not the harness: the record still gets an end
             record.finish("fail", code, {}, [], f"{type(e).__name__}: {e}")
@@ -162,32 +163,39 @@ class ResponseService:
             await run.close()
 
     async def _pump(self, run: Run) -> None:
-        """Keep the harness's stdout byte for byte, and hand it to followers line by line."""
+        """Keep the harness's stdout and stderr byte for byte, and hand both to followers line
+        by line, as they come: what a client sees is what the harness printed."""
+        rid = run.record.id
+        await asyncio.gather(self._pump_one(run, "output", self.settings.out_path(rid), stderr=False),
+                             self._pump_one(run, "log", self.settings.log_path(rid), stderr=True))
+
+    @staticmethod
+    async def _pump_one(run: Run, kind: str, path: Path, stderr: bool) -> None:
         buf = b""
-        path = self.settings.out_path(run.record.id)
         path.parent.mkdir(parents=True, exist_ok=True)
         with open(path, "wb") as out:
-            async for chunk in run.proc.chunks():
+            async for chunk in run.proc.chunks(stderr=stderr):
                 out.write(chunk)
                 out.flush()
                 *lines, buf = (buf + chunk).split(b"\n")
                 for line in lines:
-                    await run.publish(line.decode(errors="replace"))
+                    await run.publish(kind, line.decode(errors="replace"))
         if buf:
-            await run.publish(buf.decode(errors="replace"))
+            await run.publish(kind, buf.decode(errors="replace"))
 
     @staticmethod
-    def _collect(ws: Workspace, response_id: str) -> tuple[dict, list[str]]:
-        output, files = read_output(ws), ws.changed()
-        ws.commit(f"response {response_id}")
-        return output, files
+    def _collect(ws: Workspace, response_id: str) -> tuple[dict, list[str], list[str], str]:
+        output, (files, deleted) = read_output(ws), ws.changes()
+        return output, files, deleted, ws.commit(f"response {response_id}")
 
     async def stream(self, run: Run) -> AsyncIterator[bytes]:
-        """Server-sent events in the Responses framing: created, one `harness.output` per line of
-        the harness's own stdout, completed. Leaving early stops the following, not the run."""
+        """Server-sent events in the Responses framing: created; then one `harness.output` per
+        line of the harness's stdout and one `harness.log` per line of its stderr, as they come;
+        completed. Leaving early stops the following, not the run."""
         yield sse("response.created", {"type": "response.created", "response": run.created})
-        async for line in run.follow():
-            yield sse("harness.output", {"type": "harness.output", "line": line})
+        async for kind, line in run.follow():
+            event = f"harness.{kind}"
+            yield sse(event, {"type": event, "line": line})
         yield sse("response.completed", {"type": "response.completed", "response": run.record.model_dump()})
 
     def cancel(self, response_id: str) -> bool:

@@ -6,7 +6,7 @@
     hi sandbox  add NAME DOCKERFILE [--egress HOST ...] | ls | show NAME | rm NAME
     hi harness  add FOLDER ... | add --builtin [NAME ...] | ls | show NAME | rm NAME
     hi run HARNESS[/MODEL] TASK [-f FILE ...] [-i INSTRUCTIONS] [-c [ID]] [--detach] [-q] [--json]
-    hi ls | show ID | output ID | log ID | files ID PATH | cancel ID
+    hi ls | show ID | output ID | log ID | diff ID | files ID [PATH] | cancel ID
 """
 from __future__ import annotations
 
@@ -132,7 +132,7 @@ def run(api: Api, a: argparse.Namespace) -> int:
                 if a.detach:
                     print(rid)
                     return 0
-            elif event == "harness.output" and not (a.quiet or a.json):
+            elif event in ("harness.output", "harness.log") and not (a.quiet or a.json):
                 err(f"\033[2m{data['line']}\033[0m" if sys.stderr.isatty() else data["line"])
             elif event == "response.completed":
                 record = data["response"]
@@ -157,7 +157,8 @@ def summary(r: dict) -> str:
     h = r["harness"]
     parts = [r["status"], f"{h['latency_s']}s" if h.get("latency_s") is not None else None,
              f"${h['cost_usd']:.4f}" if h.get("cost_usd") is not None else None,
-             f"files: {', '.join(h['files'])}" if h.get("files") else None, r["id"]]
+             f"files: {', '.join(h['files'])}" if h.get("files") else None,
+             f"deleted: {', '.join(h['deleted'])}" if h.get("deleted") else None, r["id"]]
     line = " · ".join(p for p in parts if p)
     return line + (f"\n{r['error']['message']}" if r.get("error") else "")
 
@@ -179,10 +180,27 @@ def response(api: Api, a: argparse.Namespace) -> int:
             err(f"{a.id} is not running")
             return 1
         err(f"cancelled {a.id}")
+    elif a.command == "diff":
+        print(colored_diff(api.diff(a.id)) if sys.stdout.isatty() else api.diff(a.id), end="")
+    elif a.command == "files" and not a.path:
+        print("\n".join(api.files(a.id)))
     else:
         data = {"output": api.output, "log": api.log}.get(a.command)
         sys.stdout.buffer.write(data(a.id) if data else api.file(a.id, a.path))
     return 0
+
+
+def colored_diff(diff: str) -> str:
+    """Additions green, removals red, file headers bold: as `git diff` shows them."""
+    def paint(line: str) -> str:
+        if line.startswith(("+++", "---", "diff --git")):
+            return f"\033[1m{line}\033[0m"
+        if line.startswith("+"):
+            return f"\033[32m{line}\033[0m"
+        if line.startswith("-"):
+            return f"\033[31m{line}\033[0m"
+        return f"\033[36m{line}\033[0m" if line.startswith("@@") else line
+    return "".join(paint(l) + "\n" for l in diff.splitlines())
 
 
 # ── the command line ────────────────────────────────────────────────────────────────────────────
@@ -232,13 +250,14 @@ def parser() -> argparse.ArgumentParser:
     ls.add_argument("--json", action="store_true")
     ls.set_defaults(fn=responses)
     for cmd, what in (("show", "a response's record"), ("output", "a response's stdout"),
-                      ("log", "a response's stderr"), ("cancel", "stop a running response")):
+                      ("log", "a response's stderr"), ("diff", "what a response changed, live while it runs"),
+                      ("cancel", "stop a running response")):
         c = sub.add_parser(cmd, help=what)
         c.add_argument("id")
         c.set_defaults(fn=response)
-    f = sub.add_parser("files", help="a file from a response's workspace")
+    f = sub.add_parser("files", help="list a response's files, or print one")
     f.add_argument("id")
-    f.add_argument("path")
+    f.add_argument("path", nargs="?")
     f.set_defaults(fn=response)
     return p
 

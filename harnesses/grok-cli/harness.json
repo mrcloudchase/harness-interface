@@ -8,7 +8,8 @@
   "run": {
     "env": {
       "HOME": "{workspace}/.home",
-      "GROK_AUTO_UPDATE": "0"
+      "GROK_AUTO_UPDATE": "0",
+      "GROK_FOLDER_TRUST": "0"
     },
     "stdout": "application/x-ndjson",
     "timeout_s": 900

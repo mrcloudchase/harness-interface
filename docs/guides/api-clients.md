@@ -53,9 +53,9 @@ for event in client.responses.create(model="claude-code", input="Count to five."
 ### An agent on a harness
 
 `instructions` gives the harness a role, and `previous_response_id` keeps the conversation. That
-pair is an agent, with a harness doing its work: the tools, the files, the context. A harness
-puts the instructions where its CLI reads them, such as `AGENTS.md`, on every turn. Six of the
-shipped harnesses don't pass them on yet ([which](../../harnesses/README.md#notes-worth-knowing)).
+pair is an agent, with a harness doing its work: the tools, the files, the context. Every
+shipped harness puts the instructions where its CLI reads them, on every turn: `AGENTS.md`, for
+most ([each one](../../harnesses/README.md#notes-worth-knowing)).
 
 ```python
 class Agent:

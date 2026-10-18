@@ -27,8 +27,7 @@ hi run claude-code "Now add a test for it" -c
 
 The flags:
 - `-f` puts a file in the workspace before the run.
-- `-i` passes instructions; a harness puts them where its CLI reads them, such as `AGENTS.md`.
-  Six of the shipped harnesses don't pass them on yet ([which](../../harnesses/README.md#notes-worth-knowing)).
+- `-i` passes instructions; each harness puts them where its CLI reads them, such as `AGENTS.md`.
 - `-c` continues the conversation.
 
 The notes on each harness are in [harnesses/README.md](../../harnesses/README.md).
@@ -72,7 +71,7 @@ The full list of inputs and outputs is in the [harness contract](../reference/ha
 
 ### Wrap a real CLI
 
-A real harness does four things in `run.sh`.
+A real harness does five things.
 
 **1. Map the provider onto the CLI's own settings.** The server gives every harness
 `HI_PROVIDER_URL` and `HI_PROVIDER_KEY`; each CLI wants them under its own names:
@@ -136,6 +135,18 @@ shipped harnesses use four patterns:
 
 Keep the CLI's own state in the workspace's `.home` directory: set `"HOME": "{workspace}/.home"`
 in `run.env`. It then survives between turns, and is never counted as a produced file.
+
+**5. Take the instructions.** A request's `instructions` are its role for the harness. Write them
+where the CLI reads them, with `files` in `harness.json`; they are written before every turn:
+
+```json
+"files": {"AGENTS.md": "{instructions}"}
+```
+
+Most CLIs read `AGENTS.md` from their working directory. Check the one you wrap: some read a
+name of their own (`CLAUDE.md`, `QWEN.md`), some read another folder, some read it only once
+told to, and some read no file at all, so the run script hands it over with a flag. The shipped
+harnesses have an example of each ([notes](../../harnesses/README.md#notes-worth-knowing)).
 
 ### Develop it
 

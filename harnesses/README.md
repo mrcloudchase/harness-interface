@@ -83,10 +83,14 @@ latest release.
 
 ## Notes worth knowing
 
-- **Instructions.** Most harnesses write the request's `instructions` to the file their CLI reads
-  (`AGENTS.md`, `CLAUDE.md` or `QWEN.md`); harness-engineering puts them ahead of the task.
-  Aider, Hermes, J-Code, nanobot, OMP and Pi don't pass them on yet, so on those a request's
-  instructions have no effect.
+- **Instructions reach every CLI.** Each harness writes the request's `instructions` where its
+  CLI reads them, before every turn:
+  - `AGENTS.md` in the workspace, for most;
+  - `CLAUDE.md` for CheetahClaws, and `QWEN.md` for Qwen Code, the only names they read;
+  - nanobot's own workspace under `.home`, where nanobot reads its `AGENTS.md`;
+  - Aider reads no instruction file, so its run script passes `AGENTS.md` with `--read`;
+  - Grok reads `AGENTS.md` only in a folder it trusts, so its harness sets `GROK_FOLDER_TRUST=0`;
+  - harness-engineering puts them ahead of the task.
 - **Base URLs differ by CLI.** Claude Code, Hermes and Goose want the provider url without `/v1`;
   JCode and MiMo want it with `/v1`. Each run script handles its own case in one line.
 - **The sandbox reaches only the provider.** A CLI that fetches anything else at startup, a model

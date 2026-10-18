@@ -4,6 +4,8 @@
 # environment (env_key), never in the file. A follow-up passes --resume <session_id>.
 # Set in harness.json:
 #   HOME: config.toml and sessions live under $HOME/.grok, so --resume works later
+#   GROK_FOLDER_TRUST: off, so a headless run reads the workspace's AGENTS.md; trusting a folder
+#     is a prompt nobody can answer here, and the sandbox is the boundary
 set -euo pipefail
 mkdir -p "$HOME/.grok"
 cat > "$HOME/.grok/config.toml" <<CFG

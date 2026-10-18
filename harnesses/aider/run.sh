@@ -17,7 +17,9 @@ if [ -d "$HI_WORKSPACE/.git" ]; then   # aider nags without a git identity, and 
   grep -qsx '.aider*' "$HI_WORKSPACE/.git/info/exclude" || echo '.aider*' >> "$HI_WORKSPACE/.git/info/exclude"
 fi
 model="${HI_MODEL:-claude-sonnet-4-5}"; [[ "$model" == */* ]] || model="anthropic/$model"
-aider --model "$model" --message "$HI_TASK" --yes-always --no-pretty --no-stream \
+# aider has no instruction file of its own; --read puts AGENTS.md in the chat as read-only context.
+context=(); [ -s AGENTS.md ] && context=(--read AGENTS.md)
+aider --model "$model" --message "$HI_TASK" "${context[@]}" --yes-always --no-pretty --no-stream \
   --no-auto-commits --no-dirty-commits --no-gitignore --no-show-model-warnings \
   --no-check-update --no-show-release-notes --analytics-disable \
   --chat-history-file "$HOME/.aider.chat.history.md" --input-history-file "$HOME/.aider.input.history" \

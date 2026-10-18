@@ -2,6 +2,9 @@
   "name": "nanobot",
   "description": "nanobot (HKUDS), a minimal personal AI agent, one message headless. Shell, files, web. Its provider table takes any key plus base URL; the anthropic entry speaks the Anthropic Messages API, so the provider is Anthropic or an endpoint serving that shape. Text output, no usage. Its tools run inside its own workspace under .home, not the request workspace (see run.sh).",
   "provider": "anthropic",
+  "files": {
+    ".home/.nanobot/workspace/AGENTS.md": "{instructions}"
+  },
   "run": {
     "env": {
       "HOME": "{workspace}/.home",

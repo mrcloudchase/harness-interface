@@ -14,7 +14,7 @@
   <img src="https://img.shields.io/badge/runs-sandboxed%20in%20Docker-2496ed" alt="Runs sandboxed in Docker">
   <img src="https://img.shields.io/badge/API-OpenAI%20Responses-412991" alt="OpenAI Responses API">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License: Apache 2.0"></a>
-  <a href="https://github.com/mrcloudchase/harness-interface/actions/workflows/ci.yml"><img src="https://github.com/mrcloudchase/harness-interface/actions/workflows/ci.yml/badge.svg" alt="Tests"></a>
+  <a href="https://github.com/mrcloudchase/harness-interface/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/mrcloudchase/harness-interface/ci.yml?branch=main&label=CI" alt="CI"></a>
 </p>
 
 <p align="center">

@@ -2,6 +2,7 @@
 container. Run with `pytest -m docker`; CI runs it on every pull request."""
 import asyncio
 import json
+import os
 import subprocess
 
 import pytest
@@ -72,7 +73,7 @@ def test_inside_a_run_the_promises_hold(tmp_path):
     out, outcome = asyncio.run(go())
     assert outcome.ok, out
     seen = json.loads(out)
-    assert seen["uid"] == 1000 and seen["caps"] == "0000000000000000"
+    assert seen["uid"] == (1000 if os.geteuid() == 0 else os.getuid()) and seen["caps"] == "0000000000000000"
     assert not seen["root_writable"] and seen["workspace_writable"] and not seen["mount_writable"]
     assert (ws / "made-inside").exists()                               # the workspace is the same directory
     assert seen["allowed"].startswith("HTTP/1.1 200") and seen["refused"].startswith("HTTP/1.1 403")

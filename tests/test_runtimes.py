@@ -223,6 +223,16 @@ def test_every_run_is_hardened_and_secrets_stay_off_the_command_line(fake_docker
     assert torn_down(calls)
 
 
+def test_the_run_is_the_workspace_owners(fake_docker, tmp_path, monkeypatch):
+    import harness_interface.runtimes.docker as d
+    monkeypatch.setattr(d.os, "geteuid", lambda: 1001)
+    monkeypatch.setattr(d.os, "getuid", lambda: 1001)
+    monkeypatch.setattr(d.os, "getgid", lambda: 121)
+    go(run(docker_runtime(tmp_path), Spec(["true"])))
+    the_run = next(c for c in fake_docker.calls() if c[0] == "run" and "-d" not in c)
+    assert the_run[the_run.index("--user") + 1] == "1001:121"   # not root: the server's own user owns the workspace
+
+
 def test_the_image_is_built_once_per_dockerfile(fake_docker, tmp_path):
     rt = docker_runtime(tmp_path)
 

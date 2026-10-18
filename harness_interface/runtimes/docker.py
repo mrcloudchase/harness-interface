@@ -3,7 +3,8 @@ once per Dockerfile), an internal network of its own, and an egress door on that
 only way out.
 
 Its guarantees, on every run, whatever the Dockerfile says:
-- no Linux capabilities, no privilege escalation, a read-only root, an unprivileged user (uid 1000);
+- no Linux capabilities, no privilege escalation, a read-only root, an unprivileged user: uid 1000
+  when the server runs as root, or the server's own user otherwise, so the workspace is always its;
 - process and memory limits, and the spec's timeout;
 - no route out except tunnels to the allowed hosts; no DNS of its own;
 - environment values passed by name, so no value is ever on a command line.
@@ -158,6 +159,8 @@ class DockerRuntime:
         proxy = f"http://{names.door}:{DOOR_PORT}"
         argv = ["docker", "run", "--rm", "-i", "--name", names.run, "--network", names.network, *HARDENING,
                 "-e", f"HTTPS_PROXY={proxy}", "-e", f"HTTP_PROXY={proxy}"]
+        if os.geteuid() != 0:                        # the workspace is the server user's: run as that user
+            argv += ["--user", f"{os.getuid()}:{os.getgid()}"]
         if spec.workspace:
             argv += ["-v", f"{spec.workspace}:{spec.workspace}", "-w", str(spec.workspace)]
         for mount in self.mounts:

@@ -20,3 +20,11 @@ class Settings(BaseModel):
     def responses(self) -> Path: return self.data_dir / "responses"
     @property
     def logs(self) -> Path: return self.data_dir / "logs"
+
+    def out_path(self, response_id: str) -> Path:
+        """The harness's stdout, as it printed it."""
+        return self.logs / f"{response_id}.out"
+
+    def log_path(self, response_id: str) -> Path:
+        """The harness's stderr."""
+        return self.logs / f"{response_id}.log"

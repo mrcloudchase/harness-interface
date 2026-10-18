@@ -1,6 +1,5 @@
 <p align="center">
-  <!-- Mascot placeholder: replace docs/media/mascot.svg with the final image of Picky. -->
-  <img src="docs/media/mascot.svg" width="280" alt="Picky, the harness-interface mascot">
+  <img src="docs/media/picky.png" width="280" alt="Picky, the harness-interface mascot: a hermit crab with no shell of its own">
 </p>
 
 <h1 align="center">harness-interface</h1>
@@ -18,7 +17,7 @@
 ---
 
 A harness is any program you can start from a shell and hand a task to: Claude Code, Codex,
-Gemini CLI, OpenCode, Aider, the one you wrote yourself. Each has its own flags, its own output
+OpenCode, Aider, the one you wrote yourself. Each has its own flags, its own output
 format, its own way of taking a key and of resuming a session. harness-interface puts one API in
 front of all of them.
 
@@ -51,14 +50,18 @@ dropped and the root filesystem is read-only. Its private network has exactly on
 tunnel to the harness's provider. The harness can call its model and nothing else, and it cannot
 use the tunnel for anything else either.
 
+**Runs belong to the server.** Many clients run harnesses at once, each request in its own
+sandbox. A client can disconnect and the run still finishes and is recorded. Any run can be
+cancelled, even while its sandbox is still being built.
+
 **Adding anything is a PUT.** A provider is three fields. A sandbox is a Dockerfile. A harness is
 a folder of small files. Change any of them and the next request uses the change, with no restart.
 
-**Twenty-five harnesses ship ready.** [harnesses/](harnesses/) holds 25 harnesses, each a folder,
+**Twenty-three harnesses ship ready.** [harnesses/](harnesses/) holds 23 harnesses, each a folder,
 registered with one loop. The built-in sandbox already has every one of their CLIs. Every one is
 tested on a first turn and on a resumed second turn.
 
-**Small enough to read.** The whole server is eleven Python modules and about 1,100 lines.
+**Small enough to read.** The whole server is fourteen Python modules and about 1,200 lines.
 
 ## Try it
 
@@ -96,17 +99,24 @@ contract, the resource shapes, every endpoint and exactly what the sandbox enfor
 
 ## Verified
 
-All 25 shipped harnesses were added through the API to a running server and run in the default
+All 23 shipped harnesses were added through the API to a running server and run in the default
 sandbox image on Docker. Each one answered a first request, and each one continued the
-conversation on a second request with `previous_response_id`. Gemini CLI and Qoder need keys
-that were not available, so they were not run. Inside a live run, the sandbox reached its
-provider and nothing else. The details are in [docs/reference.md](docs/reference.md#verified).
+conversation on a second request with `previous_response_id`. Inside a live run, the sandbox
+reached its provider and nothing else. The details are in [docs/reference.md](docs/reference.md#verified).
+
+## Meet Picky
+
+Picky is a hermit crab with no shell of its own. A hermit crab doesn't grow a shell; it finds
+one that fits, wears it, and moves to another when it needs to. Picky does that with harnesses.
+Claude Code for one request, Codex for the next, the one you wrote yourself after that: each
+harness is a shell Picky puts on to get the work done, and takes off again. Picky stays the same
+underneath, the way every request goes through the same API whichever harness serves it.
 
 ## Docs
 
 - [Walkthrough](docs/walkthrough.md): install, add a provider, register a harness, first request, continue.
 - [Reference](docs/reference.md): resources, the process contract, the wire format, endpoints, a request end to end, the sandbox, configuration, layout.
-- [Harnesses](harnesses/README.md): the 25 that ship, registering them, and what each one needs.
+- [Harnesses](harnesses/README.md): the 23 that ship, registering them, and what each one needs.
 
 ## Status
 

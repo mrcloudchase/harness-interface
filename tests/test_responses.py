@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 
+from harness_interface.errors import ClientError
 from harness_interface.workspace import Workspace
 
 
@@ -42,7 +43,7 @@ def test_run_records_the_responses_shape(client, echo):
     assert client.get(f"/responses/{d['id']}/files/hello.txt").text.strip() == "hello from echo"
     assert client.get(f"/responses/{d['id']}/files/AGENTS.md").text == "be brief"
     assert client.get(f"/responses/{d['id']}/files/a.txt").text == "A"
-    with pytest.raises(ValueError):                                # the client normalizes "..", so the guard is tested directly
+    with pytest.raises(ClientError):                               # the client normalizes "..", so the guard is tested directly
         Workspace(Path(h["workspace"])).resolve("../../x")
     assert client.get(f"/responses/{d['id']}/log").status_code == 200
     assert client.get(f"/responses/{d['id']}").json() == d

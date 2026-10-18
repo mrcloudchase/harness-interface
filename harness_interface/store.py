@@ -21,9 +21,12 @@ class JsonStore(Generic[T]):
         return self.root / f"{key}.json"
 
     def put(self, key: str, obj: T) -> T:
+        """Written whole or not at all: a reader never sees half a record."""
         p = self._path(key)
-        p.write_text(obj.model_dump_json(indent=2))
-        p.chmod(self.mode)
+        tmp = p.with_name(f".{p.name}.tmp")
+        tmp.write_text(obj.model_dump_json(indent=2))
+        tmp.chmod(self.mode)
+        os.replace(tmp, p)
         return obj
 
     def get(self, key: str) -> T | None:

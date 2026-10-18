@@ -2,17 +2,20 @@
 `main` is the entry point: `uv run harness-interface`."""
 from __future__ import annotations
 
+from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 
 from .config import Settings
+from .docker import DockerRuntime
+from .errors import ClientError
+from .local import LocalRuntime
 from .models import Harness, Provider, Response, ResponseRequest, Sandbox
 from .registry import Resources
 from .responses import ResponseService
-from .sandbox import DockerSandbox, LocalSandbox
 from .store import JsonStore
 from .workspace import Workspace
 
@@ -28,22 +31,32 @@ class Container:
 def build(settings: Settings | None = None) -> Container:
     s = settings or Settings()
     resources = Resources(s.data_dir)
-    sandbox = LocalSandbox(s.logs) if s.runtime == "local" else DockerSandbox(s.logs, s.logs)
+    runtime = LocalRuntime() if s.runtime == "local" else DockerRuntime(s.logs)
     responses = JsonStore(s.responses, Response)
-    return Container(s, resources, responses, ResponseService(s, resources, sandbox, responses))
+    return Container(s, resources, responses, ResponseService(s, resources, runtime, responses))
 
 
 def create_app(c: Container | None = None) -> FastAPI:
     c = c or build()
-    app = FastAPI(title="harness-interface", version="1.0.0")
+
+    @asynccontextmanager
+    async def lifespan(_: FastAPI):
+        await c.service.recover()
+        yield
+
+    app = FastAPI(title="harness-interface", version="1.0.0", lifespan=lifespan)
     app.state.container = c
+
+    @app.exception_handler(ClientError)
+    async def refused(_: Request, e: ClientError) -> JSONResponse:
+        return JSONResponse({"detail": str(e)}, status_code=e.status)
 
     def not_found(what: str):
         raise HTTPException(404, what)
 
     def same_name(path_name: str, body_name: str) -> None:
         if path_name != body_name:
-            raise HTTPException(400, "name in path and body differ")
+            raise ClientError("name in path and body differ")
 
     def public(p: Provider) -> dict:
         return p.model_dump(exclude={"key"})
@@ -71,10 +84,7 @@ def create_app(c: Container | None = None) -> FastAPI:
     @app.put("/sandboxes/{name}")
     def put_sandbox(name: str, spec: Sandbox) -> Sandbox:
         same_name(name, spec.name)
-        try:
-            return c.resources.put_sandbox(spec)
-        except ValueError as e:
-            raise HTTPException(400, str(e))
+        return c.resources.put_sandbox(spec)
 
     @app.get("/sandboxes")
     def list_sandboxes() -> list[Sandbox]:
@@ -86,19 +96,13 @@ def create_app(c: Container | None = None) -> FastAPI:
 
     @app.delete("/sandboxes/{name}")
     def delete_sandbox(name: str) -> dict:
-        try:
-            return {"deleted": c.resources.delete_sandbox(name)}
-        except ValueError as e:
-            raise HTTPException(400, str(e))
+        return {"deleted": c.resources.delete_sandbox(name)}
 
     # harnesses
     @app.put("/harnesses/{name}")
     def put_harness(name: str, spec: Harness) -> Harness:
         same_name(name, spec.name)
-        try:
-            return c.resources.put_harness(spec)
-        except ValueError as e:
-            raise HTTPException(400, str(e))
+        return c.resources.put_harness(spec)
 
     @app.get("/harnesses")
     def list_harnesses() -> list[Harness]:
@@ -115,19 +119,12 @@ def create_app(c: Container | None = None) -> FastAPI:
     # responses
     @app.post("/responses")
     async def create_response(req: ResponseRequest):
-        try:
-            record, proc, ws = await c.service.start(req)
-        except (LookupError, ValueError) as e:
-            raise HTTPException(400, str(e))
-        except RuntimeError as e:
-            raise HTTPException(500, str(e))
+        run = await c.service.start(req)
+        headers = {"X-Response-Id": run.record.id}
         if req.stream:
-            return StreamingResponse(c.service.stream(record, proc, ws), media_type="text/event-stream",
-                                     headers={"X-Response-Id": record.id})
-        async for _ in proc.chunks():
-            pass
-        record = await c.service.finish(record, proc, ws)
-        return JSONResponse(record.model_dump(), headers={"X-Response-Id": record.id})
+            return StreamingResponse(c.service.stream(run), media_type="text/event-stream", headers=headers)
+        await run.done.wait()                        # the run belongs to the server: leaving does not stop it
+        return JSONResponse(run.record.model_dump(), headers=headers)
 
     @app.get("/responses")
     def list_responses() -> list[Response]:
@@ -143,24 +140,21 @@ def create_app(c: Container | None = None) -> FastAPI:
 
     @app.get("/responses/{response_id}/output")
     def response_output(response_id: str):
-        """The harness's stdout as it was streamed, in the content type its resource declared."""
+        """The harness's stdout as it was printed, in the content type its resource declared."""
         record = c.responses.get(response_id) or not_found(f"no response {response_id}")
         harness = c.resources.harnesses.get(record.harness.name)
-        p = c.service.out_path(response_id)
+        p = c.settings.out_path(response_id)
         return FileResponse(p, media_type=harness.run.stdout if harness else "application/octet-stream") if p.exists() else not_found("no output")
 
     @app.get("/responses/{response_id}/log")
     def response_log(response_id: str):
-        p = c.service.log_path(response_id)
+        p = c.settings.log_path(response_id)
         return FileResponse(p, media_type="text/plain") if p.exists() else not_found("no log")
 
     @app.get("/responses/{response_id}/files/{path:path}")
     def response_file(response_id: str, path: str):
         record = c.responses.get(response_id) or not_found(f"no response {response_id}")
-        try:
-            p = Workspace(Path(record.harness.workspace)).resolve(path)
-        except ValueError as e:
-            raise HTTPException(400, str(e))
+        p = Workspace(Path(record.harness.workspace)).resolve(path)
         return FileResponse(p) if p.is_file() else not_found(f"no file {path}")
 
     return app

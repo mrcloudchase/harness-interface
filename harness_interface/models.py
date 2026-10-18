@@ -11,6 +11,8 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
+from .egress import normalize
+
 NAME = r"^[a-z0-9][a-z0-9-]*$"
 
 
@@ -23,9 +25,8 @@ class Provider(BaseModel):
 
     @property
     def host(self) -> str:
-        from urllib.parse import urlsplit
-        u = urlsplit(self.url)
-        return f"{u.hostname}:{u.port or (443 if u.scheme == 'https' else 80)}"
+        """host:port, by the same rule the egress door reads its allowlist with."""
+        return normalize(self.url)
 
 
 class Sandbox(BaseModel):
@@ -136,9 +137,10 @@ class Response(BaseModel):
     metadata: dict[str, Any] = {}
     harness: HarnessInfo
 
-    def finish(self, status: str, exit_code: int, output: dict[str, Any], files: list[str]) -> None:
+    def finish(self, status: str, exit_code: int | None, output: dict[str, Any], files: list[str],
+               setup_error: str | None = None) -> None:
         """Fold what the harness reported into the record. `status` is the run's: ok, fail,
-        timeout or cancelled."""
+        timeout or cancelled. `setup_error` says why the harness never started."""
         self.harness.exit_code, self.harness.files = exit_code, files
         self.harness.latency_s = round(time.time() - self.created_at, 3)
         self.harness.session_id = str(output["session_id"]) if output.get("session_id") else self.harness.session_id
@@ -155,5 +157,12 @@ class Response(BaseModel):
             self.status, self.incomplete_details = "incomplete", {"reason": "timeout"}
         elif status == "cancelled":
             self.status = "cancelled"
+        elif setup_error:
+            self.status, self.error = "failed", {"code": "setup_failed", "message": setup_error}
         else:
             self.status, self.error = "failed", {"code": "harness_failed", "message": f"harness status {status}, exit {exit_code}"}
+
+    def abandon(self) -> None:
+        """Close a record whose run the server lost by restarting."""
+        self.status = "failed"
+        self.error = {"code": "server_restarted", "message": "the server restarted while this response was running"}

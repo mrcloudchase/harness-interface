@@ -4,6 +4,8 @@ from __future__ import annotations
 import subprocess
 from pathlib import Path
 
+from .errors import ClientError
+
 INTERNAL = (".hi/", ".home/", ".git/", "__pycache__/")   # server and CLI state, and build noise: never "produced"
 
 
@@ -31,7 +33,7 @@ class Workspace:
     def resolve(self, rel: str) -> Path:
         p = (self.path / rel).resolve()
         if not p.is_relative_to(self.path.resolve()):
-            raise ValueError(f"path escapes the workspace: {rel}")
+            raise ClientError(f"path escapes the workspace: {rel}")
         return p
 
     def changed(self) -> list[str]:

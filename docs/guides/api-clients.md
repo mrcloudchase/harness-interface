@@ -48,7 +48,31 @@ for event in client.responses.create(model="claude-code", input="Count to five."
     print(event.type)        # response.created, harness.output …, response.completed
 ```
 
-`responses.retrieve(id)` works as well. To cancel, and to read a run's output, log and files,
+`responses.retrieve(id)` works as well.
+
+### An agent on a harness
+
+`instructions` gives the harness a role, and `previous_response_id` keeps the conversation. That
+pair is an agent, with a harness doing its work: the tools, the files, the context. A harness
+puts the instructions where its CLI reads them, such as `AGENTS.md`, on every turn. Six of the
+shipped harnesses don't pass them on yet ([which](../../harnesses/README.md#notes-worth-knowing)).
+
+```python
+class Agent:
+    def __init__(self, harness: str, role: str):
+        self.harness, self.role, self.last = harness, role, None
+
+    def ask(self, text: str) -> str:
+        reply = client.responses.create(model=self.harness, instructions=self.role, input=text,
+                                        previous_response_id=self.last)
+        self.last = reply.id
+        return reply.output_text
+
+
+reviewer = Agent("codex", "You review Python for correctness. Name each bug with its line.")
+```
+
+Changing the harness is changing one name; the agent's code stays the same. To cancel, and to read a run's output, log and files,
 call those endpoints directly, as shown below.
 
 ## Python, without an SDK

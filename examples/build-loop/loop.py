@@ -338,10 +338,6 @@ class Loop:
     def build(self, task: Task, baseline: Verdict) -> bool:
         """Work one task until its tests pass without breaking others, with retries and
         escalation. True if it was accepted."""
-        if task.tests and set(task.tests) <= baseline.passed:
-            task.status, task.harness = "done", "(already passing)"
-            say(f"{DIM}  task {task.id}: its tests already pass{OFF}")
-            return True
         for worker in self.args.workers:
             previous, prompt, reviews, revising = None, self.brief(task), 0, False
             for attempt in range(1, self.args.tries + 1):
@@ -434,8 +430,12 @@ class Loop:
             for task in self.tasks:
                 if task.status != "todo":
                     continue
-                if self.stopped() or not baseline.failed:
+                if self.stopped():
                     break
+                if not baseline.failed or (task.tests and set(task.tests) <= baseline.passed):
+                    task.status = "done"                                           # an earlier task did its work
+                    say(f"{DIM}  task {task.id}: its tests already pass{OFF}")
+                    continue
                 self.build(task, baseline)
                 baseline = verify(self.repo, self.args.check_image, self.names)
                 self.save()
@@ -458,8 +458,9 @@ class Loop:
         banner("RESULT", self.status())
         for t in self.tasks:
             mark = {"done": f"{GREEN}✓", "failed": f"{RED}✗"}.get(t.status, f"{DIM}·")
-            say(f"  {mark} {t.id}. {t.title}{OFF} {DIM}{t.status}{' by ' + t.harness if t.harness else ''}, {t.turns} turns"
-                + (f", {t.revisions} on review notes" if t.revisions else "") + OFF)
+            work = (f"{t.turns} turn{'s' if t.turns != 1 else ''}" + (f", {t.revisions} on review notes" if t.revisions else "")
+                    if t.turns else "already passing" if t.status == "done" else "")
+            say(f"  {mark} {t.id}. {t.title}{OFF} {DIM}{t.status}{' by ' + t.harness if t.harness else ''}{', ' + work if work else ''}{OFF}")
             if t.objection:
                 say(f"    {YELLOW}accepted over: {clip(t.objection, WIDTH - 20)}{OFF}")
         say(f"\n  {BOLD}{len(final.passed)}/{len(self.names)} acceptance tests pass{OFF} on the last checkpoint"

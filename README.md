@@ -113,6 +113,8 @@ own CLI is two files away ([write a harness](docs/guides/harnesses.md#write-your
   - its produced files;
   - its usage and cost;
   - the session to resume.
+- **Build an agent, not a harness.** Give a harness a role and keep the conversation; the
+  harness behind it is one name you can swap ([below](#build-an-agent-not-a-harness)).
 - **Built for loops.** Drive harnesses from a program, not by hand
   ([below](#loop-engineering-made-easier)).
 - **See everything.** Each harness's stdout and stderr stream live. Every file it adds, changes
@@ -121,6 +123,47 @@ own CLI is two files away ([write a harness](docs/guides/harnesses.md#write-your
   uses it. No restarts.
 - **Small enough to read.** About 1,200 lines of Python. The sandbox and its egress door are
   about 250 of them.
+
+## Build an agent, not a harness
+
+A coding harness already does the hard part of an agent: the tool loop, running commands,
+editing files, managing its context, resuming its sessions. Building and maintaining one is a job
+of its own. Here you skip it. Your agent is a role and a conversation, and a harness you pick does
+the work behind it:
+
+```python
+from openai import OpenAI
+
+client = OpenAI(base_url="http://127.0.0.1:8000", api_key="unused")
+
+
+class Pip:
+    """A bakery's assistant. The harness behind it is one name: swap it for any other."""
+    harness = "claude-code"
+    role = "You are Pip, a bakery's assistant. Answer in French, in one sentence, and sign with -- Pip."
+
+    def __init__(self):
+        self.last = None                                  # the conversation so far
+
+    def ask(self, text: str) -> str:
+        reply = client.responses.create(model=self.harness, instructions=self.role, input=text,
+                                        previous_response_id=self.last)
+        self.last = reply.id
+        return reply.output_text
+
+
+pip = Pip()
+pip.ask("Which bread keeps longest, and why?")   # "Le pain de seigle se conserve le plus longtemps … -- Pip"
+pip.ask("And which one did you just name?")      # "Je viens de nommer le pain de seigle. -- Pip"
+```
+
+- **Swap the harness, keep the agent.** Set `harness = "codex"`, or any of the 17 shipped
+  harnesses that take a role ([which](harnesses/README.md#notes-worth-knowing)), or one you
+  wrote, and nothing else changes.
+- **It works in a sandbox.** Whatever the harness does for your agent, it does in a container
+  that can reach only its provider.
+- **Its work is on the record.** Every turn's answer, changed files, diff, cost and output can be
+  read back.
 
 ## Loop engineering, made easier
 
@@ -140,7 +183,7 @@ it's done. Everything a loop needs is built in, the same for every harness:
 <p align="center">
   <img src="docs/media/build-loop.gif" alt="The build loop building switchboard: Claude Code builds each task, the acceptance tests run in a container, Codex reviews each change, and each accepted task is committed">
 </p>
-<p align="center"><sub><a href="examples/build-loop/">examples/build-loop</a> building a small API server from its spec and 16 acceptance tests. Claude Code builds, Codex reviews, the tests decide: 16 of 16 pass in 7 minutes. Shown at 6× speed.</sub></p>
+<p align="center"><sub><a href="examples/build-loop/">examples/build-loop</a> building a small API server from its spec and 16 acceptance tests. Claude Code builds, Codex reviews, the tests decide: 16 of 16 pass in 5 minutes. Shown at 6× speed.</sub></p>
 
 The loop is one Python file. It plans, builds, verifies in a container, has a second harness
 review each change, and checkpoints in git. It escalates a stuck task to another harness, and

@@ -27,7 +27,8 @@ hi run claude-code "Now add a test for it" -c
 
 The flags:
 - `-f` puts a file in the workspace before the run.
-- `-i` passes instructions; each harness puts them where its CLI reads them, such as `AGENTS.md`.
+- `-i` passes instructions; a harness puts them where its CLI reads them, such as `AGENTS.md`.
+  Six of the shipped harnesses don't pass them on yet ([which](../../harnesses/README.md#notes-worth-knowing)).
 - `-c` continues the conversation.
 
 The notes on each harness are in [harnesses/README.md](../../harnesses/README.md).

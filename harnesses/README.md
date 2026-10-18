@@ -83,6 +83,10 @@ latest release.
 
 ## Notes worth knowing
 
+- **Instructions.** Most harnesses write the request's `instructions` to the file their CLI reads
+  (`AGENTS.md`, `CLAUDE.md` or `QWEN.md`); harness-engineering puts them ahead of the task.
+  Aider, Hermes, J-Code, nanobot, OMP and Pi don't pass them on yet, so on those a request's
+  instructions have no effect.
 - **Base URLs differ by CLI.** Claude Code, Hermes and Goose want the provider url without `/v1`;
   JCode and MiMo want it with `/v1`. Each run script handles its own case in one line.
 - **The sandbox reaches only the provider.** A CLI that fetches anything else at startup, a model

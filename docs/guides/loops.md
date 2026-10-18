@@ -40,21 +40,22 @@ Its README has the steps to run it, and every option.
 ## Watch one
 
 Given 20 minutes and a $15 budget, the build loop built the example project, `switchboard`, from
-its spec. It took 7 minutes, and every one of the 16 acceptance tests passes:
-- **Claude Code** built each task, passing its tests on the first try. It reported $1.54.
-- **Codex** reviewed each change, and caught three real problems:
-  - name validation that accepted a trailing newline: fixed;
-  - a truthiness check on an id: fixed;
-  - a timeout that didn't kill the whole process group. Claude Code's revision didn't fix it:
-    its kill code never runs, and Codex said so. After the one revision round the passing tests
-    decided, and the change was accepted with the objection shown in the result.
+its spec. It took 5 minutes, and every one of the 16 acceptance tests passes:
+- **Claude Code** built two of the plan's six tasks, each passing its tests on the first try. The
+  other four were already passing by the time the loop reached them. It reported $1.21.
+- **Codex** reviewed each change, and caught real problems:
+  - name validation that accepted a trailing newline, and timeouts that refused fractions: fixed;
+  - a truthiness check that let an empty `previous_run_id` through: fixed;
+  - an endpoint that blocks the whole server while a command runs, and timeout output that can
+    fail to decode. After the one revision round the passing tests decided, and the change was
+    accepted with the objection shown in the result.
 
 Two lessons from that run:
-- **A reviewer finds what the tests miss.** No acceptance test covers the timeout's leftover
-  processes. When a review turns up a real bug, add a test for it, so the tests decide it next
-  time.
+- **A reviewer finds what the tests miss.** No acceptance test runs two commands at once, or
+  prints invalid UTF-8 before timing out. When a review turns up a real bug, add a test for it,
+  so the tests decide it next time.
 - **A budget counts only what's reported.** Codex reports tokens, not dollars, so its reviews
-  aren't in the $1.54. The loop says how many turns reported no cost.
+  aren't in the $1.21. The loop says how many turns reported no cost.
 
 ![The build loop building switchboard, at 6× speed](../media/build-loop.gif)
 

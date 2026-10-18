@@ -1,6 +1,5 @@
 <p align="center">
-  <!-- Mascot placeholder: replace docs/media/mascot.svg with the final image of Picky. -->
-  <img src="docs/media/mascot.svg" width="280" alt="Picky, the harness-interface mascot">
+  <img src="docs/media/picky.png" width="280" alt="Picky, the harness-interface mascot: a hermit crab with no shell of its own">
 </p>
 
 <h1 align="center">harness-interface</h1>
@@ -104,6 +103,14 @@ All 23 shipped harnesses were added through the API to a running server and run 
 sandbox image on Docker. Each one answered a first request, and each one continued the
 conversation on a second request with `previous_response_id`. Inside a live run, the sandbox
 reached its provider and nothing else. The details are in [docs/reference.md](docs/reference.md#verified).
+
+## Meet Picky
+
+Picky is a hermit crab with no shell of its own. A hermit crab doesn't grow a shell; it finds
+one that fits, wears it, and moves to another when it needs to. Picky does that with harnesses.
+Claude Code for one request, Codex for the next, the one you wrote yourself after that: each
+harness is a shell Picky puts on to get the work done, and takes off again. Picky stays the same
+underneath, the way every request goes through the same API whichever harness serves it.
 
 ## Docs
 

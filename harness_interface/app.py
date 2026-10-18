@@ -17,7 +17,7 @@ from .models import Harness, Provider, Response, ResponseRequest, Sandbox
 from .registry import Resources
 from .responses import ResponseService
 from .store import JsonStore
-from .workspace import Workspace
+from .workspace import Workspace, require_git
 
 
 @dataclass
@@ -41,6 +41,7 @@ def create_app(c: Container | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI):
+        require_git()
         await c.service.recover()
         yield
 

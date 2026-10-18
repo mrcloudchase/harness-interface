@@ -15,6 +15,8 @@ say() { printf '%s\n' "$*"; }
 fail() { say "install: $*" >&2; exit 1; }
 
 command -v curl >/dev/null 2>&1 || fail "curl is required"
+command -v git >/dev/null 2>&1 || fail "git is required: every workspace is a git repository.
+Install it (apt install git, dnf install git, brew install git, or xcode-select --install), then run this again."
 
 if ! command -v uv >/dev/null 2>&1; then
   say "Installing uv, which installs and runs harness-interface..."

@@ -1,12 +1,19 @@
 """A conversation's directory: files go in, the harness works, git tells us what changed."""
 from __future__ import annotations
 
+import shutil
 import subprocess
 from pathlib import Path
 
 from .errors import ClientError
 
 INTERNAL = (".hi/", ".home/", ".git/", "__pycache__/")   # server and CLI state, and build noise: never "produced"
+
+
+def require_git() -> None:
+    """Every workspace is a git repository: say so at startup, not on the first request."""
+    if not shutil.which("git"):
+        raise RuntimeError("git is required: every workspace is a git repository. Install git, then start the server again.")
 
 
 class Workspace:

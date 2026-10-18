@@ -3,7 +3,7 @@
 Every release has a section here; the release workflow publishes it as the release's notes. Add
 to "Unreleased" as you change things, and rename it to the version when you bump it.
 
-## [Unreleased]
+## [1.0.2]
 
 - **Docs checked line by line against the code,** and corrected wherever they had drifted.
 - **How it works,** a new page for users: who owns what, the words, the three ways in, and when
@@ -11,6 +11,9 @@ to "Unreleased" as you change things, and rename it to the version when you bump
 - **The default sandbox drops its leftover `HOME` and `WORKDIR`.** Runs work at the workspace's
   own path and every harness sets its own `HOME`, so the image no longer sets either. Its tag
   changes, so the first run after upgrading builds it once.
+- **The installer runs on Python 3.13,** a version CI tests; CI now also tests 3.14. The minimum
+  stays 3.11.
+- **The license names its copyright holder.**
 
 ## [1.0.1]
 

@@ -5,19 +5,29 @@ Everything the server does, precisely. For the guided version see [walkthrough.m
 ## Running the server
 
 ```bash
-uv run harness-interface               # the entry point: harness_interface.app:main
-uv run --extra dev pytest              # the tests; they need no Docker and no keys
+curl -fsSL https://raw.githubusercontent.com/mrcloudchase/harness-interface/main/install.sh | sh
+harness-interface                      # the server, in the foreground; or `hi server start`
 ```
+
+`install.sh` installs uv if it is missing, then the package from GitHub with
+`uv tool install`. The package holds both commands:
+- `harness-interface` (`harness_interface.app:main`) is the server;
+- `hi` (`hi_cli.main:main`) is the CLI, described in [cli.md](cli.md).
+
+`HI_REF` picks a tag, branch or commit to install. From a clone, `uv run harness-interface` runs
+the server from source, and `uv run --extra dev pytest` runs the tests, which need no Docker and
+no keys.
 
 | Variable | Default | Meaning |
 |---|---|---|
 | `HI_HOST` | `127.0.0.1` | the address to listen on |
 | `HI_PORT` | `8000` | the port |
-| `HI_DATA_DIR` | `./data` | resources, records, logs and workspaces |
+| `HI_DATA_DIR` | `~/.harness-interface/data` | resources, records, logs and workspaces |
 | `HI_RUNTIME` | `docker` | where harnesses run: `docker`, or `local` for plain processes on the host |
 
-With `docker`, the server checks at startup that Docker is reachable, and refuses to start if it
-is not: start Docker, or set `HI_RUNTIME=local`.
+At startup the server checks that git is installed, since every workspace is a git repository.
+With `docker`, it also checks that Docker is reachable. If either check fails, it refuses to
+start and says why.
 
 ## The three resources
 
@@ -76,7 +86,7 @@ provider it calls and the sandbox it runs in.
 | `run.env` | `{}` | extra variables, templated, set alongside the contract's |
 | `run.stdout` | `application/x-ndjson` | the content type of what the CLI prints, served at `/output` |
 | `run.timeout_s` | `900` | the run is killed after this and recorded `incomplete` |
-| `scripts` | `{}` | filename → content; stored under `data/scripts/{name}/` and mounted read-only at `{harness_dir}`; names must be plain filenames |
+| `scripts` | `{}` | filename → content; stored under `scripts/{name}/` in the data directory and mounted read-only at `{harness_dir}`; names must be plain filenames |
 
 Templates take `{task}`, `{instructions}`, `{model}`, `{session_id}`, `{workspace}`,
 `{harness_dir}`, `{provider_url}` and `{provider_key}`.
@@ -198,7 +208,7 @@ Errors:
 
 A sandbox that fails to build, or a run Docker cannot set up, is not an HTTP error: the request
 was fine. The record ends `failed`, with `setup_failed` and the reason. Image build logs are in
-`data/logs/`.
+`logs/` in the data directory.
 
 ## A request end to end
 
@@ -210,7 +220,7 @@ server owns; a problem there is recorded on the response.
    sandbox. With `previous_response_id`, load that record and check it was made on the same
    harness.
 2. **Record** (`models.py`). Create a `Response` with `status: in_progress`. Its workspace is the
-   previous response's, or `data/workspaces/{id}` for a new conversation. Its session id is the
+   previous response's, or `workspaces/{id}` in the data directory for a new conversation. Its session id is the
    previous response's. If that workspace already has a run in progress, answer 409.
 3. **Workspace** (`workspace.py`). Create the directory with `.hi/` inside it. On first use, run
    `git init` and write a `.gitignore` for the internal paths.
@@ -226,7 +236,7 @@ server owns; a problem there is recorded on the response.
 6. **Image** (`docker.py`).
    - The tag is `harness-interface/{sandbox}:{first 12 hex of sha256(Dockerfile)}`.
    - If that image exists, use it. Otherwise `docker build` it from the Dockerfile with an empty context, one build per tag at a time.
-   - The build log goes to `data/logs/build-{sandbox}-{hash}.log`.
+   - The build log goes to `logs/build-{sandbox}-{hash}.log`.
 7. **Network and door**. If the run was cancelled during the build, it ends here, `cancelled`.
    - Hand the workspace to uid 1000 if the server runs as root.
    - Create an internal network, `harness-net-{id}`.
@@ -238,11 +248,11 @@ server owns; a problem there is recorded on the response.
    - the workspace mounted at `/workspace`, the scripts read-only at `/harness`;
    - `HTTPS_PROXY` pointing at the door;
    - the environment passed by name, so values never appear on a command line;
-   - the request JSON on stdin and stderr to `data/logs/{id}.log`.
+   - the request JSON on stdin and stderr to `logs/{id}.log`.
 
    The timeout clock starts. If anything in steps 6 to 8 fails, the door and network are
    removed and the record ends `setup_failed`.
-9. **Pump**. Copy stdout to `data/logs/{id}.out` as it arrives, and hand each line to whoever is
+9. **Pump**. Copy stdout to `logs/{id}.out` as it arrives, and hand each line to whoever is
    following the run, which a streaming client sends on as a `harness.output` event.
 10. **Finish**.
     - Wait for the exit code, then remove the run's container, door and network.
@@ -304,7 +314,8 @@ workspaces/{id}/             one per conversation, named after its first respons
 ## Layout
 
 ```
-harness_interface/
+install.sh         the installer: uv, then this package
+harness_interface/ the server
   app.py           the routes, startup, and main(), the entry point
   config.py        Settings, from the environment, and where each file lives
   errors.py        the refusals, and the HTTP status of each
@@ -320,7 +331,12 @@ harness_interface/
   store.py         one JsonStore class for the four stores
   template.py      {name} placeholders
   default.Dockerfile
-harnesses/         twenty-three harnesses, one folder each; harnesses/README.md registers them
+frontend/cli/hi_cli/  hi, the CLI: a client of the API only
+  main.py          the commands
+  api.py           one method per endpoint, and the response stream
+  harness.py       a harness folder as its PUT body; the shipped folders
+  daemon.py        the server in the background
+harnesses/         twenty-three harnesses, one folder each; shipped inside the package for `hi harness add --builtin`
 docs/              this, the walkthrough, media
 tests/             every endpoint through an echo harness on the local runtime; runs that outlive their client,
                    cancel, one run per conversation, runs side by side, restart; the door; the docker command lines
@@ -328,10 +344,11 @@ tests/             every endpoint through an echo harness on the local runtime; 
 
 ## Verified
 
-The live test ran on Docker with runc:
-1. The server was started with `uv run harness-interface`.
-2. Four providers were added through the API: Anthropic, OpenAI, and DeepSeek's Anthropic and
-   OpenAI endpoints. All 23 shipped harnesses were added the same way, with no restart.
+The live test ran on Docker with runc, installed the way a user installs:
+1. `curl … install.sh | sh` installed both commands, and `hi server start` started the server.
+2. Four providers were added with `hi provider add`: Anthropic, OpenAI, and DeepSeek's Anthropic
+   and OpenAI endpoints. All 23 shipped harnesses were added with `hi harness add`, with no
+   restart. Every run used `hi run`, and turn two used `hi run -c`.
 3. The default image was built once, on the first request. Every run after that was a new
    container from it.
 
@@ -353,7 +370,16 @@ Runs, live on Docker:
 - cancel killed a running harness, and its container, door and network were removed;
 - a follow-up sent while its conversation was busy got a 409;
 - a server killed mid-run left a record that the next start closed as `server_restarted`, and the containers and network it left were removed;
-- the 23 harnesses ran six at a time.
+- the 23 harnesses ran six at a time;
+- Ctrl-C during `hi run` cancelled the run: the container was killed, and its door and network
+  removed.
+
+The installer also ran in a bare Debian container with no Python, uv or git:
+- it stopped and said to install git;
+- with git, it installed both commands;
+- `hi` then started the server and added a provider and all 23 shipped harnesses;
+- it ran, continued, detached and cancelled a run, and stopped the server, all on the local
+  runtime.
 
 The tests cover these on the local runtime against a real server, along with cancel during
 setup, a failed setup, runs side by side, the docker command lines, the image tagging, the wait
@@ -362,6 +388,6 @@ for the door and the door itself.
 ## Trust
 
 Single tenant. The API binds to localhost and has no authentication, so keep it there. Provider
-keys are stored as mode-600 files under `data/providers/`. They enter a run only as environment
+keys are stored as mode-600 files under `providers/` in the data directory. They enter a run only as environment
 variables inside its container. A harness is code you chose to run: the sandbox limits what it
 can reach, not what it does to its own workspace.

@@ -157,9 +157,9 @@ pip.ask("Which bread keeps longest, and why?")   # "Le pain de seigle se conserv
 pip.ask("And which one did you just name?")      # "Je viens de nommer le pain de seigle. -- Pip"
 ```
 
-- **Swap the harness, keep the agent.** Set `harness = "codex"`, or any of the 17 shipped
-  harnesses that take a role ([which](harnesses/README.md#notes-worth-knowing)), or one you
-  wrote, and nothing else changes.
+- **Swap the harness, keep the agent.** Set `harness = "codex"`, or any of the 23, or one you
+  wrote, and nothing else changes. Every shipped harness hands the role to its CLI, most as
+  `AGENTS.md`.
 - **It works in a sandbox.** Whatever the harness does for your agent, it does in a container
   that can reach only its provider.
 - **Its work is on the record.** Every turn's answer, changed files, diff, cost and output can be

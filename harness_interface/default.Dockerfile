@@ -16,7 +16,7 @@ RUN npm install -g \
       @anthropic-ai/claude-code@2.1.42 @openai/codex@0.163.0 @deepseek-ai/dsh@0.2.0-rc.2 \
       @earendil-works/pi-coding-agent@1.3.0 @oh-my-pi/pi-coding-agent@18.12.0 gajae-code@0.18.12 \
       opencode-ai@1.19.3 @kilocode/cli@7.8.12 cline@3.0.73 @qwen-code/qwen-code@0.25.2 \
-      @google/gemini-cli@0.64.0 @mimo-ai/cli@0.1.15 @minimax-ai/code@0.6.12 @qoder-ai/qodercli@1.1.73 \
+      @mimo-ai/cli@0.1.15 @minimax-ai/code@0.6.12 \
  && npm cache clean --force
 
 # CLIs published on PyPI, each in its own environment, on PATH for every user

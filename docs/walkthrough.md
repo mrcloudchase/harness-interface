@@ -178,7 +178,7 @@ harness() {
 harness harnesses/claude-code | curl -X PUT localhost:8000/harnesses/claude-code -H 'content-type: application/json' -d @-
 ```
 
-The same function registers all 25 in a loop; see [harnesses/README.md](../harnesses/README.md).
+The same function registers all 23 in a loop; see [harnesses/README.md](../harnesses/README.md).
 
 That is all it takes to add a harness. Nothing changed on the server, and nothing on the server
 knows what `ANTHROPIC_BASE_URL` means. To run the same CLI on DeepSeek, set

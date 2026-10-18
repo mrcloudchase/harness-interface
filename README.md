@@ -18,7 +18,7 @@
 ---
 
 A harness is any program you can start from a shell and hand a task to: Claude Code, Codex,
-Gemini CLI, OpenCode, Aider, the one you wrote yourself. Each has its own flags, its own output
+OpenCode, Aider, the one you wrote yourself. Each has its own flags, its own output
 format, its own way of taking a key and of resuming a session. harness-interface puts one API in
 front of all of them.
 
@@ -58,7 +58,7 @@ cancelled, even while its sandbox is still being built.
 **Adding anything is a PUT.** A provider is three fields. A sandbox is a Dockerfile. A harness is
 a folder of small files. Change any of them and the next request uses the change, with no restart.
 
-**Twenty-five harnesses ship ready.** [harnesses/](harnesses/) holds 25 harnesses, each a folder,
+**Twenty-three harnesses ship ready.** [harnesses/](harnesses/) holds 23 harnesses, each a folder,
 registered with one loop. The built-in sandbox already has every one of their CLIs. Every one is
 tested on a first turn and on a resumed second turn.
 
@@ -100,17 +100,16 @@ contract, the resource shapes, every endpoint and exactly what the sandbox enfor
 
 ## Verified
 
-All 25 shipped harnesses were added through the API to a running server and run in the default
+All 23 shipped harnesses were added through the API to a running server and run in the default
 sandbox image on Docker. Each one answered a first request, and each one continued the
-conversation on a second request with `previous_response_id`. Gemini CLI and Qoder need keys
-that were not available, so they were not run. Inside a live run, the sandbox reached its
-provider and nothing else. The details are in [docs/reference.md](docs/reference.md#verified).
+conversation on a second request with `previous_response_id`. Inside a live run, the sandbox
+reached its provider and nothing else. The details are in [docs/reference.md](docs/reference.md#verified).
 
 ## Docs
 
 - [Walkthrough](docs/walkthrough.md): install, add a provider, register a harness, first request, continue.
 - [Reference](docs/reference.md): resources, the process contract, the wire format, endpoints, a request end to end, the sandbox, configuration, layout.
-- [Harnesses](harnesses/README.md): the 25 that ship, registering them, and what each one needs.
+- [Harnesses](harnesses/README.md): the 23 that ship, registering them, and what each one needs.
 
 ## Status
 

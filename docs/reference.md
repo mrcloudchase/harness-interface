@@ -320,7 +320,7 @@ harness_interface/
   store.py         one JsonStore class for the four stores
   template.py      {name} placeholders
   default.Dockerfile
-harnesses/         twenty-five harnesses, one folder each; harnesses/README.md registers them
+harnesses/         twenty-three harnesses, one folder each; harnesses/README.md registers them
 docs/              this, the walkthrough, media
 tests/             every endpoint through an echo harness on the local runtime; runs that outlive their client,
                    cancel, one run per conversation, runs side by side, restart; the door; the docker command lines
@@ -331,16 +331,16 @@ tests/             every endpoint through an echo harness on the local runtime; 
 The live test ran on Docker with runc:
 1. The server was started with `uv run harness-interface`.
 2. Four providers were added through the API: Anthropic, OpenAI, and DeepSeek's Anthropic and
-   OpenAI endpoints. All 25 shipped harnesses were added the same way, with no restart.
+   OpenAI endpoints. All 23 shipped harnesses were added the same way, with no restart.
 3. The default image was built once, on the first request. Every run after that was a new
    container from it.
 
 Each harness got two turns. The first asked it to remember a word and answer `17 * 23`. The
-second, sent with `previous_response_id`, asked it to recall the word. 23 harnesses answered 391,
-and all 23 recalled the word:
+second, sent with `previous_response_id`, asked it to recall the word. All 23 answered 391, and
+all 23 recalled the word:
 aider, cheetahclaws, claude-code, cline, codex, deepseek-harness, gajae, goose, grok-cli,
 harness-engineering, hermes, jcode, kilo, kimi-code, mimo, minimax-code, nanobot, omp, opencode,
-openhands, opensquilla, pi, qwen-code. Gemini CLI and Qoder were not run, for want of a key.
+openhands, opensquilla, pi, qwen-code.
 
 A probe ran inside a live run, as the sandbox user. It found:
 - no capabilities, and no way to escalate;

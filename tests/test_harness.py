@@ -143,6 +143,11 @@ def test_every_shipped_harness_puts_dropped_artifacts_in_place(tmp_path):
     blocks = {artifacts_block(p) for p in (ROOT / "harnesses").glob("*/run.sh")}
     assert len(blocks) == 1                                            # the same few lines in every harness
     block = blocks.pop()
+    shipped = sorted(p.parent for p in (ROOT / "harnesses").glob("*/harness.json"))
+    assert all((f / "artifacts").is_file() for f in shipped)         # every folder ships one, bringing nothing
+    for f in shipped:
+        assert place(block, f, tmp_path / "shipped").returncode == 0, f.name
+    assert not (tmp_path / "shipped").exists()
     folder, home = tmp_path / "harness", tmp_path / "home"
     folder.mkdir()
     assert place(block, folder, home).returncode == 0 and not home.exists()     # no artifacts file: nothing to do

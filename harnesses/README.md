@@ -3,7 +3,8 @@
 Twenty-three harnesses ship with the platform, one folder each:
 - a `harness.json`;
 - a `run.sh` that maps the request onto the CLI's own flags;
-- a `report.py` that passes the CLI's output through and writes back what the server reads.
+- a `report.py` that passes the CLI's output through and writes back what the server reads;
+- an `artifacts` file, where you list files for it to bring; as shipped it lists none.
 
 A few carry one more file their run script uses. They are not server code: read one, change it,
 register it again, and the next request uses it. Every one runs in the built-in `default`
@@ -94,7 +95,8 @@ Each folder is a working template. To change how a harness runs, copy its folder
 ### Bring artifacts
 
 To run a harness with its CLI's settings, permissions, MCP servers, skills, hooks or anything
-else it reads, drop the files in the folder and list each in a file named `artifacts`:
+else it reads, drop the files in the folder and list each in its `artifacts` file. Every folder
+ships one, with only comments in it, so it brings nothing until you add a line:
 
 ```
 # file in this folder   where it goes under $HOME

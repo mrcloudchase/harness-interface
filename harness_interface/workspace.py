@@ -47,5 +47,5 @@ class Workspace:
 
     def commit(self, message: str) -> None:
         self._git("add", "-A")
-        self._git("-c", "user.name=hi", "-c", "user.email=hi@localhost",
+        self._git("-c", "user.name=harness-interface", "-c", "user.email=harness-interface@localhost",
                   "commit", "-q", "--allow-empty", "-m", message)

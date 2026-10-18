@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import AsyncIterator, Protocol
 
+from .egress import READY as DOOR_READY
 from .models import Sandbox as SandboxSpec
 from .runner import Mounts, Prepared
 
@@ -164,7 +165,7 @@ class DockerNames:
 
     @classmethod
     def of(cls, job_id: str) -> "DockerNames":
-        return cls(run=f"hi-run-{job_id}", door=f"hi-door-{job_id}", network=f"hi-net-{job_id}")
+        return cls(run=f"harness-run-{job_id}", door=f"harness-door-{job_id}", network=f"harness-net-{job_id}")
 
 
 class DockerSandbox:
@@ -182,7 +183,7 @@ class DockerSandbox:
     # image
     @staticmethod
     def tag(spec: SandboxSpec) -> str:
-        return f"hi/{spec.name}:{hashlib.sha256(spec.dockerfile.encode()).hexdigest()[:12]}"
+        return f"harness-interface/{spec.name}:{hashlib.sha256(spec.dockerfile.encode()).hexdigest()[:12]}"
 
     async def image(self, spec: SandboxSpec) -> str:
         """The image for this Dockerfile, built if this content has not been built before."""
@@ -219,6 +220,19 @@ class DockerSandbox:
                 "python3", "/door/egress.py", f"0.0.0.0:{DOOR_PORT}", *egress]
 
     @staticmethod
+    async def door_ready(names: DockerNames, timeout_s: float = 10) -> None:
+        """Wait for the door to accept connections: a harness that calls its provider at once
+        would otherwise find no way out."""
+        for _ in range(int(timeout_s / 0.1)):
+            code, out = await docker("logs", names.door)
+            if DOOR_READY in out:
+                return
+            if code != 0:
+                break
+            await asyncio.sleep(0.1)
+        raise RuntimeError(f"egress door did not start: {out[-500:]}")
+
+    @staticmethod
     def hand_over(workspace: Path) -> None:
         """Make the workspace the sandbox user's. A server running as root creates it as root, and
         the unprivileged user inside could not write to it; a server running as a regular user
@@ -232,14 +246,18 @@ class DockerSandbox:
     async def start(self, job: Job) -> Process:
         image, names = await self.image(job.spec), DockerNames.of(job.id)
         self.hand_over(job.workspace)
-        for step in (("network", "create", "--internal", names.network),
-                     tuple(self.door_argv(names, job.egress)),
-                     ("network", "connect", "bridge", names.door)):
-            code, out = await docker(*step)
-            if code != 0:
-                await docker("rm", "-f", names.door)
-                await docker("network", "rm", "-f", names.network)
-                raise RuntimeError(f"docker {step[0]} {step[1]} failed: {out[-500:]}")
+        try:
+            for step in (("network", "create", "--internal", names.network),
+                         tuple(self.door_argv(names, job.egress)),
+                         ("network", "connect", "bridge", names.door)):
+                code, out = await docker(*step)
+                if code != 0:
+                    raise RuntimeError(f"docker {step[0]} {step[1]} failed: {out[-500:]}")
+            await self.door_ready(names)
+        except RuntimeError:
+            await docker("rm", "-f", names.door)
+            await docker("network", "rm", "-f", names.network)
+            raise
         argv = self.run_argv(job, image, names)
         proc = await _spawn(argv, {**os.environ, **job.prepared.env}, None, job.prepared.stdin, job.log_path)
         d = _DockerProc(proc, self.out_dir / f"{job.id}.out", job.prepared.timeout_s, names)

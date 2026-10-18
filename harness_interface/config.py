@@ -9,6 +9,8 @@ from pydantic import BaseModel
 
 
 class Settings(BaseModel):
+    host: str = os.environ.get("HI_HOST", "127.0.0.1")
+    port: int = int(os.environ.get("HI_PORT", "8000"))
     data_dir: Path = Path(os.environ.get("HI_DATA_DIR", "data")).resolve()
     runtime: Literal["docker", "local"] = os.environ.get("HI_RUNTIME", "docker")  # type: ignore[assignment]
 

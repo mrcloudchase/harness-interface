@@ -1,4 +1,5 @@
-"""HTTP surface: the three resources, and responses. Validate, call, shape; nothing else."""
+"""HTTP surface: the three resources, and responses. Validate, call, shape; nothing else.
+`main` is the entry point: `uv run harness-interface`."""
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -163,3 +164,10 @@ def create_app(c: Container | None = None) -> FastAPI:
         return FileResponse(p) if p.is_file() else not_found(f"no file {path}")
 
     return app
+
+
+def main() -> None:
+    """Serve the API, configured by the environment (see config.py)."""
+    import uvicorn
+    c = build()
+    uvicorn.run(create_app(c), host=c.settings.host, port=c.settings.port, log_level="info")

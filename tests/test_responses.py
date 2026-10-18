@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from hi.workspace import Workspace
+from harness_interface.workspace import Workspace
 
 
 def events(text):

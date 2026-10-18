@@ -1,6 +1,6 @@
 {
   "name": "harness-engineering",
-  "description": "The harness from the harness-engineering course: Claude through the Anthropic SDK, one shell tool, compaction when context fills. harness.py travels with this folder. No session resume; a follow-up keeps the files only. Reports no usage.",
+  "description": "The harness from the harness-engineering course: Claude through the Anthropic SDK, one shell tool, compaction when context fills. harness.py travels with this folder. Resume = the earlier turns handed back as its first message. Reports no usage.",
   "provider": "anthropic",
   "run": {
     "env": {

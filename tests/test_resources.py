@@ -1,5 +1,5 @@
 """Providers, sandboxes and harnesses over the API."""
-from hi.registry import DEFAULT_SANDBOX
+from harness_interface.registry import DEFAULT_SANDBOX
 
 
 def test_provider_key_is_never_returned(client):

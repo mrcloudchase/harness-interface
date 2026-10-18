@@ -4,7 +4,8 @@ A sandbox has no route out but this. It accepts `CONNECT host:port` for a host o
 the tunnel, and copies bytes both ways; TLS stays end to end, so it sees nothing. Any other
 request, host or method gets a 403. It resolves names itself, so the sandbox needs no DNS.
 
-Runs as a library (tests) or as a script inside the door container:
+Runs as a library (tests) or as a script inside the door container, where it prints "door listening" once
+it accepts connections:
     python3 egress.py 0.0.0.0:3128 api.deepseek.com:443 pypi.org:443
 """
 from __future__ import annotations
@@ -12,6 +13,7 @@ from __future__ import annotations
 import asyncio
 import sys
 
+READY = "door listening"
 REFUSED = b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
 ESTABLISHED = b"HTTP/1.1 200 Connection established\r\n\r\n"
 
@@ -75,6 +77,7 @@ class Door:
 async def _main(listen: str, allowed: list[str]) -> None:
     host, port = listen.rsplit(":", 1)
     server = await Door(allowed).serve(host, int(port))
+    print(READY, flush=True)
     async with server:
         await server.serve_forever()
 

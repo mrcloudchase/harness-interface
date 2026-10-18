@@ -7,9 +7,9 @@ from fastapi.testclient import TestClient
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
-from hi.app import build, create_app            # noqa: E402
-from hi.models import Harness                    # noqa: E402
-from hi.config import Settings                  # noqa: E402
+from harness_interface.app import build, create_app            # noqa: E402
+from harness_interface.models import Harness                    # noqa: E402
+from harness_interface.config import Settings                  # noqa: E402
 
 def packed(folder: Path) -> Harness:
     """A harness folder as the resource its PUT takes: harness.json plus every other file as a script."""

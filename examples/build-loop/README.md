@@ -64,21 +64,21 @@ The built project ends up in `--repo`: a git repository with one commit per acce
 
 ## A real run
 
-Given 20 minutes and a $15 budget, the loop built switchboard from its spec in 7 minutes. All 16
-acceptance tests pass. Claude Code reported $1.54 for its turns; Codex reports tokens, not
-dollars, so its seven reviews aren't in that figure.
+Given 20 minutes and a $15 budget, the loop built switchboard from its spec in 5 minutes. All 16
+acceptance tests pass. Claude Code reported $1.21 for its turns; Codex reports tokens, not
+dollars, so its four reviews aren't in that figure.
 
-Every task passed its tests on Claude Code's first try. Each then took one revision for Codex's
-review:
+The plan had six tasks. Claude Code built two of them, and the tests for the other four already
+passed by the time the loop reached them:
 
 | Task | |
 |---|---|
-| 1. App structure and harness storage | Codex rejected name validation that accepted a trailing newline; fixed, then approved. |
-| 2. Run execution | Codex flagged timeouts that killed only the process, not its group. The revision didn't fix it: its kill code looks for the process in the wrong place, so it never runs. Codex said so, and the change was accepted on its passing tests, with the objection shown in the result. |
-| 3. Timeouts | already passing after task 2; no turn spent |
-| 4. Continuing runs | Codex caught truthiness checks on an id; fixed, then approved. |
+| 1. App structure and harness storage | Passed its tests on the first try. Codex asked for fractional timeouts, a refused trailing newline in names, and the list and delete endpoints; one revision, then approved. |
+| 2. Harness retrieval and deletion | already passing: the revision of task 1 had added them |
+| 3. Run execution | Passed every test on the first try. Codex caught a truthiness check that let an empty `previous_run_id` through; fixed. Its second review objected that the endpoint blocks the server while a command runs, and that a timeout's output can fail to decode. Both are real, and no test covers them; after the one revision round the change was accepted on its passing tests, with the objection shown in the result. |
+| 4–6. Timeouts, recording runs, continuing them | already passing after task 3 |
 
-Task 2 is the lesson: the reviewer found a real bug that no acceptance test covers. When that
+Task 3 is the lesson: the reviewer found real bugs that no acceptance test covers. When that
 happens, add a test for it, and the next run's tests decide it.
 
 Watch it: [build-loop.gif](../../docs/media/build-loop.gif) at 6× speed, or the full recording

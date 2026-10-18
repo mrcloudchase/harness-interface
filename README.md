@@ -183,7 +183,7 @@ it's done. Everything a loop needs is built in, the same for every harness:
 <p align="center">
   <img src="docs/media/build-loop.gif" alt="The build loop building switchboard: Claude Code builds each task, the acceptance tests run in a container, Codex reviews each change, and each accepted task is committed">
 </p>
-<p align="center"><sub><a href="examples/build-loop/">examples/build-loop</a> building a small API server from its spec and 16 acceptance tests. Claude Code builds, Codex reviews, the tests decide: 16 of 16 pass in 7 minutes. Shown at 6× speed.</sub></p>
+<p align="center"><sub><a href="examples/build-loop/">examples/build-loop</a> building a small API server from its spec and 16 acceptance tests. Claude Code builds, Codex reviews, the tests decide: 16 of 16 pass in 5 minutes. Shown at 6× speed.</sub></p>
 
 The loop is one Python file. It plans, builds, verifies in a container, has a second harness
 review each change, and checkpoints in git. It escalates a stuck task to another harness, and

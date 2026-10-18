@@ -8,6 +8,9 @@ to "Unreleased" as you change things, and rename it to the version when you bump
 - **Docs checked line by line against the code,** and corrected wherever they had drifted.
 - **How it works,** a new page for users: who owns what, the words, the three ways in, and when
   it fits. The README is shorter, and points to it.
+- **The default sandbox drops its leftover `HOME` and `WORKDIR`.** Runs work at the workspace's
+  own path and every harness sets its own `HOME`, so the image no longer sets either. Its tag
+  changes, so the first run after upgrading builds it once.
 
 ## [1.0.1]
 

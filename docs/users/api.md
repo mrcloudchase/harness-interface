@@ -125,7 +125,7 @@ A conversation runs one request at a time; a second one gets a 409 until the fir
   "metadata": {},
   "harness": {
     "name": "claude-code", "provider": "anthropic", "sandbox": "default", "runtime": "docker",
-    "image": "harness-interface/default:0e4419119ad6", "workspace": "…/workspaces/resp_254e3da1d07b4a5f",
+    "image": "harness-interface/default:1eee0e59f140", "workspace": "…/workspaces/resp_254e3da1d07b4a5f",
     "session_id": "863ff72c-…", "exit_code": 0, "latency_s": 21.1, "cost_usd": 0.1174,
     "files": [], "deleted": [],
     "base": "3f1c9e2…", "commit": "a77d1b0…"

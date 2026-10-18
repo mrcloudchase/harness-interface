@@ -1,9 +1,10 @@
 # The built-in sandbox: one image for every harness, built once and reused for every run. It holds
 # the CLI of every harness in harnesses/, pinned where its publisher allows, and runs as the
-# unprivileged user `agent`, whose home is inside the workspace so a harness's own state survives
-# between turns. What locks it down is not in here but on every `docker run`: all capabilities
-# dropped, no privilege escalation, read-only root, tmpfs /tmp, pid and memory caps, and an
-# internal network whose only exit is the egress door.
+# unprivileged user `agent`, uid 1000. Each run mounts its workspace at the workspace's own path and
+# works there, and each harness sets HOME inside it, so the image sets neither. What locks it down
+# is not in here but on every `docker run`: all capabilities dropped, no privilege escalation,
+# read-only root, tmpfs /tmp, pid and memory caps, and an internal network whose only exit is the
+# egress door.
 FROM node:22-bookworm-slim
 
 RUN apt-get update \
@@ -50,5 +51,3 @@ RUN npm install -g bun@1.4.2 && npm cache clean --force
 # The node image already has a `node` user at uid 1000; it makes way for `agent`.
 RUN userdel -r node 2>/dev/null; useradd --create-home --uid 1000 --user-group agent
 USER agent
-ENV HOME=/workspace/.home
-WORKDIR /workspace

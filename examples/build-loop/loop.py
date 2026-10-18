@@ -21,7 +21,7 @@ budget. You stop prompting the harness; the loop does, and the tests decide when
 - **It stops cleanly.** At its deadline or budget it cancels the run in flight, rolls back
   unaccepted work, and reports. State is saved after every task, so it can resume.
 
-    python loop.py --project switchboard --repo ./out --minutes 20 --budget 10
+    python loop.py --project switchboard --repo ./out --check-image switchboard-check --minutes 20 --budget 10
 """
 from __future__ import annotations
 

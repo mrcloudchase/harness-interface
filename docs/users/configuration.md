@@ -69,5 +69,5 @@ workspaces/{id}/           one per conversation, named after its first response;
 | `last-response` | the response `hi run -c` continues |
 
 Docker images are named `harness-interface/{sandbox}:{hash of the Dockerfile}`. A run's
-containers and network are named after its response id: `harness-run-…`, `harness-door-…` and
+containers and network share a random id of their own: `harness-run-…`, `harness-door-…` and
 `harness-net-…`.

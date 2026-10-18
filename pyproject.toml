@@ -30,8 +30,5 @@ packages = ["harness_interface", "frontend/cli/hi_cli"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-addopts = "-m 'not docker and not live'"
-markers = [
-  "docker: needs a running Docker daemon",
-  "live: needs Docker and real provider keys; run by hand",
-]
+addopts = "-m 'not docker'"
+markers = ["docker: needs a running Docker daemon"]

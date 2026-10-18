@@ -96,8 +96,13 @@ def test_a_timeout_stops_the_whole_process_group():
     out, outcome = go(run(LocalRuntime(), py(code, timeout_s=1)))
     assert outcome == Outcome.timed_out()
     child = int(out["stdout"])
-    time.sleep(0.2)
-    assert not Path(f"/proc/{child}").exists() or "Z" in Path(f"/proc/{child}/stat").read_text().split()[2]
+
+    def gone() -> bool:                              # reaped, or a zombie waiting to be
+        return not Path(f"/proc/{child}").exists() or "Z" in Path(f"/proc/{child}/stat").read_text().split()[2]
+    deadline = time.time() + 5
+    while not gone() and time.time() < deadline:
+        time.sleep(0.05)
+    assert gone()
 
 
 def test_cancel_from_another_thread():

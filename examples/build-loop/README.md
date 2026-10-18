@@ -19,7 +19,7 @@ plan ─► for each task: build ─► verify ─► review ─► checkpoint
 | a bad turn wrecks good work | each accepted task is a git commit; unaccepted work is rolled back |
 | one harness gets stuck | after `--tries`, the task escalates to the next of `--workers` |
 | code passes the tests but is wrong or messy | a different harness reviews each passing change; its objections get one round of revision, but the tests still decide, and an objection a change is accepted over is shown in the result |
-| it runs forever | `--minutes` and `--budget`: at either, it cancels the run in flight and stops cleanly. The result says how many turns reported no cost, which the budget can't count. |
+| it runs forever | `--minutes` and `--budget`: at the deadline it cancels the run in flight, at the budget it starts no new turn, and either way it stops cleanly. The result says how many turns reported no cost, which the budget can't count. |
 | it crashes halfway | state is saved after each task; run it again with the same `--repo` and it resumes |
 | you can't see what happened | each harness's own output streams to the terminal as it works, each turn's diff is shown after it, and every turn is in `.loop/log.jsonl` |
 

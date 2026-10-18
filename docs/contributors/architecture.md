@@ -8,7 +8,7 @@ answer, lives in that harness's folder, not in this code.
 ## Layers
 
 The code is a stack of layers. Each one imports only from the layers below it, so a change to one
-layer can only break the layers above it.
+layer can break only that layer and the layers above it.
 
 | | Layer | Modules | Knows about |
 |---|---|---|---|
@@ -73,8 +73,8 @@ all three:
 | `frontend/cli/hi_cli/harness.py` | a harness folder as a PUT body; the shipped folders | rarely |
 | `harnesses/*/` | one folder per shipped harness: configuration, not platform code | that harness's CLI changes |
 
-Every module opens with a docstring that names its layer and says what it is for and what it
-promises. Read that first; it is kept true.
+Every module in the package opens with a docstring that names its layer and says what it is for
+and what it promises. Read that first; it is kept true.
 
 ## The life of a turn
 
@@ -90,8 +90,8 @@ turn = await Turn.start(runtime, harness, provider, Request("Fix the test"), wor
    the templated argv, `HI_*` variables and `run.env`, the request on stdin, the timeout. A
    snapshot of the workspace is the turn's `base`.
 2. **Start.** `runtime.start(spec)` runs as a task, so `Turn.start` returns at once. On Docker it
-   builds the sandbox's image if needed, hands the workspace to the container's user, creates an
-   internal network and the door, waits for the door, and spawns `docker run`.
+   builds the sandbox's image if needed, hands the workspace to uid 1000 if the server runs as
+   root, creates an internal network and the door, waits for the door, and spawns `docker run`.
 3. **Stream.** `turn.events()` yields the execution's events. Output is pumped into a queue as it
    is written, whether or not anyone reads it.
 4. **Cancel**, from any thread. While the runtime is still starting, the start is cancelled, its
@@ -136,8 +136,10 @@ the last process left behind.
   harness, the server and the user.
 - **One way out.** A sandbox's only network is internal; the egress door is the one container on
   it that is also on the bridge, and it tunnels only to allowed hosts. TLS stays end to end.
-- **Keys never touch a command line.** `docker run -e NAME` passes names only; values come from
-  the environment of the `docker` process. A key never appears in `ps`, a record or a log.
+- **The platform never puts a key on a command line.** `docker run -e NAME` passes names only;
+  values come from the environment of the `docker` process. The server never writes a key to a
+  record, a log or an API response. What a harness does with its key inside its sandbox is up to
+  the harness.
 - **One turn per conversation.** A conversation is one workspace and one harness session; two
   turns at once in either would corrupt it, so a second gets 409.
 - **Records are written twice.** Once when the turn starts (so it can be listed and followed) and

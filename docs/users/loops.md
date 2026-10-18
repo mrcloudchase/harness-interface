@@ -11,10 +11,19 @@ prompts:
 | **The feedback** | what the next turn is told: the failures, verbatim |
 | **The stop rules** | time, budget, tries, and the same failure twice |
 
-harness-interface suits this. Every turn is one request, and `previous_response_id` continues
-it. Each record carries the cost, and each turn's diff and files can be read. Every turn is
-sandboxed, so a loop can run unattended. And because every harness takes the same request, a
-loop can escalate from one harness to another, or have one review another's work.
+Everything a loop needs from the harness side is built in, the same for every harness:
+
+| A loop needs to | harness-interface gives it |
+|---|---|
+| run any harness the same way | one request shape: `model` names the harness |
+| send the failures back | `previous_response_id`, which resumes the harness's own session |
+| check the work from outside | each turn's `/diff` and `/files`, even while it runs |
+| stop at a deadline or a budget | `POST /responses/{id}/cancel`, and the cost each harness reports |
+| run unattended | every turn in a sandbox that reaches only its provider |
+| show what happened | each harness's stdout and stderr, streamed live and kept |
+
+And because every harness takes the same request, a loop can escalate from one harness to
+another, or have one review another's work.
 
 ## The build loop example
 
@@ -31,8 +40,8 @@ plan ─► for each task: build ─► verify ─► review ─► checkpoint
 - Accepted work is committed in a git repository the loop owns, and anything else is rolled back.
 - A different harness reviews each passing change, but the tests decide. An objection a change
   is accepted over is shown in the result.
-- At its deadline or budget, it cancels the run in flight and stops cleanly. It resumes from its
-  saved state.
+- At its deadline it cancels the run in flight; at its budget it starts no new turn. Either way it
+  stops cleanly, and resumes from its saved state.
 - Every harness's own output and every turn's diff are shown as it works.
 
 Its README has the steps to run it, and every option.

@@ -27,7 +27,7 @@ hi server start
 ```
 
 ```
-server running at http://127.0.0.1:8000 (pid 4260); log: ~/.harness-interface/server.log
+server running at http://127.0.0.1:8000 (pid 4260); log: /home/you/.harness-interface/server.log
 ```
 
 The server runs in the background, for you only: it listens on `127.0.0.1`, with no
@@ -94,13 +94,15 @@ and its workspace still has any files from the first turn.
 ## 7. Look at what happened
 
 ```bash
-hi ls                          # every response
-hi show resp_254e3da1d07b4a5f  # the full record: status, usage, cost, files, session
-hi output resp_254e…           # Claude Code's own output, exactly as it printed it
-hi log resp_254e…              # its stderr
-hi diff resp_254e…             # what it changed, as a diff
-hi files resp_254e… PATH       # one of its files, as it left it
+hi ls                                    # every response
+hi show resp_254e3da1d07b4a5f            # the full record: status, usage, cost, files, session
+hi output resp_254e3da1d07b4a5f          # Claude Code's own output, exactly as it printed it
+hi log resp_254e3da1d07b4a5f             # its stderr
+hi diff resp_254e3da1d07b4a5f            # what it changed, as a diff
+hi files resp_254e3da1d07b4a5f PATH      # one of its files, as it left it
 ```
+
+Each command takes the whole response id.
 
 ## 8. Run another harness the same way
 

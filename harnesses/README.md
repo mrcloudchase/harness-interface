@@ -51,31 +51,31 @@ by changing `"provider": "anthropic"` to `"provider": "deepseek"`.
 
 ## What ships
 
-| Harness | Provider |
-|---|---|
-| aider | anthropic |
-| cheetahclaws | openai |
-| claude-code | anthropic |
-| cline | anthropic |
-| codex | openai |
-| deepseek-harness | deepseek |
-| gajae | anthropic |
-| goose | anthropic |
-| grok-cli | deepseek-openai |
-| harness-engineering | anthropic |
-| hermes | anthropic |
-| jcode | anthropic |
-| kilo | anthropic |
-| kimi-code | deepseek |
-| mimo | anthropic |
-| minimax-code | deepseek |
-| nanobot | anthropic |
-| omp | anthropic |
-| opencode | anthropic |
-| openhands | anthropic |
-| opensquilla | anthropic |
-| pi | anthropic |
-| qwen-code | deepseek-openai |
+| Harness | Name, for `hi` | Default provider |
+|---|---|---|
+| [Aider](aider/) | `aider` | `anthropic` |
+| [CheetahClaws](cheetahclaws/) | `cheetahclaws` | `openai` |
+| [Claude Code](claude-code/) | `claude-code` | `anthropic` |
+| [Cline](cline/) | `cline` | `anthropic` |
+| [Codex](codex/) | `codex` | `openai` |
+| [DeepSeek Harness](deepseek-harness/) | `deepseek-harness` | `deepseek` |
+| [Gajae Code](gajae/) | `gajae` | `anthropic` |
+| [Goose](goose/) | `goose` | `anthropic` |
+| [Grok CLI](grok-cli/) | `grok-cli` | `deepseek-openai` |
+| [harness-engineering](harness-engineering/) | `harness-engineering` | `anthropic` |
+| [Hermes](hermes/) | `hermes` | `anthropic` |
+| [J-Code](jcode/) | `jcode` | `anthropic` |
+| [Kilo Code](kilo/) | `kilo` | `anthropic` |
+| [Kimi Code](kimi-code/) | `kimi-code` | `deepseek` |
+| [MiMo Code](mimo/) | `mimo` | `anthropic` |
+| [MiniMax Code](minimax-code/) | `minimax-code` | `deepseek` |
+| [nanobot](nanobot/) | `nanobot` | `anthropic` |
+| [OMP](omp/) | `omp` | `anthropic` |
+| [OpenCode](opencode/) | `opencode` | `anthropic` |
+| [OpenHands](openhands/) | `openhands` | `anthropic` |
+| [OpenSquilla](opensquilla/) | `opensquilla` | `anthropic` |
+| [Pi](pi/) | `pi` | `anthropic` |
+| [Qwen Code](qwen-code/) | `qwen-code` | `deepseek-openai` |
 
 The npm and PyPI CLIs in the default image are pinned to the version each harness was written
 against. Goose, Kimi, Grok and JCode come from their vendors' own install scripts, which fetch the
@@ -100,8 +100,10 @@ latest release.
   variable it reads instead of `HTTPS_PROXY`.
 - **stdin carries the request JSON.** OMP appends stdin to its prompt, so its run script gives it
   an empty one.
-- **pi and OMP** read only `ANTHROPIC_API_KEY`, not a base url, so they run on Anthropic until
-  their run script writes a `models.json` entry for another endpoint.
+- **pi, OMP and Cline run only on Anthropic.** pi and OMP read only `ANTHROPIC_API_KEY`, not a
+  base url, until their run script writes a `models.json` entry for another endpoint. Cline's
+  anthropic provider always calls `api.anthropic.com`. On another provider, the egress door
+  refuses their calls.
 - **JCode** keeps the model a session started with and refuses `-m` on a resumed session.
 - **Cline** opens its interactive UI whenever it is asked to resume (`--id`), so its harness
   drives `cline --acp`, its Agent Client Protocol mode, through `acp.py`, and loads the saved

@@ -74,7 +74,9 @@ A complete, runnable version is [examples/library/run_a_harness.py](../../exampl
 Below the harness contract is the execution core, which runs any command:
 
 ```python
-from harness_interface import Docker, DockerRuntime, LocalRuntime, Sandbox, Spec
+from pathlib import Path
+
+from harness_interface import Docker, DockerRuntime, Sandbox, Spec
 
 box = Sandbox("py", "FROM python:3.12-slim\nRUN useradd -u 1000 runner\nUSER runner\n", egress=("pypi.org",))
 runtime = DockerRuntime(Docker(Path("logs")), box)
@@ -84,6 +86,8 @@ async for event in execution.events():
     ...
 outcome = await execution.wait()                 # Outcome: exited(code), timed_out, cancelled or failed(reason)
 ```
+
+(`await` works in async code, such as a function you hand to `asyncio.run`.)
 
 | | |
 |---|---|
@@ -106,7 +110,8 @@ that aren't strings, a timeout that isn't positive. Each raises `Invalid`.
 
 `runtime.recover()` removes whatever runs left behind when a program crashed: containers,
 networks. The server calls it at startup; call it at your program's start if it uses
-`DockerRuntime`.
+`DockerRuntime`. It removes every run's containers on this Docker host, so don't call it while a
+server, or another program, is running harnesses on the same host.
 
 ## The public API
 

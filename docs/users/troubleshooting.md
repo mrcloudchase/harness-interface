@@ -25,7 +25,7 @@
 
 | You see | What it means | What to do |
 |---|---|---|
-| `hi run` shows nothing for minutes | the sandbox image is building, once | Wait. The build log is in `~/.harness-interface/data/logs/`. |
+| `hi run` shows nothing for minutes | the sandbox image is building, once | Wait. When the build ends, its log is in `~/.harness-interface/data/logs/`. |
 | `failed`, `setup_failed` | the sandbox couldn't be set up, so the harness never ran: its image failed to build, or Docker couldn't start the run | The message has the end of the build log. Fix the Dockerfile, or check Docker. |
 | `failed`, `harness_failed` | the harness ran and failed | `hi log <id>`. Often a wrong key, a model name the provider doesn't serve, or a missing provider setting. |
 | `failed`, exit 127, on the local runtime | the harness's CLI isn't installed on this machine | Install it, or use the Docker runtime. |

@@ -52,15 +52,19 @@ for event in client.responses.create(model="claude-code", input="Count to five."
 
 ### An agent on a harness
 
-`instructions` gives the harness a role, and `previous_response_id` keeps the conversation. That
-pair is an agent, with a harness doing its work: the tools, the files, the context. Every
-shipped harness puts the instructions where its CLI reads them, on every turn: `AGENTS.md`, for
-most ([each one](../../harnesses/README.md#notes-worth-knowing)).
+A coding harness already does the hard part of an agent: the tool loop, running commands,
+editing files, managing its context, resuming its sessions. So an agent can be just a role and a
+conversation, with a harness doing the work. `instructions` gives the harness the role, and
+`previous_response_id` keeps the conversation:
 
 ```python
-class Agent:
-    def __init__(self, harness: str, role: str):
-        self.harness, self.role, self.last = harness, role, None
+class Pip:
+    """A bakery's assistant. The harness behind it is one name: swap it for any other."""
+    harness = "claude-code"
+    role = "You are Pip, a bakery's assistant. Answer in French, in one sentence, and sign with -- Pip."
+
+    def __init__(self):
+        self.last = None                                  # the conversation so far
 
     def ask(self, text: str) -> str:
         reply = client.responses.create(model=self.harness, instructions=self.role, input=text,
@@ -69,11 +73,19 @@ class Agent:
         return reply.output_text
 
 
-reviewer = Agent("codex", "You review Python for correctness. Name each bug with its line.")
+pip = Pip()
+pip.ask("Which bread keeps longest, and why?")   # "Le pain de seigle se conserve le plus longtemps … -- Pip"
+pip.ask("And which one did you just name?")      # "Je viens de nommer le pain de seigle. -- Pip"
 ```
 
-Changing the harness is changing one name; the agent's code stays the same. To cancel, and to read a run's output, log and files,
-call those endpoints directly, as shown below.
+- **Swap the harness, keep the agent.** Set `harness = "codex"`, or any shipped harness, or one
+  you wrote, and nothing else changes. Every shipped harness hands the role to its CLI on every
+  turn ([how each one does](../../harnesses/README.md#notes-worth-knowing)).
+- **It works in a sandbox.** Whatever the harness does for your agent, it does in a container
+  that can reach only its provider.
+- **Its work is on the record.** Every turn's answer, changed files, diff, cost and output can be
+  read back. To cancel, or to read a run's output, log and files, call those endpoints directly,
+  as shown below.
 
 ## Python, without an SDK
 
@@ -101,7 +113,7 @@ with httpx.stream("POST", "http://127.0.0.1:8000/responses", timeout=None,
 
 ## The stream
 
-A streamed response is three kinds of event:
+A streamed response is four kinds of event:
 
 | Event | Data |
 |---|---|
@@ -121,7 +133,7 @@ only stops following: the run finishes and is recorded, and `GET /responses/{id}
 | `GET /responses/{id}/output` | the harness's stdout, byte for byte |
 | `GET /responses/{id}/log` | its stderr |
 | `GET /responses/{id}/diff` | what the run changed, as a diff; live while it runs |
-| `GET /responses/{id}/files` | every file in the workspace, as the run left them |
+| `GET /responses/{id}/files` | every file in the workspace, as the run left them; while it runs, as they are now |
 | `GET /responses/{id}/files/{path}` | one file, as the run left it |
 | `POST /responses/{id}/cancel` | stop it: `{"cancelled": true}` if it was running |
 
@@ -130,6 +142,7 @@ only stops following: the run finishes and is recorded, and `GET /responses/{id}
 | Status | Means | Do |
 |---|---|---|
 | 400 | the request can't run: an unknown harness, a missing provider, a follow-up on another harness | fix the request; `detail` says what |
+| 404 | no response with that id, or nothing of that kind for it | check the id |
 | 409 | that conversation already has a run in progress | wait for it, or cancel it, then send again |
 | 422 | the body isn't a valid request, e.g. no input text | fix the body |
 

@@ -54,8 +54,9 @@ To use [the Python library](library.md) in your own project, without the server:
 uv add "harness-interface @ git+https://github.com/mrcloudchase/harness-interface@v1.0.0"
 ```
 
-The library needs nothing beyond Python's standard library and git. The server's dependencies come
-with the `[server]` extra, which the installer includes.
+The library itself needs nothing beyond Python's standard library and git; installing the package
+also brings `httpx`, which `hi` uses. The server's dependencies come with the `[server]` extra,
+which the installer includes.
 
 ## Run the server
 

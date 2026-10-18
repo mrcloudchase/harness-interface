@@ -1,7 +1,7 @@
 # Conventions
 
-The code is small on purpose: about 1,900 lines of Python in the package, readable in an afternoon. These rules
-keep it that way.
+The code is small on purpose: about 1,900 lines of Python in the package, readable in an
+afternoon. These rules keep it that way.
 
 ## Principles
 
@@ -37,26 +37,32 @@ keep it that way.
 
 ## Data
 
-- Values are frozen dataclasses. To change one, build a new one with `dataclasses.replace`.
+- Values are frozen dataclasses. To change one, build a new one with `dataclasses.replace`. The
+  one exception is `Record`, which is the state of a turn and changes as the turn runs.
 - Validate in `__post_init__`, so nothing invalid can exist. The API relies on this: a bad body is
   refused as 422 because its dataclass won't build.
-- Mappings that must not change are `MappingProxyType`; sequences are tuples.
+- Sequences in a value are tuples. `Spec.env`, the mapping every runtime is handed, is a
+  read-only `MappingProxyType`.
 
 ## Concurrency
 
-- Everything is asyncio. Blocking work (git, the file system, `chown` over a tree) goes through
-  `asyncio.to_thread`, so one big workspace never stalls other runs.
+- Everything is asyncio. Slow blocking work (git, `chown` over a whole tree) goes through
+  `asyncio.to_thread`, so one big workspace never stalls other runs. FastAPI runs the synchronous
+  routes, such as a diff, in its own threads.
 - Anything that can be cancelled from another thread goes through `loop.call_soon_threadsafe`.
 - Cleanup that must happen even when cancelled is shielded: `asyncio.shield(teardown(...))`.
 - Never let a reader's speed decide a writer's. Output is pumped into a queue as it arrives.
 
 ## Secrets
 
-- A key lives in the provider's JSON file (mode 0600), in a run's environment, and nowhere else.
+- In platform code, a key lives in the provider's JSON file (mode 0600, in a 0700 directory), in
+  memory, and in a run's environment, and nowhere else.
 - Pass environment values by name (`docker run -e NAME`), never on a command line.
 - Never log, record, return or print a key. `Provider.key` is `repr=False`, and the API's
   `public()` drops it.
-- Never commit one, even in a test. Tests use `"k"`.
+- A harness may do more with its own key inside its sandbox, such as log its CLI in. That is the
+  harness's business, and its folder says so.
+- Never commit a real key, even in a test. Tests use plainly fake ones, such as `"k"`.
 
 ## Style
 

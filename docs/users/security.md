@@ -6,8 +6,8 @@ What harness-interface protects, how, and what it leaves to you.
 
 A coding harness runs a model that writes and runs commands. harness-interface assumes those
 commands could do anything. With the Docker runtime, it keeps them inside a container that:
-- **can reach its model provider and nothing else**, so a harness can't exfiltrate data, reach
-  your network, or download arbitrary code at run time;
+- **can reach its model provider and nothing else**, besides any hosts its sandbox allows, so a
+  harness can't exfiltrate data, reach your network, or download arbitrary code at run time;
 - **can't escalate** out of an unprivileged user with no capabilities;
 - **can't change its own image**, because the root filesystem is read-only;
 - **is thrown away after the run.** Only the conversation's workspace persists.
@@ -48,7 +48,9 @@ A run's network has one other member: its egress door (`egress.py`). It is the o
   directory only its owner can enter (mode 700).
 - **In the API:** never returned. Listing and reading providers shows names and urls only.
 - **In a run:** passed to the container as environment variables, by name. The value travels in
-  the Docker client's environment, so it never appears on a command line or in `ps`.
+  the Docker client's environment, so the server never puts it on a command line or in `ps`.
+  Inside the sandbox, the harness's script hands it to its CLI as that CLI takes it; a few pass it
+  as an argument, or let the CLI save it in its own state.
 - **In `hi`:** read from an environment variable, a prompt or stdin, never from an argument.
 - **In a CLI's own state:** CLIs keep sessions and credentials in the workspace's `.home/`. The
   server ignores it in `.git/info/exclude`, where no request can change that, so it is never

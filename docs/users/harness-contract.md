@@ -44,7 +44,7 @@ other file in the folder by name. `hi harness add ./my-harness` builds that body
 | `run.env` | `{}` | extra environment variables, templated, set alongside the contract's |
 | `run.stdout` | `application/x-ndjson` | the content type of what the harness prints; `GET /responses/{id}/output` serves it as this |
 | `run.timeout_s` | `900` | after this many seconds the run is killed, and recorded `incomplete` |
-| `scripts` | `{}` | filename → content. Names must be plain filenames, with no `/` and no leading `.`. They are mounted read-only at `{harness_dir}`. |
+| `scripts` | `{}` | filename → content. Names must be plain filenames, with no `/` and no leading `.`. They are written to `{harness_dir}`, which Docker mounts read-only. |
 
 ## Templates
 
@@ -68,7 +68,7 @@ other file in the folder by name. `hi harness add ./my-harness` builds that body
 
 | | Where |
 |---|---|
-| the request, as JSON: `task`, `instructions`, `model`, `session_id`, `files`, `metadata` | stdin, and the file at `HI_REQUEST` |
+| the request, as JSON: `task`, `instructions`, `model`, `session_id`, `files` (their names), `metadata` | stdin, and the file at `HI_REQUEST` |
 | the task | `HI_TASK` |
 | the model | `HI_MODEL`, or empty |
 | the session to resume | `HI_SESSION_ID`: what the previous turn reported, or empty on a first turn |
@@ -92,10 +92,10 @@ The `HI_OUTPUT` file holds a JSON object. Every key is optional:
 
 | Key | Becomes |
 |---|---|
-| `answer` | the record's `output`: one assistant message with this text |
-| `status` | `ok` or `fail`. Without it, exit code 0 is `ok`, and anything else `fail`. |
+| `answer` | the record's `output`: one assistant message with this text, if it isn't blank |
+| `status` | `ok` or `fail`. Without it, exit code 0 is `ok`, and anything else `fail`. A timeout or a cancel decides first, whatever it says. |
 | `session_id` | the resume handle; the next turn gets it as `HI_SESSION_ID`. Without it, the previous one is kept. |
-| `usage` | the record's `usage`, as given |
+| `usage` | the record's `usage`, as given, if it is an object |
 | `cost_usd` | the record's `harness.cost_usd` |
 
 ## The rules of the workspace

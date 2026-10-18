@@ -15,7 +15,7 @@ live on the next run.
 
 | Extra | Brings | For |
 |---|---|---|
-| none | `httpx` (for `hi`) | the library |
+| none | `httpx`, for `hi` | the library and `hi` |
 | `server` | FastAPI, uvicorn, pydantic | the server |
 | `dev` | `server`, pytest, the OpenAI SDK | the tests |
 
@@ -55,8 +55,8 @@ uv run --extra dev pytest tests/test_harness.py -k cancel    # one file, some te
 uv run --extra dev pytest -m docker            # against a real Docker daemon
 ```
 
-CI runs all of these on every pull request, on Python 3.11 and 3.13. [Testing](testing.md) says
-what each suite proves, and how to write a test.
+CI runs the whole suite on every pull request, on Python 3.11 and 3.13, and the Docker tests
+beside it. [Testing](testing.md) says what each suite proves, and how to write a test.
 
 ## Lint
 
@@ -76,11 +76,8 @@ harnesses at it:
 ```dockerfile
 FROM harness-interface/default:<tag>           # see `docker images 'harness-interface/*'`
 USER root
-RUN cat > /usr/local/share/ca-certificates/proxy.crt <<'PEM' && update-ca-certificates
------BEGIN CERTIFICATE-----
-...
------END CERTIFICATE-----
-PEM
+RUN printf '%s\n' '-----BEGIN CERTIFICATE-----' 'MIID…' '…' '-----END CERTIFICATE-----' \
+      > /usr/local/share/ca-certificates/proxy.crt && update-ca-certificates
 ENV NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
     SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
@@ -88,7 +85,7 @@ USER 1000
 ```
 
 A sandbox is built with an empty context, so `COPY` has nothing to copy: the certificate goes in
-the Dockerfile itself. Add it with `hi sandbox add`, and set `"sandbox"` in each harness you run.
+the Dockerfile itself, one quoted line of it per `printf` argument. Add it with `hi sandbox add`, and set `"sandbox"` in each harness you run.
 It is for your machine only; never commit it.
 
 ## Debugging a run

@@ -1,10 +1,10 @@
-# hi, the command line
+# CLI reference
 
 `hi` is a client of the API and nothing more. Every command is one API call, or a few, and
 `--json` shows exactly what the API answered. The one exception is `hi server`, which starts
 and stops the server itself.
 
-`hi` comes with the server: see [setup.md](setup.md) to install both. To talk to a server
+`hi` comes with the server: see [Install](../guides/install.md) to install both. To talk to a server
 other than `http://127.0.0.1:8000`, set `HI_URL`, or put `--url URL` before the command
 (`hi --url URL ls`).
 

@@ -1,29 +1,39 @@
 <p align="center">
-  <img src="docs/media/picky.png" width="260" alt="Picky, the harness-interface mascot: a hermit crab with no shell of its own">
+  <img src="docs/media/picky.png" width="240" alt="Picky, the harness-interface mascot: a hermit crab with no shell of its own">
 </p>
 
 <h1 align="center">harness-interface</h1>
 
 <p align="center">
-  <b>Run any coding harness behind one API, every run in its own sandbox.</b><br>
-  Claude Code, Codex, Hermes, Pi and 19 more, called by name through the OpenAI Responses wire format.
+  <b>Run any coding harness behind one API, every run in its own sandbox.</b>
 </p>
 
 <p align="center">
   <img src="https://img.shields.io/badge/python-3.11%2B-3776ab" alt="Python 3.11+">
   <img src="https://img.shields.io/badge/harnesses-23-e8590c" alt="23 harnesses">
   <img src="https://img.shields.io/badge/runs-sandboxed%20in%20Docker-2496ed" alt="Runs sandboxed in Docker">
-  <img src="https://img.shields.io/badge/install-curl%20%7C%20sh-555" alt="Install with curl | sh">
+  <img src="https://img.shields.io/badge/API-OpenAI%20Responses-412991" alt="OpenAI Responses API">
 </p>
 
 <p align="center">
-  <a href="docs/setup.md">Setup</a> ·
-  <a href="docs/walkthrough.md">Walkthrough</a> ·
-  <a href="docs/cli.md">CLI</a> ·
-  <a href="docs/api.md">API</a> ·
-  <a href="docs/architecture.md">Architecture</a> ·
+  <a href="docs/getting-started.md">Getting started</a> ·
+  <a href="docs/README.md">Docs</a> ·
+  <a href="docs/reference/cli.md">CLI</a> ·
+  <a href="docs/reference/http-api.md">API</a> ·
   <a href="harnesses/README.md">Harnesses</a>
 </p>
+
+---
+
+**Meet Picky**, a hermit crab with no shell of its own. Hermit crabs don't grow shells; they find
+one that fits, wear it, and swap it when they need to. Picky does that with coding harnesses:
+Claude Code for one task, Codex for the next, then the one you wrote yourself.
+
+That's harness-interface:
+- **One API.** Call any harness by name, through the OpenAI Responses format. Continue its
+  conversation with `previous_response_id`, and get its own output streamed back.
+- **One sandbox per run.** Each run is a fresh, locked-down container that can reach its model
+  provider and nothing else.
 
 <table align="center">
   <tr>
@@ -35,20 +45,7 @@
     <td align="center"><b>Pi</b><br><img src="docs/media/run-pi.gif" width="420" alt="hi run pi: a haiku, then its title in the same conversation"></td>
   </tr>
 </table>
-<p align="center"><sub>One command, four harnesses. Each writes a haiku, then titles it in the same conversation with <code>-c</code>.</sub></p>
-
----
-
-Every coding harness has its own flags, its own output format, its own way of taking a key, and
-its own idea of how a session resumes. **harness-interface puts one API in front of all of
-them:**
-- You send a request with the harness's name as the `model`.
-- It runs inside a locked-down container whose only way out is the model provider.
-- The harness's own output streams back.
-- Send `previous_response_id`, and the same harness picks the conversation up where it left off.
-
-The server has no code for any harness. Providers, sandboxes and harnesses are resources you add
-over the API, and each harness is a small folder you can read in a minute and change in two.
+<p align="center"><sub>Same command, four harnesses: each writes a haiku, then titles it in the same conversation with <code>-c</code>.</sub></p>
 
 ## Quickstart
 
@@ -60,124 +57,107 @@ curl -fsSL https://raw.githubusercontent.com/mrcloudchase/harness-interface/main
 hi server start
 hi provider add anthropic --url https://api.anthropic.com --key-env ANTHROPIC_API_KEY
 hi harness add --builtin claude-code
-hi run claude-code "What is 17 * 23?"
-hi run claude-code "And what is that times 2?" -c
+hi run claude-code "Write a haiku about a hermit crab trying on shells."
+hi run claude-code "Now give it a title." -c
 ```
 
-The first run builds the sandbox image, which takes a few minutes; after that, each run starts in
-seconds. [Setup](docs/setup.md) has the details, and the [walkthrough](docs/walkthrough.md) goes
-from here to writing your own harness.
+The first run builds the sandbox image, which takes a few minutes. Every run after that starts in
+seconds. [Getting started](docs/getting-started.md) walks through it.
 
-## Why harness-interface
+## Supported harnesses
 
-**One request shape for every harness.** Requests use the OpenAI Responses wire format that
-clients already speak:
-- `model` names the harness, or `harness/model` to pick its model too;
-- `previous_response_id` continues the conversation;
-- what streams back is the harness's own output, line for line, so nothing is lost in
-  translation.
+Every harness here ships with harness-interface, and has been run end to end: a first request,
+then a continued second one, in the default sandbox. `hi harness add --builtin` registers them.
 
-**Any provider, any harness, no server code.** A provider is a url and a key. Each harness's run
-script maps them onto its CLI's own settings. Running Claude Code on DeepSeek instead of
-Anthropic means changing one word in its `harness.json`.
+| Harness | Default provider | Runs | Continues |
+|---|---|:-:|:-:|
+| [Aider](harnesses/aider) | `anthropic` | ✅ | ✅ |
+| [CheetahClaws](harnesses/cheetahclaws) | `openai` | ✅ | ✅ |
+| [Claude Code](harnesses/claude-code) | `anthropic` | ✅ | ✅ |
+| [Cline](harnesses/cline) | `anthropic` | ✅ | ✅ |
+| [Codex](harnesses/codex) | `openai` | ✅ | ✅ |
+| [DeepSeek Harness](harnesses/deepseek-harness) | `deepseek` | ✅ | ✅ |
+| [Gajae Code](harnesses/gajae) | `anthropic` | ✅ | ✅ |
+| [Goose](harnesses/goose) | `anthropic` | ✅ | ✅ |
+| [Grok CLI](harnesses/grok-cli) | `deepseek-openai` | ✅ | ✅ |
+| [harness-engineering](harnesses/harness-engineering) | `anthropic` | ✅ | ✅ |
+| [Hermes](harnesses/hermes) | `anthropic` | ✅ | ✅ |
+| [J-Code](harnesses/jcode) | `anthropic` | ✅ | ✅ |
+| [Kilo Code](harnesses/kilo) | `anthropic` | ✅ | ✅ |
+| [Kimi Code](harnesses/kimi-code) | `deepseek` | ✅ | ✅ |
+| [MiMo Code](harnesses/mimo) | `anthropic` | ✅ | ✅ |
+| [MiniMax Code](harnesses/minimax-code) | `deepseek` | ✅ | ✅ |
+| [nanobot](harnesses/nanobot) | `anthropic` | ✅ | ✅ |
+| [OMP](harnesses/omp) | `anthropic` | ✅ | ✅ |
+| [OpenCode](harnesses/opencode) | `anthropic` | ✅ | ✅ |
+| [OpenHands](harnesses/openhands) | `anthropic` | ✅ | ✅ |
+| [OpenSquilla](harnesses/opensquilla) | `anthropic` | ✅ | ✅ |
+| [Pi](harnesses/pi) | `anthropic` | ✅ | ✅ |
+| [Qwen Code](harnesses/qwen-code) | `deepseek-openai` | ✅ | ✅ |
 
-**Sandboxed by default.** Every run is a fresh container:
-- every capability dropped, and a read-only root;
-- a private network with exactly one exit: a tunnel to the harness's model provider.
+The provider is a default, not a limit. Any provider that speaks the API a CLI expects works:
+Claude Code runs on DeepSeek by changing one word ([providers](docs/guides/providers.md)). Your
+own CLI is two files away ([write a harness](docs/guides/harnesses.md#write-your-own)).
 
-The harness can call its model and nothing else.
+## Highlights
 
-**Built for many clients.** Runs belong to the server, not to the connection that started them:
-- many run side by side;
-- a client can disconnect and the run still finishes and is recorded;
-- any run can be cancelled at any point.
+- **Any harness, one request shape.** `model` names the harness, `previous_response_id`
+  continues it, and its own output streams back line for line.
+- **Sandboxed by default.** No capabilities, a read-only root, and one network exit: the
+  provider ([security](docs/concepts/security.md)).
+- **Built for many clients.** Runs belong to the server: they run side by side, survive a client
+  disconnecting, and can be cancelled at any point.
+- **Everything recorded.** Each run keeps:
+  - the harness's raw output and log;
+  - its produced files;
+  - its usage and cost;
+  - the session to resume.
+- **Change anything live.** Add or change a provider, sandbox or harness, and the next request
+  uses it. No restarts.
+- **Small enough to read.** About 1,200 lines of Python. The sandbox and its egress door are
+  about 250 of them.
 
-**Everything is recorded.** Each response keeps:
-- the harness's raw output and log;
-- the files it produced;
-- its usage and cost;
-- the session to resume.
+## Use it from code
 
-All of it is readable over the API.
+`hi` is one client. The API speaks the OpenAI Responses format, so the OpenAI SDK is another:
 
-**Changes without restarts.** Add or change a provider, sandbox or harness, and the next request
-uses it.
+```python
+from openai import OpenAI
 
-**Small enough to read.** The server is about 1,200 lines of Python. The sandbox and its egress
-door, the whole security boundary, are about 250 of them.
-
-## 23 harnesses, ready to run
-
-Each one is tested on a first request and on a resumed second one. `hi harness add --builtin`
-registers them all, and the built-in sandbox already has every CLI installed.
-
-| | | | |
-|---|---|---|---|
-| [Aider](harnesses/aider) | [CheetahClaws](harnesses/cheetahclaws) | [Claude Code](harnesses/claude-code) | [Cline](harnesses/cline) |
-| [Codex](harnesses/codex) | [DeepSeek Harness](harnesses/deepseek-harness) | [Gajae Code](harnesses/gajae) | [Goose](harnesses/goose) |
-| [Grok CLI](harnesses/grok-cli) | [harness-engineering](harnesses/harness-engineering) | [Hermes](harnesses/hermes) | [J-Code](harnesses/jcode) |
-| [Kilo Code](harnesses/kilo) | [Kimi Code](harnesses/kimi-code) | [MiMo Code](harnesses/mimo) | [MiniMax Code](harnesses/minimax-code) |
-| [nanobot](harnesses/nanobot) | [OMP](harnesses/omp) | [OpenCode](harnesses/opencode) | [OpenHands](harnesses/openhands) |
-| [OpenSquilla](harnesses/opensquilla) | [Pi](harnesses/pi) | [Qwen Code](harnesses/qwen-code) | |
-
-Your own CLI is one folder away: a `harness.json`, and a script that runs it
-([walkthrough](docs/walkthrough.md#8-write-your-own-harness)).
-
-## The API is the product
-
-`hi` is one client. Anything that speaks HTTP is another:
-
-```bash
-curl -N localhost:8000/responses -H 'content-type: application/json' \
-  -d '{"model": "codex", "input": "Fix the failing test.", "stream": true}'
+client = OpenAI(base_url="http://127.0.0.1:8000", api_key="unused")
+first = client.responses.create(model="claude-code", input="Write a haiku about a hermit crab.")
+second = client.responses.create(model="claude-code", input="Now give it a title.",
+                                 previous_response_id=first.id)
+print(second.output_text)
 ```
 
-| | |
-|---|---|
-| `PUT /providers/{name}`, `/sandboxes/{name}`, `/harnesses/{name}` | add or change a resource |
-| `POST /responses` | run a harness; stream it; continue with `previous_response_id` |
-| `GET /responses/{id}`, `…/output`, `…/log`, `…/files/{path}` | the record, raw output, log and files |
-| `POST /responses/{id}/cancel` | stop a run |
-
-The full surface is in [docs/api.md](docs/api.md).
-
-## How it works
-
-```
-POST /responses ─► harness-interface ──► a fresh container ───► the egress door ──► model provider
-{model, input,     resolves the harness, the harness's CLI,     CONNECT to the
- previous_         its provider and      the workspace,         provider's host,
- response_id}      sandbox; owns the run nothing else           nothing else
-       ◄─────────── streamed output, then the record: answer, usage, cost, files, session
-```
-
-[docs/architecture.md](docs/architecture.md) follows a request through the code, step by step.
+curl, streaming and everything else: [Call the API from code](docs/guides/api-clients.md).
 
 ## Documentation
 
 | | |
 |---|---|
-| [Setup](docs/setup.md) | install, start, configure, upgrade, troubleshoot |
-| [Walkthrough](docs/walkthrough.md) | from an empty server to a resumed conversation, then your own harness |
-| [CLI](docs/cli.md) | every `hi` command |
-| [API reference](docs/api.md) | resources, the harness contract, the wire format, endpoints, errors |
-| [Architecture](docs/architecture.md) | the pieces, a request end to end, the sandbox, data, code layout, how it is verified |
-| [Harnesses](harnesses/README.md) | the 23 that ship, the providers they expect, and notes on each |
+| [Getting started](docs/getting-started.md) | install, run a harness, continue it, read what it did |
+| [How-to guides](docs/README.md#how-to-guides) | install, providers, harnesses, sandboxes, API clients, troubleshooting |
+| [Reference](docs/README.md#reference) | the CLI, the HTTP API, the harness contract, configuration |
+| [Concepts](docs/README.md#concepts) | architecture and security |
 
-## Meet Picky
+## Contributing
 
-Picky is a hermit crab with no shell of its own. A hermit crab doesn't grow a shell; it finds one
-that fits, wears it, and moves to another when it needs to. Picky does that with harnesses: Claude
-Code for one request, Codex for the next, the one you wrote yourself after that. Each harness is
-a shell Picky puts on to get the work done and takes off again. Underneath, Picky stays the same,
-the way every request goes through the same API whichever harness serves it.
+```bash
+git clone https://github.com/mrcloudchase/harness-interface && cd harness-interface
+uv run --extra dev pytest          # no Docker or keys needed
+uv run harness-interface           # the server, from source
+```
+
+New harnesses are welcome: a harness is a folder in [harnesses/](harnesses/), and the
+[harness guide](docs/guides/harnesses.md) shows how to write one.
 
 ## Status
 
 harness-interface is the base layer: one interface to any harness, and a record of everything
-each one did. Today it is single tenant: it runs on localhost, with no authentication.
-
-What comes next builds on that record without changing it:
+each one did. Today it is single-tenant: it runs on localhost, with no authentication. Next, built
+on that same record:
 - comparing harnesses on the same task;
 - judging their output;
 - routing each request to the right one.

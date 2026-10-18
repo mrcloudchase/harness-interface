@@ -143,10 +143,12 @@ where the CLI reads them, with `files` in `harness.json`; they are written befor
 "files": {"AGENTS.md": "{instructions}"}
 ```
 
-Most CLIs read `AGENTS.md` from their working directory. Check the one you wrap: some read a
-name of their own (`CLAUDE.md`, `QWEN.md`), some read another folder, some read it only once
-told to, and some read no file at all, so the run script hands it over with a flag. The shipped
-harnesses have an example of each ([notes](../../harnesses/README.md#notes-worth-knowing)).
+Most CLIs read `AGENTS.md` from their working directory. Check the one you wrap, and check that
+its model follows it: some read a name of their own (`CLAUDE.md`, `QWEN.md`), some read another
+folder, some read it only once told to, and some read no file at all, or treat it as background
+only. For those, the run script hands the instructions over with a flag, or puts them ahead of
+the task. The shipped harnesses have an example of each
+([notes](../../harnesses/README.md#notes-worth-knowing)).
 
 ### Develop it
 

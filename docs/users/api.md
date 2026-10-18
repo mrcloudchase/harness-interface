@@ -66,8 +66,9 @@ The request is the OpenAI Responses shape:
 | `stream` | `true` for server-sent events; otherwise one JSON object when the run ends |
 | `metadata` | any object, kept on the record |
 
-The server checks the request, prepares the workspace, starts the run, and answers at once. The
-run belongs to the server: it finishes and is recorded whether or not the client stays.
+The server checks the request, prepares the workspace and starts the run. With `stream` it
+answers at once; without it, when the run ends. Either way the run belongs to the server: it
+finishes and is recorded whether or not the client stays.
 
 ### Without `stream`
 
@@ -93,8 +94,8 @@ data: {"type": "response.completed", "response": {…the finished record…}}
 
 There is one `harness.output` event for every line the harness prints on stdout, and one
 `harness.log` event for every line on stderr, as they arrive. Together they are everything the
-harness prints, as if you were watching it in a terminal. A client that
-disconnects only stops following.
+harness prints, as if you were watching it in a terminal. A client that disconnects only stops
+following.
 
 ### Continuing
 
@@ -124,9 +125,9 @@ A conversation runs one request at a time; a second one gets a 409 until the fir
   "metadata": {},
   "harness": {
     "name": "claude-code", "provider": "anthropic", "sandbox": "default", "runtime": "docker",
-    "image": "harness-interface/default:ae0ffeef761f", "workspace": "…/workspaces/resp_254e3da1d07b4a5f",
+    "image": "harness-interface/default:0e4419119ad6", "workspace": "…/workspaces/resp_254e3da1d07b4a5f",
     "session_id": "863ff72c-…", "exit_code": 0, "latency_s": 21.1, "cost_usd": 0.1174,
-    "files": ["switchboard/app.py"], "deleted": [],
+    "files": [], "deleted": [],
     "base": "3f1c9e2…", "commit": "a77d1b0…"
   }
 }
@@ -146,9 +147,9 @@ A conversation runs one request at a time; a second one gets a 409 until the fir
 | Status | When |
 |---|---|
 | 400 | the path name and body name differ; a harness, provider, sandbox or previous response doesn't exist; a follow-up names another harness's response; a template is invalid; a name breaks the naming rule; an attempt to change or delete `default` |
-| 404 | the record, output, log or file isn't there |
+| 404 | the provider, sandbox, harness or response isn't there, or the response has no output, log, diff or such file |
 | 409 | the conversation already has a run in progress |
-| 422 | the body doesn't fit its shape: `input` has no text, a field is missing, or a harness's script name isn't a plain filename |
+| 422 | the body doesn't fit its shape: `input` has no text, a field is missing, or a value is refused, such as a script name that isn't a plain filename, a non-positive timeout or an empty Dockerfile |
 
 A 400, 404 or 409 body is `{"detail": "<what went wrong>"}`. A 422 body is FastAPI's list of
 validation errors. A run that fails is not an HTTP error: its record says why.

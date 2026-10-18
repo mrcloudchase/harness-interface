@@ -14,6 +14,7 @@ nothing installed to a conversation you've continued.
 | | |
 |---|---|
 | [Getting started](getting-started.md) | install, run a harness, continue the conversation, read what it did |
+| [How it works](how-it-works.md) | who owns what, the words, no new protocol, the three ways in, when it fits |
 | [Install, upgrade and uninstall](install.md) | requirements, the installer, versions, running from source |
 | [Providers](providers.md) | add a model provider, handle keys, run a harness on another provider |
 | [Harnesses](harnesses.md) | the shipped harnesses, and wrapping any CLI as your own |

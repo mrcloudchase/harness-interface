@@ -11,9 +11,9 @@ general idea. Add that, not the special case.
 | add a tool to every shipped harness's sandbox | `resources/default.Dockerfile` | |
 | run things somewhere new (a VM, Kubernetes, a remote host) | a new `Runtime` in `runtimes/`, and a `Placement` | the harness contract or the platform |
 | choose harnesses another way | a new `Router` in `routing.py` | the platform or the API |
-| store resources or records somewhere else | a class with `JsonStore`'s four methods | the registry's callers |
+| store resources or records somewhere else | a class with `JsonStore`'s four methods, built in `Registry` and `Service` | the registry's callers |
 | give every harness something new | the contract, in `harness/contract.py` | a harness-specific branch anywhere |
-| serve another wire format | a module beside `api/`, calling `Service` | the platform |
+| serve another wire format | a package beside `api/`, calling `Service`, given layer 7 in `tests/test_layers.py` | the platform |
 | add a command to `hi` | `frontend/cli/hi_cli/` | the server |
 
 ## Add a harness
@@ -28,9 +28,10 @@ harness-interface:
 2. Put the request's instructions where the CLI reads them, usually `AGENTS.md` through
    `files`, or a flag. Resume with `HI_SESSION_ID`, and report the session the CLI gives back.
 3. If its CLI isn't in the default sandbox, add it to `resources/default.Dockerfile`, pinned to
-   a version wherever its publisher allows. That changes the image's tag, so every user rebuilds once on upgrade.
-4. Add it to the tables in [harnesses/README.md](../../harnesses/README.md) and the root
-   README.
+   a version wherever its publisher allows. That changes the image's tag, so every user rebuilds
+   once on upgrade.
+4. Add a row to the table in [harnesses/README.md](../../harnesses/README.md), and its name to
+   the list in the root README.
 5. `test_every_shipped_harness_loads_and_prepares` checks it loads and prepares. Run it live,
    two turns with instructions, as in [Testing](testing.md#live-checks).
 
@@ -56,7 +57,8 @@ value for `HI_RUNTIME` in `api/config.py` and `app.build`.
 A router implements `Router.route(model, conversation)` and returns a `Route`: the harness, and
 the model to pass through. It decides only; it never runs, stores or resolves anything. Raise
 `Invalid` for a request it can't route. Keep the rule that a continued conversation stays on its
-harness: its workspace and session belong to that harness. Pass it to `Service(router=...)`.
+harness: its workspace and session belong to that harness. Pass it to `Service(router=...)`; the
+server builds its `Service` in `build` in `api/app.py`.
 
 ## Change the harness contract
 

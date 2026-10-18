@@ -1,8 +1,9 @@
 # CLI reference
 
-`hi` is a client of the API and nothing more. Every command is one API call, or a few, and
-`--json` shows exactly what the API answered. The one exception is `hi server`, which starts
-and stops the server itself.
+`hi` is a client of the API and nothing more. Every command is one API call, or a few; `hi show`
+prints the record as the API returned it, and so does `--json` on `hi run` and `hi ls`. The one
+exception is `hi server`, which starts and stops the server itself. `hi --version` prints the
+installed version.
 
 `hi` comes with the server: see [Install](install.md) to install both. To talk to a server
 other than `http://127.0.0.1:8000`, set `HI_URL`, or put `--url URL` before the command
@@ -13,7 +14,7 @@ other than `http://127.0.0.1:8000`, set `HI_URL`, or put `--url URL` before the 
 ```bash
 hi server start          # in the background; its log is ~/.harness-interface/server.log
 hi server status
-hi server logs
+hi server logs           # the last 200 lines of its log
 hi server stop
 ```
 
@@ -30,7 +31,7 @@ hi sandbox add python-dev ./Dockerfile --egress pypi.org files.pythonhosted.org
 ```
 
 `--key-env` reads the key from that environment variable. Without it, `hi` prompts for the key,
-or reads it from stdin. A key never appears on the command line. To see or remove resources:
+or reads it from stdin. A key never appears on `hi`'s command line. To see or remove resources:
 
 ```bash
 hi provider ls | show NAME | rm NAME
@@ -61,7 +62,7 @@ While a run is going:
 | `-i TEXT` | instructions, which the harness gets as `{instructions}` |
 | `-c [ID]` | continue a conversation: the last response, or the one named |
 | `-q` | don't show the harness's output while it runs |
-| `--json` | print the finished record instead of the answer |
+| `--json` | print the finished record instead of the answer, and don't show the output while it runs |
 | `--detach` | print the response id and return; the run carries on in the server |
 
 **Ctrl-C** cancels the run. To leave a run going, use `--detach` from the start. Closing the
@@ -70,7 +71,7 @@ terminal also leaves it going, because runs belong to the server, not to `hi`.
 ## Read
 
 ```bash
-hi ls                     # every response
+hi ls                     # every response; --json for the records
 hi show ID                # its record
 hi output ID              # the harness's stdout, byte for byte
 hi log ID                 # its stderr

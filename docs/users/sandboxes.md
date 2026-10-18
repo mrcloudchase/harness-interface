@@ -12,7 +12,7 @@ sandbox's image.
 - an unprivileged user, uid 1000.
 
 ```bash
-hi sandbox show default        # its Dockerfile
+hi sandbox show default | jq -r .dockerfile     # its Dockerfile
 ```
 
 It can't be replaced or removed. Its image builds on the first run that needs it, which takes a

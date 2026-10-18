@@ -3,6 +3,12 @@
 Every release has a section here; the release workflow publishes it as the release's notes. Add
 to "Unreleased" as you change things, and rename it to the version when you bump it.
 
+## [Unreleased]
+
+- **Docs checked line by line against the code,** and corrected wherever they had drifted.
+- **How it works,** a new page for users: who owns what, the words, the three ways in, and when
+  it fits. The README is shorter, and points to it.
+
 ## [1.0.1]
 
 - **OpenHands follows the request's instructions.** It reads `AGENTS.md` only as untrusted

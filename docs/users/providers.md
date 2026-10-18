@@ -1,9 +1,9 @@
 # Add providers
 
 A provider is where a harness's model calls go, and the key that unlocks them. It is three
-fields: a `name`, a `url` and a `key`. The server stores them and hands them to the harness, and
-never interprets them itself. Each harness's run script decides which of its CLI's settings get
-the url and key.
+fields: a `name`, a `url` and a `key`. The server stores them and hands them to the harness. The
+only thing it reads from them is the url's host, to let a sandboxed run reach it. Each harness's
+run script decides which of its CLI's settings get the url and key.
 
 ## Add one
 
@@ -72,8 +72,9 @@ A sandboxed run can reach its provider's host, and nothing else, unless its sand
 - **Stored** in `~/.harness-interface/data/providers/` as files only you can read (mode 600).
 - **Never returned:** `hi provider ls`, `hi provider show` and `GET /providers` show names and
   urls only.
-- **In a run,** the key reaches the harness as an environment variable inside its container, and
-  is never on a command line ([security](security.md)).
+- **In a run,** the key reaches the harness as an environment variable inside its container. The
+  server never puts it on a command line; the harness's own script decides how its CLI gets it
+  ([security](security.md)).
 
 ## List, show, remove
 

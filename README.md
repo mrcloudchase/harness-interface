@@ -9,10 +9,18 @@
   Providers, sandboxes and harnesses are resources you add over the API. The server has no code for any of them.
 </p>
 
-<p align="center">
-  <!-- Demo placeholder: replace docs/media/demo.svg with docs/media/demo.gif. -->
-  <img src="docs/media/demo.svg" width="720" alt="Demo: add a provider, register a harness, send a request, continue it">
-</p>
+<p align="center">One command, four harnesses: each writes a haiku, then titles it in the same conversation with <code>-c</code>.</p>
+
+<table align="center">
+  <tr>
+    <td align="center"><b>Claude Code</b><br><img src="docs/media/run-claude-code.gif" width="420" alt="hi run claude-code: a haiku, then its title in the same conversation"></td>
+    <td align="center"><b>Codex</b><br><img src="docs/media/run-codex.gif" width="420" alt="hi run codex: a haiku, then its title in the same conversation"></td>
+  </tr>
+  <tr>
+    <td align="center"><b>Hermes</b><br><img src="docs/media/run-hermes.gif" width="420" alt="hi run hermes: a haiku, then its title in the same conversation"></td>
+    <td align="center"><b>Pi</b><br><img src="docs/media/run-pi.gif" width="420" alt="hi run pi: a haiku, then its title in the same conversation"></td>
+  </tr>
+</table>
 
 ---
 

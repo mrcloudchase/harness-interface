@@ -1,6 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 450" width="800" height="450" role="img" aria-label="Placeholder for the demo recording">
-  <rect x="4" y="4" width="792" height="442" rx="16" fill="none" stroke="#8b949e" stroke-width="3" stroke-dasharray="12 10"/>
-  <polygon points="372,175 372,255 440,215" fill="none" stroke="#8b949e" stroke-width="4" stroke-linejoin="round"/>
-  <text x="400" y="305" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="22" font-weight="600" fill="#8b949e">Demo GIF goes here</text>
-  <text x="400" y="335" text-anchor="middle" font-family="-apple-system, Segoe UI, Helvetica, Arial, sans-serif" font-size="15" fill="#8b949e">add the providers, register a harness, send a request, continue it</text>
-</svg>

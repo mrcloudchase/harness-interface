@@ -3,6 +3,8 @@ name = "harness-interface"
 version = "1.0.0"
 description = "One API in front of every harness, every run in a sandbox; and `hi`, its command line."
 requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 dependencies = [
   "fastapi>=0.115",
   "uvicorn[standard]>=0.30",

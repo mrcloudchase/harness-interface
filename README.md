@@ -13,6 +13,7 @@
   <img src="https://img.shields.io/badge/harnesses-23-e8590c" alt="23 harnesses">
   <img src="https://img.shields.io/badge/runs-sandboxed%20in%20Docker-2496ed" alt="Runs sandboxed in Docker">
   <img src="https://img.shields.io/badge/API-OpenAI%20Responses-412991" alt="OpenAI Responses API">
+  <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License: Apache 2.0"></a>
 </p>
 
 <p align="center">
@@ -161,3 +162,7 @@ on that same record:
 - comparing harnesses on the same task;
 - judging their output;
 - routing each request to the right one.
+
+## License
+
+[Apache 2.0](LICENSE).

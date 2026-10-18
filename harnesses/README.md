@@ -81,6 +81,20 @@ The npm and PyPI CLIs in the default image are pinned to the version each harnes
 against. Goose, Kimi, Grok and JCode come from their vendors' own install scripts, which fetch the
 latest release.
 
+## Make one your own
+
+Each folder is a working template. To change how a harness runs, copy its folder, give it a new
+`name` in `harness.json`, change what you like, and add it with `hi harness add ./your-folder`:
+- **`run.sh`** opens by saying what it runs, and what each setting in `harness.json` is for. Its
+  CLI's flags are in the command it runs.
+- **`harness.json`** names the provider and sandbox, sets `HOME` inside the workspace's `.home`, and
+  writes the instructions file. Any other file the CLI reads, such as its settings, permissions,
+  MCP servers, skills or hooks, can be written the same way, through `files`.
+- **`report.py`** opens by saying what it reads from the CLI's output.
+
+What to configure, and how, is up to you; the server reads none of it.
+[Use and write harnesses](../docs/users/harnesses.md#configure-it-your-way) has the details.
+
 ## Notes worth knowing
 
 - **Instructions reach every CLI.** Each harness writes the request's `instructions` where its

@@ -2,6 +2,8 @@
 # J-Code, headless. A resumed session keeps the model it started with: jcode refuses -m on resume.
 # Set in harness.json:
 #   HOME: sessions live under $HOME/.jcode, so --resume works later
+#   JCODE_NO_TELEMETRY: no telemetry; the sandbox reaches only the provider
+#   files AGENTS.md: the request's instructions, which jcode reads from its working directory
 set -euo pipefail
 base="${HI_PROVIDER_URL%/}"   # jcode appends /messages, so the base carries /v1
 export ANTHROPIC_BASE_URL="${base%/v1}/v1" ANTHROPIC_API_KEY="$HI_PROVIDER_KEY"

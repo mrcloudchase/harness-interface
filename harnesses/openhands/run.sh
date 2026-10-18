@@ -6,6 +6,7 @@
 # the request's instructions go ahead of the task instead, in the message it does follow.
 # Set in harness.json:
 #   HOME: conversations persist under $HOME/.openhands, so --resume works later
+#   OPENHANDS_SUPPRESS_BANNER: no startup banner in the output
 set -euo pipefail
 model="${HI_MODEL:-claude-sonnet-4-5}"
 [[ "$model" == */* ]] || model="anthropic/$model"   # litellm wants the provider prefix

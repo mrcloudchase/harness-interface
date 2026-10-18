@@ -3,6 +3,8 @@
 # the session id from the first turn with -s. The config is passed inline, so no file is written.
 # Set in harness.json:
 #   HOME: sessions live in $HOME/.local/share/mimocode/mimocode.db, so -s resumes later
+#   MIMOCODE_DISABLE_AUTOUPDATE: no self-update; the sandbox reaches only the provider
+#   files AGENTS.md: the request's instructions, which mimo reads from its working directory
 set -euo pipefail
 base="${HI_PROVIDER_URL%/}"; base="${base%/v1}/v1"   # mimo appends /messages, so the base carries /v1
 export ANTHROPIC_API_KEY="$HI_PROVIDER_KEY"

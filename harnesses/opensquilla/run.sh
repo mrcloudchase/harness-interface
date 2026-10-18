@@ -4,6 +4,9 @@
 # Set in harness.json:
 #   HOME: config and the session database live under $HOME/.opensquilla
 #   OPENSQUILLA_TRUST_ENV: honor HTTPS_PROXY
+#   OPENSQUILLA_TELEMETRY_DISABLED, OPENSQUILLA_UPDATE_CHECK_DISABLED: no telemetry and no update
+#     check; the sandbox reaches only the provider
+#   files AGENTS.md: the request's instructions, which opensquilla reads from its working directory
 set -euo pipefail
 export ANTHROPIC_API_KEY="$HI_PROVIDER_KEY"
 mkdir -p "$HOME/.opensquilla"

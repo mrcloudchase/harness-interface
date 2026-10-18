@@ -6,6 +6,7 @@
 # ignored: the anthropic provider has no base URL setting.
 # Set in harness.json:
 #   HOME: the provider settings and the sessions live under $HOME/.cline, so a follow-up loads the session
+#   files AGENTS.md: the request's instructions, which cline reads from its working directory
 set -euo pipefail
 export CLINE_PROVIDER=anthropic CLINE_MODEL="${HI_MODEL:-claude-sonnet-4-5}" CLINE_API_KEY="$HI_PROVIDER_KEY"
 cline auth anthropic -k "$HI_PROVIDER_KEY" -m "$CLINE_MODEL" >&2

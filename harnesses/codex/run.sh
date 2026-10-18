@@ -2,6 +2,8 @@
 # Codex CLI, headless. A follow-up resumes the most recent session in this workspace's CODEX_HOME.
 # Set in harness.json:
 #   CODEX_HOME: sessions live here, so `resume --last` is this conversation's
+#   HOME: the CLI's home, inside the workspace's .home
+#   files AGENTS.md: the request's instructions, which codex reads from its working directory
 set -euo pipefail
 mkdir -p "$CODEX_HOME"   # codex refuses to start when CODEX_HOME does not exist yet
 export OPENAI_BASE_URL="${HI_PROVIDER_URL%/}"

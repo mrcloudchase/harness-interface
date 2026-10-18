@@ -4,6 +4,7 @@
 # Set in harness.json:
 #   HOME: transcripts land inside the workspace, so --resume works later
 #   IS_SANDBOX: claude refuses --dangerously-skip-permissions as root without this
+#   files AGENTS.md: the request's instructions, which claude reads from its working directory
 set -euo pipefail
 # The CLI appends /v1/messages itself, so the provider URL must not end in /v1.
 base="${HI_PROVIDER_URL%/}"

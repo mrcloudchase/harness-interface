@@ -5,6 +5,7 @@
 # lives under .home/, never listed or committed. A follow-up passes --session <id>.
 # Set in harness.json:
 #   HOME: config.yaml (provider) and sessions live under $HOME/.minimax, so --session works later
+#   files AGENTS.md: the request's instructions, which it reads from its working directory
 set -euo pipefail
 mkdir -p "$HOME"
 model="${HI_MODEL:-deepseek-chat}"

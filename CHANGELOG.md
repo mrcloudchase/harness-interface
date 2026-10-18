@@ -7,6 +7,9 @@ to "Unreleased" as you change things, and rename it to the version when you bump
 
 - **The harness guide says what a harness is, and whose choices it holds:** three files, and every
   CLI setting (permissions, MCP servers, skills, hooks) is the harness author's to configure.
+- **Every shipped harness is a template you can read.** Each `run.sh` now explains every setting
+  its `harness.json` makes, and `harnesses/README.md` says how to make one your own. Gajae drops a
+  setting that repeated another.
 
 ## [1.0.2]
 

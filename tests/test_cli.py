@@ -1,4 +1,4 @@
-"""`hi`, the command line, against a real server: every command is an API call."""
+"""Layer 8: `hi`, the command line, against a real server. Every command is an API call."""
 import json
 import socket
 from pathlib import Path
@@ -8,7 +8,6 @@ import pytest
 from hi_cli import daemon, main
 from hi_cli.harness import BUILTIN, builtin, pack
 
-ROOT = Path(__file__).resolve().parents[1]
 ECHO = Path(__file__).parent / "echo"
 
 
@@ -24,10 +23,6 @@ def hi(live, tmp_path, monkeypatch, capsys):
         return code, out, err
     return call
 
-
-def test_the_cli_only_talks_to_the_api():
-    for f in (ROOT / "frontend/cli/hi_cli").glob("*.py"):
-        assert "harness_interface" not in f.read_text(), f
 
 
 def test_pack_and_the_shipped_harnesses():

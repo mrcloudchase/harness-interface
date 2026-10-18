@@ -14,14 +14,15 @@
   <img src="https://img.shields.io/badge/runs-sandboxed%20in%20Docker-2496ed" alt="Runs sandboxed in Docker">
   <img src="https://img.shields.io/badge/API-OpenAI%20Responses-412991" alt="OpenAI Responses API">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License: Apache 2.0"></a>
-  <a href="https://github.com/mrcloudchase/harness-interface/actions/workflows/test.yml"><img src="https://github.com/mrcloudchase/harness-interface/actions/workflows/test.yml/badge.svg" alt="Tests"></a>
+  <a href="https://github.com/mrcloudchase/harness-interface/actions/workflows/ci.yml"><img src="https://github.com/mrcloudchase/harness-interface/actions/workflows/ci.yml/badge.svg" alt="Tests"></a>
 </p>
 
 <p align="center">
-  <a href="docs/getting-started.md">Getting started</a> ·
-  <a href="docs/README.md">Docs</a> ·
-  <a href="docs/reference/cli.md">CLI</a> ·
-  <a href="docs/reference/http-api.md">API</a> ·
+  <a href="docs/users/getting-started.md">Getting started</a> ·
+  <a href="docs/users/README.md">Docs</a> ·
+  <a href="docs/users/cli.md">CLI</a> ·
+  <a href="docs/users/api.md">API</a> ·
+  <a href="docs/users/library.md">Library</a> ·
   <a href="harnesses/README.md">Harnesses</a>
 </p>
 
@@ -36,6 +37,8 @@ That's harness-interface:
   conversation with `previous_response_id`, and get its own output streamed back.
 - **One sandbox per run.** Each run is a fresh, locked-down container that can reach its model
   provider and nothing else.
+- **One library underneath.** Run a harness, or anything else, in that sandbox straight from
+  Python.
 
 <table align="center">
   <tr>
@@ -64,11 +67,11 @@ hi run claude-code "Now give it a title." -c
 ```
 
 The first run builds the sandbox image, which takes a few minutes. Every run after that starts in
-seconds. [Getting started](docs/getting-started.md) walks through it.
+seconds. [Getting started](docs/users/getting-started.md) walks through it.
 
 **It runs on your machine, for you.** The server listens on `127.0.0.1` with no authentication,
 and anyone who can reach it can run harnesses with your provider keys. Don't expose it to a
-network ([security](docs/concepts/security.md)).
+network ([security](docs/users/security.md)).
 
 ## How it works
 
@@ -93,7 +96,7 @@ The server is the execution layer, and a harness is configuration:
 
 Clients use the OpenAI Responses API they already know. Inside, a harness is any program that
 reads a few environment variables (`HI_TASK`, `HI_PROVIDER_KEY` and the rest) and may write one
-JSON file back. That is the whole [harness contract](docs/reference/harness-contract.md). No
+JSON file back. That is the whole [harness contract](docs/users/harness-contract.md). No
 harness has to implement a shared protocol, so a CLI works the way it ships, and adding one never
 changes the server.
 
@@ -118,7 +121,7 @@ Not a fit, today, for:
 
 Every harness here ships with harness-interface, and has been run end to end in the default
 sandbox: a first request, then a continued second one that kept the request's instructions.
-`hi harness add --builtin` registers them. [How it is verified](docs/concepts/architecture.md#how-it-is-verified)
+`hi harness add --builtin` registers them. [How they are verified](docs/contributors/testing.md#live-checks)
 has the details.
 
 | Harness | Default provider | Runs | Continues |
@@ -148,15 +151,15 @@ has the details.
 | [Qwen Code](harnesses/qwen-code) | `deepseek-openai` | ✅ | ✅ |
 
 The provider is a default, not a limit. Any provider that speaks the API a CLI expects works:
-Claude Code runs on DeepSeek by changing one word ([providers](docs/guides/providers.md)). Your
-own CLI is two files away ([write a harness](docs/guides/harnesses.md#write-your-own)).
+Claude Code runs on DeepSeek by changing one word ([providers](docs/users/providers.md)). Your
+own CLI is two files away ([write a harness](docs/users/harnesses.md#write-your-own)).
 
 ## Highlights
 
 - **Any harness, one request shape.** `model` names the harness, `previous_response_id`
   continues it, and its own output streams back line for line.
 - **Sandboxed by default.** No capabilities, a read-only root, and one network exit: the
-  provider ([security](docs/concepts/security.md)).
+  provider ([security](docs/users/security.md)).
 - **Built for many clients.** Runs belong to the server: they run side by side, survive a client
   disconnecting, and can be cancelled at any point.
 - **Everything recorded.** Each run keeps:
@@ -172,8 +175,10 @@ own CLI is two files away ([write a harness](docs/guides/harnesses.md#write-your
   or deletes is recorded, and each turn's diff can be read, even while it's running.
 - **Change anything live.** Add or change a provider, sandbox or harness, and the next request
   uses it. No restarts.
-- **Small enough to read.** About 1,200 lines of Python. The sandbox and its egress door are
-  about 250 of them.
+- **A library first.** Everything the server does, Python can do directly, with no server and
+  nothing beyond the standard library ([below](#use-it-from-python)).
+- **Small enough to read.** About 1,900 lines of Python, in layers that each import only those
+  below them. The sandbox and its egress door are about 300 of them.
 
 ## Build an agent, not a harness
 
@@ -238,7 +243,7 @@ it's done. Everything a loop needs is built in, the same for every harness:
 
 The loop is one Python file. It plans, builds, verifies in a container, has a second harness
 review each change, and checkpoints in git. It escalates a stuck task to another harness, and
-stops cleanly at its deadline or budget. [Run harnesses in a loop](docs/guides/loops.md) has the
+stops cleanly at its deadline or budget. [Run harnesses in a loop](docs/users/loops.md) has the
 whole run and how to write your own.
 
 ## Use it from code
@@ -255,27 +260,53 @@ second = client.responses.create(model="claude-code", input="Now give it a title
 print(second.output_text)
 ```
 
-curl, streaming and everything else: [Call the API from code](docs/guides/api-clients.md).
+curl, streaming and everything else: [Call the API from code](docs/users/api-clients.md).
+
+## Use it from Python
+
+The server is built on a library you can use directly. Run a harness folder in its sandbox, with
+no server and no HTTP:
+
+```python
+import os
+from pathlib import Path
+
+from harness_interface import Docker, DockerRuntime, Harness, Provider, Request, Turn
+from harness_interface.resources import DEFAULT_SANDBOX
+
+# in async code
+folder = Path("harnesses/claude-code").resolve()
+provider = Provider("anthropic", "https://api.anthropic.com", os.environ["ANTHROPIC_API_KEY"])
+runtime = DockerRuntime(Docker(Path("logs")), DEFAULT_SANDBOX, egress=[provider.host], mounts=[folder])
+
+turn = await Turn.start(runtime, Harness.from_folder(folder), provider,
+                        Request("Write a haiku about a hermit crab."), Path("work").resolve(), folder)
+async for event in turn.events():                 # its own output, as it prints it
+    print(event.data.decode(), end="")
+result = await turn.result()                      # status, answer, session, cost, files changed
+```
+
+Swap `DockerRuntime` for `LocalRuntime()` to run on your machine, or give the runtime any command
+as a `Spec`. [The Python library](docs/users/library.md) has it all.
 
 ## Documentation
 
 | | |
 |---|---|
-| [Getting started](docs/getting-started.md) | install, run a harness, continue it, read what it did |
-| [How-to guides](docs/README.md#how-to-guides) | install, providers, harnesses, sandboxes, API clients, loops, troubleshooting |
-| [Reference](docs/README.md#reference) | the CLI, the HTTP API, the harness contract, configuration |
-| [Concepts](docs/README.md#concepts) | architecture and security |
+| [**Using it**](docs/users/README.md) | [getting started](docs/users/getting-started.md), install, providers, harnesses, sandboxes, API clients, the library, loops, troubleshooting; the CLI, API, harness contract, configuration and security references |
+| [**Contributing to it**](docs/contributors/README.md) | the architecture, development, testing, extending, conventions and releasing |
 
 ## Contributing
 
 ```bash
 git clone https://github.com/mrcloudchase/harness-interface && cd harness-interface
 uv run --extra dev pytest          # no Docker or keys needed
-uv run harness-interface           # the server, from source
+uv run --extra server harness-interface   # the server, from source
 ```
 
-New harnesses are welcome: a harness is a folder in [harnesses/](harnesses/), and the
-[harness guide](docs/guides/harnesses.md) shows how to write one.
+New harnesses are welcome: a harness is a folder in [harnesses/](harnesses/), not code.
+[docs/contributors](docs/contributors/README.md) has the architecture, how it is tested, and how
+a merge becomes a release.
 
 ## Status
 

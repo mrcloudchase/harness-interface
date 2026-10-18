@@ -1,23 +1,22 @@
 [project]
 name = "harness-interface"
 version = "1.0.0"
-description = "One API in front of every harness, every run in a sandbox; and `hi`, its command line."
+description = "Run any harness in a sandbox: an execution library, an OpenAI Responses-compatible server, and `hi`, its command line."
+readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 dependencies = [
-  "fastapi>=0.115",
-  "uvicorn[standard]>=0.30",
-  "pydantic>=2.7",
-  "httpx>=0.27",                     # the CLI's HTTP client
+  "httpx>=0.27",                     # hi, the command line
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+server = ["fastapi>=0.115", "uvicorn[standard]>=0.30", "pydantic>=2.7"]
+dev = ["harness-interface[server]", "pytest>=8", "openai>=1.40"]
 
 [project.scripts]
-harness-interface = "harness_interface.app:main"   # the API server
-hi = "hi_cli.main:main"                            # the command line, a client of the API
+harness-interface = "harness_interface.api.app:main"   # the server
+hi = "hi_cli.main:main"                                # the command line, a client of the server
 
 [build-system]
 requires = ["hatchling"]
@@ -27,7 +26,12 @@ build-backend = "hatchling.build"
 packages = ["harness_interface", "frontend/cli/hi_cli"]
 
 [tool.hatch.build.targets.wheel.force-include]
-"harnesses" = "hi_cli/harnesses"                   # the shipped harnesses travel with the CLI
+"harnesses" = "hi_cli/harnesses"                         # the shipped harnesses travel with the command line
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-m 'not docker and not live'"
+markers = [
+  "docker: needs a running Docker daemon",
+  "live: needs Docker and real provider keys; run by hand",
+]

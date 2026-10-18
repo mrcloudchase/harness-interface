@@ -1,47 +1,78 @@
-"""Providers, sandboxes and harnesses over the API."""
-from harness_interface.registry import DEFAULT_SANDBOX
+"""Layer 4: names follow the rule, keys are stored privately, writes are whole, `default` is
+reserved, and resolving a harness names whatever it is missing."""
+import stat
+
+import pytest
+
+from harness_interface.errors import Invalid, NotFound
+from harness_interface.harness import Harness, Provider
+from harness_interface.resources import DEFAULT_SANDBOX, Registry
+from harness_interface.runtimes import Sandbox
+
+KEY = "sk-very-secret"
 
 
-def test_provider_key_is_never_returned(client):
-    r = client.put("/providers/deepseek", json={"name": "deepseek", "url": "https://api.deepseek.com/anthropic", "key": "sk-secret"})
-    assert r.status_code == 200 and r.json() == {"name": "deepseek", "url": "https://api.deepseek.com/anthropic"}
-    assert "sk-secret" not in client.get("/providers").text
-    assert "sk-secret" not in client.get("/providers/deepseek").text
-    assert client.put("/providers/other", json={"name": "deepseek", "url": "u", "key": "k"}).status_code == 400
-    assert client.delete("/providers/deepseek").json() == {"deleted": True}
-    assert client.get("/providers/deepseek").status_code == 404
+@pytest.fixture
+def reg(tmp_path):
+    return Registry(tmp_path / "data")
 
 
-def test_default_sandbox_is_built_in_and_reserved(client):
-    names = [s["name"] for s in client.get("/sandboxes").json()]
-    assert names == [DEFAULT_SANDBOX]
-    d = client.get(f"/sandboxes/{DEFAULT_SANDBOX}").json()
-    assert d["dockerfile"].startswith("#") and d["egress"] == []
-    assert client.put(f"/sandboxes/{DEFAULT_SANDBOX}", json={"name": DEFAULT_SANDBOX, "dockerfile": "FROM x"}).status_code == 400
-    assert client.delete(f"/sandboxes/{DEFAULT_SANDBOX}").status_code == 400
-    r = client.put("/sandboxes/py", json={"name": "py", "dockerfile": "FROM python:3.12", "egress": ["pypi.org"]})
-    assert r.status_code == 200 and r.json()["egress"] == ["pypi.org"]
-    assert [s["name"] for s in client.get("/sandboxes").json()] == [DEFAULT_SANDBOX, "py"]
-    assert client.delete("/sandboxes/py").json() == {"deleted": True}
+def test_names_follow_the_rule(reg):
+    for bad in ("Upper", "-dash", "has_underscore", "", "a/b"):
+        with pytest.raises(Invalid):
+            reg.put("providers", Provider(bad, "https://x", KEY))
+    reg.put("providers", Provider("ok-1", "https://x", KEY))
+    with pytest.raises(NotFound):
+        reg.get("providers", "../ok-1")
 
 
-def test_harness_scripts_land_on_disk(client, container, echo):
-    d = container.resources.harness_dir("echo")
-    assert (d / "run.sh").read_text() == echo.scripts["run.sh"]
-    got = client.get("/harnesses/echo").json()
-    assert got["provider"] == "none" and got["sandbox"] == DEFAULT_SANDBOX and set(got["scripts"]) == {"run.sh"}
-    assert [h["name"] for h in client.get("/harnesses").json()] == ["echo"]
-    bad = {**echo.model_dump(mode="json"), "scripts": {"../x": "y"}}
-    assert client.put("/harnesses/echo", json=bad).status_code == 400
-    assert client.delete("/harnesses/echo").json() == {"deleted": True} and not d.exists()
+def test_keys_are_stored_for_their_owner_only(reg, tmp_path):
+    reg.put("providers", Provider("anthropic", "https://api.anthropic.com", KEY))
+    root = tmp_path / "data" / "providers"
+    assert stat.S_IMODE(root.stat().st_mode) == 0o700
+    assert stat.S_IMODE((root / "anthropic.json").stat().st_mode) == 0o600
+    assert reg.get("providers", "anthropic").key == KEY
 
 
-def test_the_server_will_not_start_without_git(container, monkeypatch):
-    import pytest
-    from fastapi.testclient import TestClient
-    from harness_interface import workspace
-    from harness_interface.app import create_app
-    monkeypatch.setattr(workspace.shutil, "which", lambda _: None)
-    with pytest.raises(RuntimeError, match="git is required"):
-        with TestClient(create_app(container)):
-            pass
+def test_writes_are_whole_and_listings_sorted(reg, tmp_path):
+    for name in ("zeta", "alpha"):
+        reg.put("providers", Provider(name, "https://x", KEY))
+    assert [p.name for p in reg.list("providers")] == ["alpha", "zeta"]
+    assert not list((tmp_path / "data" / "providers").glob(".*.tmp"))
+    assert reg.delete("providers", "zeta") and not reg.delete("providers", "zeta")
+
+
+def test_default_is_built_in_and_reserved(reg):
+    assert reg.list("sandboxes") == [DEFAULT_SANDBOX] and reg.get("sandboxes", "default") == DEFAULT_SANDBOX
+    with pytest.raises(Invalid):
+        reg.put("sandboxes", Sandbox("default", "FROM x"))
+    with pytest.raises(Invalid):
+        reg.delete("sandboxes", "default")
+    reg.put("sandboxes", Sandbox("py", "FROM python:3.12", egress=("pypi.org",)))
+    assert [s.name for s in reg.list("sandboxes")] == ["default", "py"]
+    assert reg.get("sandboxes", "py").egress == ("pypi.org",)
+
+
+def test_a_harness_and_its_scripts(reg):
+    h = Harness("echo", "none", scripts={"run.sh": "echo hi\n", "report.py": "pass\n"})
+    reg.put("harnesses", h)
+    d = reg.scripts_of("echo")
+    assert sorted(p.name for p in d.iterdir()) == ["report.py", "run.sh"]
+    reg.put("harnesses", Harness("echo", "none", scripts={"run.sh": "echo v2\n"}))    # replaced, not merged
+    assert [p.name for p in d.iterdir()] == ["run.sh"] and (d / "run.sh").read_text() == "echo v2\n"
+    assert reg.get("harnesses", "echo").scripts == {"run.sh": "echo v2\n"}
+    assert reg.delete("harnesses", "echo") and not d.exists()
+
+
+def test_resolving_names_what_is_missing(reg):
+    with pytest.raises(Invalid, match="no harness 'echo'"):
+        reg.resolve("echo")
+    reg.put("harnesses", Harness("echo", "none", sandbox="py"))
+    with pytest.raises(Invalid, match="provider 'none'"):
+        reg.resolve("echo")
+    reg.put("providers", Provider("none", "https://x", KEY))
+    with pytest.raises(Invalid, match="sandbox 'py'"):
+        reg.resolve("echo")
+    reg.put("sandboxes", Sandbox("py", "FROM python:3.12"))
+    r = reg.resolve("echo")
+    assert (r.harness.name, r.provider.key, r.sandbox.name, r.scripts) == ("echo", KEY, "py", reg.scripts_of("echo"))

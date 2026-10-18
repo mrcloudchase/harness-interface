@@ -1,10 +1,14 @@
-"""Requests the server refuses, and the HTTP status each refusal answers with. Anything else that
-goes wrong is a bug, and stays a 500."""
+"""Refusals, by kind. Every layer raises these for what a caller asked wrong; a front end decides
+what each means on its wire (over HTTP: 400, 404 and 409). Anything else that goes wrong is a bug."""
 
 
-class ClientError(Exception):
-    status = 400
+class Invalid(ValueError):
+    """The request can't be carried out as given."""
 
 
-class Conflict(ClientError):
-    status = 409
+class NotFound(LookupError):
+    """It names something that doesn't exist."""
+
+
+class Conflict(Exception):
+    """It collides with something already in progress."""

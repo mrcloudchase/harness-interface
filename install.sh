@@ -1,15 +1,16 @@
 #!/bin/sh
-# Install harness-interface: the API server (`harness-interface`) and its command line (`hi`).
+# Install harness-interface: the server (`harness-interface`), its command line (`hi`), and the
+# Python library they are built on.
 #
 #   curl -fsSL https://raw.githubusercontent.com/mrcloudchase/harness-interface/main/install.sh | sh
 #
-# HI_REF picks what to install: a tag, a branch or a commit (default: main).
-# It installs uv if it is missing, then the package from GitHub with `uv tool install`, which
-# brings its own Python. Uninstall with `uv tool uninstall harness-interface`.
+# It installs the latest release; HI_REF picks another: a tag, a branch or a commit. It installs uv
+# if it is missing, then the package from GitHub with `uv tool install`, which brings its own Python.
+# Uninstall with `uv tool uninstall harness-interface`.
 set -eu
 
 REPO="https://github.com/mrcloudchase/harness-interface"
-REF="${HI_REF:-main}"
+API="https://api.github.com/repos/mrcloudchase/harness-interface"
 
 say() { printf '%s\n' "$*"; }
 fail() { say "install: $*" >&2; exit 1; }
@@ -17,6 +18,9 @@ fail() { say "install: $*" >&2; exit 1; }
 command -v curl >/dev/null 2>&1 || fail "curl is required"
 command -v git >/dev/null 2>&1 || fail "git is required: every workspace is a git repository.
 Install it (apt install git, dnf install git, brew install git, or xcode-select --install), then run this again."
+
+REF="${HI_REF:-$(curl -fsSL "$API/releases/latest" 2>/dev/null | sed -n 's/.*"tag_name": *"\([^"]*\)".*/\1/p' | head -n 1)}"
+REF="${REF:-main}"
 
 if ! command -v uv >/dev/null 2>&1; then
   say "Installing uv, which installs and runs harness-interface..."
@@ -26,7 +30,7 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 say "Installing harness-interface ($REF)..."
-uv tool install --force --python 3.12 "harness-interface @ $REPO/archive/$REF.tar.gz"
+uv tool install --force --python 3.12 "harness-interface[server] @ $REPO/archive/$REF.tar.gz"
 uv tool update-shell >/dev/null 2>&1 || true
 
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
@@ -37,7 +41,7 @@ directly with: HI_RUNTIME=local hi server start"
 fi
 
 say "
-Installed: hi (the command line) and harness-interface (the API server).
+Installed: hi (the command line) and harness-interface (the server).
 $sandbox
 
 Next:

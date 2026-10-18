@@ -30,7 +30,7 @@ if ! command -v uv >/dev/null 2>&1; then
 fi
 
 say "Installing harness-interface ($REF)..."
-uv tool install --force --python 3.12 "harness-interface[server] @ $REPO/archive/$REF.tar.gz"
+uv tool install --force --python 3.13 "harness-interface[server] @ $REPO/archive/$REF.tar.gz"
 uv tool update-shell >/dev/null 2>&1 || true
 
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then

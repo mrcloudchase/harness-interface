@@ -1,5 +1,6 @@
-# Every pull request and every push to main: the whole suite on the oldest and newest Python we
-# support, the live Docker tests against a real daemon, and a check for unused code.
+# Every pull request and every push to main: the whole suite on the oldest Python we support, the
+# one the installer uses and the newest, the live Docker tests against a real daemon, and a check
+# for unused code.
 name: ci
 
 on:
@@ -12,7 +13,7 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python: ["3.11", "3.13"]
+        python: ["3.11", "3.13", "3.14"]
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5

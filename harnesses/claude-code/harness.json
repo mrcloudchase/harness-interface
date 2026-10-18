@@ -1,0 +1,16 @@
+{
+  "name": "claude-code",
+  "description": "Claude Code, headless. Shell, files, web fetch. Speaks the Anthropic Messages API, so its provider is Anthropic or any endpoint that serves that shape (DeepSeek, OpenRouter, ...).",
+  "provider": "anthropic",
+  "files": {
+    "AGENTS.md": "{instructions}"
+  },
+  "run": {
+    "env": {
+      "HOME": "{workspace}/.home",
+      "IS_SANDBOX": "1"
+    },
+    "stdout": "application/x-ndjson",
+    "timeout_s": 900
+  }
+}

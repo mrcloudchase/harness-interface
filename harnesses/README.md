@@ -13,8 +13,16 @@ doing both, live.
 
 ## Register them
 
-A harness's PUT body is its `harness.json` with every other file in its folder as a script. With
-`curl` and `jq`, against a running server:
+These folders ship inside the installed package, so `hi` can register them by name:
+
+```bash
+hi harness add --builtin              # all 23
+hi harness add --builtin claude-code codex
+hi harness add ./harnesses/codex      # or any folder, including one you changed
+```
+
+Underneath, a harness's PUT body is its `harness.json` with every other file in its folder as a
+script. The same thing with `curl` and `jq`, against a running server:
 
 ```bash
 # a harness folder as the JSON its PUT takes

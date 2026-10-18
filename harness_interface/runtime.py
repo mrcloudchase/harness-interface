@@ -73,7 +73,10 @@ async def spawn(argv: list[str], env: dict[str, str], cwd: Path | None, stdin: b
         proc = await asyncio.create_subprocess_exec(*argv, cwd=cwd, env=env, stdin=asyncio.subprocess.PIPE,
                                                     stdout=asyncio.subprocess.PIPE, stderr=log, start_new_session=True)
     assert proc.stdin
-    proc.stdin.write(stdin)
-    await proc.stdin.drain()
-    proc.stdin.close()
+    try:
+        proc.stdin.write(stdin)
+        await proc.stdin.drain()
+        proc.stdin.close()
+    except (BrokenPipeError, ConnectionResetError, RuntimeError):
+        pass                                         # it exited without reading stdin, which it need not read
     return proc

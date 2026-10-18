@@ -65,16 +65,21 @@ tested on a first turn and on a resumed second turn.
 
 ## Try it
 
-You need Python 3.11+, [uv](https://docs.astral.sh/uv/), git and Docker.
+You need git, and Docker for sandboxed runs. The installer brings the rest: uv, Python, the
+server and `hi`, its command line.
 
 ```bash
-git clone https://github.com/mrcloudchase/harness-interface && cd harness-interface
-uv run harness-interface          # http://127.0.0.1:8000; state under ./data
+curl -fsSL https://raw.githubusercontent.com/mrcloudchase/harness-interface/main/install.sh | sh
+
+hi server start
+hi provider add anthropic --url https://api.anthropic.com --key-env ANTHROPIC_API_KEY
+hi harness add --builtin claude-code
+hi run claude-code "What is 17 * 23?"
+hi run claude-code "And what is that times 2?" -c
 ```
 
-`uv run` creates the virtual environment, installs the locked dependencies and starts the server.
-Then follow the [walkthrough](docs/walkthrough.md): add a provider, register Claude Code, make the
-first request, continue it. Every step is an HTTP call.
+`hi` is one way in; the API is the product. The [CLI guide](docs/cli.md) covers every command,
+and the [walkthrough](docs/walkthrough.md) makes the same calls with `curl`.
 
 ## How it fits together
 
@@ -114,7 +119,8 @@ underneath, the way every request goes through the same API whichever harness se
 
 ## Docs
 
-- [Walkthrough](docs/walkthrough.md): install, add a provider, register a harness, first request, continue.
+- [CLI](docs/cli.md): install, start the server, and every `hi` command.
+- [Walkthrough](docs/walkthrough.md): the API by hand: add a provider, register a harness, first request, continue.
 - [Reference](docs/reference.md): resources, the process contract, the wire format, endpoints, a request end to end, the sandbox, configuration, layout.
 - [Harnesses](harnesses/README.md): the 23 that ship, registering them, and what each one needs.
 

@@ -1,20 +1,22 @@
 # Walkthrough
 
 From an empty server to a resumed conversation: one provider, one harness, two requests, all
-over the API.
+over the API with `curl`. Every step here is also a `hi` command; see [cli.md](cli.md).
 
 ## 1. Install and start
 
-You need Python 3.11+, [uv](https://docs.astral.sh/uv/), git and Docker.
+You need git, and Docker for sandboxed runs. The installer brings uv, Python, the server and
+`hi`:
 
 ```bash
-git clone https://github.com/mrcloudchase/harness-interface && cd harness-interface
-uv run harness-interface
+curl -fsSL https://raw.githubusercontent.com/mrcloudchase/harness-interface/main/install.sh | sh
+hi server start                  # or run `harness-interface` in the foreground
 ```
 
-`uv run` creates `.venv`, installs the dependencies pinned in `uv.lock` and starts the server on
-`http://127.0.0.1:8000`. It starts with no providers and no harnesses, plus one built-in sandbox,
-`default`. Everything it stores lives under `./data`.
+The server listens on `http://127.0.0.1:8000`. It starts with no providers and no harnesses,
+plus one built-in sandbox, `default`. Everything it stores lives under
+`~/.harness-interface/data`. From a clone of the repository, `uv run harness-interface` starts
+it straight from the source.
 
 The environment configures it:
 
@@ -22,15 +24,18 @@ The environment configures it:
 |---|---|---|
 | `HI_HOST` | `127.0.0.1` | the address to listen on |
 | `HI_PORT` | `8000` | the port |
-| `HI_DATA_DIR` | `./data` | resources, records, logs and workspaces |
+| `HI_DATA_DIR` | `~/.harness-interface/data` | resources, records, logs and workspaces |
 | `HI_RUNTIME` | `docker` | `docker`, or `local` to run harnesses as plain processes on the host |
 
 Keep it on localhost. There is no authentication, and provider keys pass through this process.
 
 With the default `docker` runtime, the server checks at startup that Docker is reachable and
-will not start without it. `HI_RUNTIME=local uv run harness-interface` needs no Docker. Use it to try things out or to
-develop a harness. A local run has no isolation and no egress rule, and its record says
+will not start without it. `HI_RUNTIME=local hi server start` needs no Docker. Use it to try
+things out or to develop a harness. A local run has no isolation and no egress rule, and its record says
 `"runtime": "local"`.
+
+The server also needs git, because every workspace is a git repository, and it won't start
+without git either.
 
 Everything below is `curl`, plus `jq` to turn a harness folder into JSON. Nothing needs a
 restart: every PUT takes effect on the next request.

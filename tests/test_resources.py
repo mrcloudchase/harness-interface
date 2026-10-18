@@ -34,3 +34,14 @@ def test_harness_scripts_land_on_disk(client, container, echo):
     bad = {**echo.model_dump(mode="json"), "scripts": {"../x": "y"}}
     assert client.put("/harnesses/echo", json=bad).status_code == 400
     assert client.delete("/harnesses/echo").json() == {"deleted": True} and not d.exists()
+
+
+def test_the_server_will_not_start_without_git(container, monkeypatch):
+    import pytest
+    from fastapi.testclient import TestClient
+    from harness_interface import workspace
+    from harness_interface.app import create_app
+    monkeypatch.setattr(workspace.shutil, "which", lambda _: None)
+    with pytest.raises(RuntimeError, match="git is required"):
+        with TestClient(create_app(container)):
+            pass

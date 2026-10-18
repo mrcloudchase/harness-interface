@@ -60,6 +60,9 @@ A run's network has one other member: its egress door (`egress.py`). It is the o
   conversation's workspace. Don't put anything there you aren't willing to have changed.
 - **The provider is reachable.** A harness can spend your provider credit, and send anything it
   can read to the provider.
+- **A harness can read its own provider key.** The key is in its environment so its CLI can call
+  the provider, so a prompt can make the harness print it, write it to a file or send it on.
+  Anything that can run a harness can get its key: use keys with spending limits.
 - **The local runtime has no sandbox.** With `HI_RUNTIME=local`, a harness runs as you, with your
   files and your network. Use it for harnesses you trust, such as one you are developing.
 - **The API has no authentication.** It binds to `127.0.0.1` by default. Anyone who can reach it

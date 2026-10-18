@@ -141,7 +141,8 @@ client can do through the API.
 
 ## How it is verified
 
-**Tests:** `uv run --extra dev pytest`, with no Docker or keys needed. They cover:
+**Tests:** `uv run --extra dev pytest`, with no Docker or keys needed. CI runs them on every pull
+request. They cover:
 - every endpoint, through an echo harness;
 - runs against a real server: a client leaving mid-run, cancel while running and during setup,
   one run per conversation, runs side by side, restart recovery, and the CLI end to end;
@@ -150,6 +151,9 @@ client can do through the API.
 **Live, on Docker, installed with `curl | sh`:**
 - **All 23 shipped harnesses**, driven only through `hi`, answered a first request and recalled it
   on a continued second one, six at a time.
+- **All 23 again, with instructions** ("end every answer with PELICAN"): each kept them on a first
+  turn and on a continued second one that recalled an earlier word. Three ran on another provider
+  than their default, because the Anthropic account had run out of credit.
 - **A probe inside a live run** confirmed the sandbox: only the provider's host was reachable.
 - **Run handling:**
   - a disconnected client's run still completed;

@@ -5,6 +5,7 @@ kind, and FastAPI reads their body types at runtime.)"""
 import mimetypes
 from contextlib import asynccontextmanager
 from dataclasses import asdict
+from importlib.metadata import version
 from typing import Any
 
 from fastapi import FastAPI, Request
@@ -40,7 +41,7 @@ def create_app(service: Service) -> FastAPI:
         await service.recover()
         yield
 
-    app = FastAPI(title="harness-interface", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="harness-interface", version=version("harness-interface"), lifespan=lifespan)
     app.state.service = service
 
     for error, code in STATUS.items():

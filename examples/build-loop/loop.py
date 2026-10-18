@@ -26,7 +26,6 @@ budget. You stop prompting the harness; the loop does, and the tests decide when
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 import re
 import shutil

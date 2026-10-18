@@ -1,95 +1,119 @@
 # Walkthrough
 
-From an empty server to a resumed conversation. Four PUTs, one POST, all over the API.
+From an empty server to a resumed conversation: one provider, one harness, two requests, all
+over the API.
 
-## 1. Install
+## 1. Install and start
 
-The server needs Python 3.11, [uv](https://docs.astral.sh/uv/), git, and Docker.
+You need Python 3.11+, [uv](https://docs.astral.sh/uv/), git and Docker.
 
 ```bash
 git clone https://github.com/mrcloudchase/harness-interface && cd harness-interface
-uv venv && source .venv/bin/activate
-uv pip install -e .
-hi serve                   # http://127.0.0.1:8000, state under ./data (HI_DATA_DIR to move it)
+uv run harness-interface
 ```
 
-It starts with no providers, no harnesses, and one sandbox, `default`. Keep the port on
-localhost: there is no authentication, and provider keys pass through this process.
+`uv run` creates `.venv`, installs the dependencies pinned in `uv.lock` and starts the server on
+`http://127.0.0.1:8000`. It starts with no providers and no harnesses, plus one built-in sandbox,
+`default`. Everything it stores lives under `./data`.
 
-Without Docker, `hi serve --runtime local` runs harnesses as plain processes on the host, which
-is fine for trying things and for development. Every record then says `runtime: local`, and
-there is no isolation and no egress rule.
+The environment configures it:
 
-Everything below is `curl`, plus `jq` to build a harness's JSON from its folder. Any HTTP client
-works the same way. Nothing here needs a restart: each PUT takes effect on the next request.
+| Variable | Default | |
+|---|---|---|
+| `HI_HOST` | `127.0.0.1` | the address to listen on |
+| `HI_PORT` | `8000` | the port |
+| `HI_DATA_DIR` | `./data` | resources, records, logs and workspaces |
+| `HI_RUNTIME` | `docker` | `docker`, or `local` to run harnesses as plain processes on the host |
+
+Keep it on localhost. There is no authentication, and provider keys pass through this process.
+
+`HI_RUNTIME=local uv run harness-interface` needs no Docker. Use it to try things out or to
+develop a harness. A local run has no isolation and no egress rule, and its record says
+`"runtime": "local"`.
+
+Everything below is `curl`, plus `jq` to turn a harness folder into JSON. Nothing needs a
+restart: every PUT takes effect on the next request.
 
 ## 2. Add a provider
 
 A provider is where model calls go and the key that unlocks them. The server stores both and
-passes them to the harness; it never interprets them.
+hands them to the harness. It never interprets either one.
 
 ```bash
 curl -X PUT localhost:8000/providers/anthropic -H 'content-type: application/json' \
   -d '{"name":"anthropic","url":"https://api.anthropic.com","key":"sk-ant-..."}'
 ```
 
-Add as many as you like. DeepSeek serves the Anthropic Messages shape at its own path, so this is
-a second provider that Claude Code can run on:
+Add as many as you like. DeepSeek serves the Anthropic Messages shape at its own path, so this
+second provider runs Claude Code too:
 
 ```bash
 curl -X PUT localhost:8000/providers/deepseek -H 'content-type: application/json' \
   -d '{"name":"deepseek","url":"https://api.deepseek.com/anthropic","key":"sk-..."}'
 ```
 
-`GET /providers` lists names and urls. The key is never returned.
+`GET /providers` lists names and urls. A key is never returned.
 
-## 3. Add a sandbox, or keep the default
+## 3. Keep the default sandbox, or add one
 
-A sandbox is a Dockerfile, and it is where a harness runs. `default` is built in: one image with
-the CLI of every harness in `harnesses/` installed, run as the unprivileged user `agent`. You do
-not need to add one to get started. Its first build takes several minutes; every response after
-that reuses the image, and each run is a fresh container from it.
+A sandbox is a Dockerfile, and it is where a harness runs. The built-in `default` is one image
+holding the CLI of every harness in [harnesses/](../harnesses/), run as an unprivileged user,
+uid 1000. You don't need to add a sandbox to get started.
 
-What locks a sandbox down is not the Dockerfile but what every run gets: all capabilities
-dropped, no privilege escalation, a read-only root, tmpfs `/tmp`, pid and memory caps, and a
-private internal network whose only exit is the egress door, a tunnel to the harness's provider
-host and nothing else.
+The first request that needs an image builds it. For `default` that takes several minutes and
+about 10 GB of disk. Every request after that reuses the image, and each run is a fresh container
+from it. `GET /sandboxes/default` shows its Dockerfile.
 
-Add a sandbox when a harness needs more: a tool, a language, or a host to reach. The provider's
-host is always allowed; `egress` adds to it.
+The Dockerfile is not what locks a sandbox down. Every run gets the same hardening:
+- every capability dropped, and no privilege escalation;
+- a read-only root, and pid and memory caps;
+- a private network whose only way out is the egress door, a tunnel to the harness's provider host.
+
+Add a sandbox when a harness needs something more: a tool, a language, or another host to reach.
+The provider's host is always allowed, and `egress` adds to it. The image needs a user with uid
+1000, because that user owns the workspace:
 
 ```bash
 curl -X PUT localhost:8000/sandboxes/python-dev -H 'content-type: application/json' -d '{
   "name": "python-dev",
-  "dockerfile": "FROM python:3.12-slim\nRUN useradd -m -u 1000 agent\nUSER agent\nENV HOME=/workspace/.home\nWORKDIR /workspace\n",
+  "dockerfile": "FROM python:3.12-slim\nRUN useradd -m -u 1000 runner\nUSER runner\nENV HOME=/workspace/.home\nWORKDIR /workspace\n",
   "egress": ["pypi.org", "files.pythonhosted.org"]
 }'
 ```
 
-The image is built the first time a response needs it and reused after. Change the Dockerfile
-and the next response builds the new one. `GET /sandboxes/default` shows the built-in one in full.
+Change the Dockerfile and the next request builds and uses the new image.
 
 ## 4. Add a harness
 
-A harness is one CLI, described completely: its command, the files it wants in the workspace,
-its scripts, and by name the provider it calls and the sandbox it runs in. It is written as a folder
-of three files: `harness.json`, and the scripts it names.
+A harness describes one CLI completely:
+- its command;
+- the files it wants in the workspace;
+- its scripts;
+- by name, the provider it calls and the sandbox it runs in.
 
-The server promises every harness the same thing inside its sandbox. The request arrives on
-stdin and in `HI_TASK`, `HI_MODEL`, `HI_SESSION_ID`; the provider as `HI_PROVIDER_URL` and
-`HI_PROVIDER_KEY`; `HI_WORKSPACE`, `HI_HARNESS_DIR`, `HI_OUTPUT`. The harness prints whatever it
-likes to stdout, which becomes the response's output, and may write `status`, `session_id`,
-`usage`, `answer` and `cost_usd` to the file at `HI_OUTPUT`. Files it changes in the workspace
-are the produced files.
+It is written as a folder: a `harness.json` and the scripts it runs.
 
-Here is Claude Code, complete.
+The server promises every harness the same inputs inside its sandbox:
+- The request arrives as JSON on stdin and at `HI_REQUEST`.
+- The task, model and session to resume arrive as `HI_TASK`, `HI_MODEL` and `HI_SESSION_ID`.
+- The provider arrives as `HI_PROVIDER_URL` and `HI_PROVIDER_KEY`.
+- `HI_WORKSPACE` and `HI_HARNESS_DIR` say where its workspace and scripts are.
 
-`harnesses/claude-code/harness.json`:
+The harness gives back:
+- stdout, which becomes the response's output;
+- stderr, which becomes the log;
+- optionally, `status`, `session_id`, `usage`, `answer` and `cost_usd`, written as JSON to the file at `HI_OUTPUT`.
+
+Files it adds or changes in the workspace are the response's produced files.
+
+Here is Claude Code, from [harnesses/claude-code/](../harnesses/claude-code/).
+
+`harness.json`:
 
 ```json
 {
   "name": "claude-code",
-  "description": "Claude Code, headless. Speaks the Anthropic Messages API.",
+  "description": "Claude Code, headless. ...",
   "provider": "anthropic",
   "files": {"AGENTS.md": "{instructions}"},
   "run": {
@@ -100,12 +124,14 @@ Here is Claude Code, complete.
 }
 ```
 
-`files` are written into the workspace before each run: here the request's instructions, where
-Claude Code reads them. `HOME` is inside the workspace so the CLI's transcripts survive for the next
-turn. `IS_SANDBOX` lets Claude Code skip its permission prompts. `sandbox` is left out, so it runs
-in `default`.
+The fields:
+- `files` are written into the workspace before each run. Here that is the request's instructions, where Claude Code reads them.
+- `HOME` is inside the workspace, so the CLI's transcripts are still there on the next turn.
+- `IS_SANDBOX` lets Claude Code skip its permission prompts.
+- `sandbox` is left out, so it runs in `default`.
+- `run.argv` is left out, so the command is `bash {harness_dir}/run.sh`.
 
-`harnesses/claude-code/run.sh`, where everything specific to this CLI lives:
+`run.sh` is where everything specific to this CLI lives:
 
 ```bash
 #!/usr/bin/env bash
@@ -118,7 +144,7 @@ claude -p "$HI_TASK" --output-format stream-json --verbose --dangerously-skip-pe
   | python3 "$HI_HARNESS_DIR/report.py"
 ```
 
-`harnesses/claude-code/report.py`, a filter that passes every line through and writes what the server reads:
+`report.py` passes every line through and writes what the server reads:
 
 ```python
 import json, os, sys
@@ -141,30 +167,27 @@ for line in sys.stdin:
 json.dump(out, open(os.environ["HI_OUTPUT"], "w"))
 ```
 
-Register it. The PUT body is `harness.json` with the folder's other files as `scripts`:
+Register it. The PUT body is `harness.json` plus a `scripts` object holding every other file in the folder:
 
 ```bash
-jq --rawfile run harnesses/claude-code/run.sh --rawfile report harnesses/claude-code/report.py \
-   '. + {scripts: {"run.sh": $run, "report.py": $report}}' harnesses/claude-code/harness.json \
-  | curl -X PUT localhost:8000/harnesses/claude-code -H 'content-type: application/json' -d @-
+harness() {
+  jq --argjson scripts "$(for f in "$1"/*; do [ "${f##*/}" = harness.json ] || jq -n --arg k "${f##*/}" --rawfile v "$f" '{($k): $v}'; done | jq -s add)" \
+     '. + {scripts: $scripts}' "$1/harness.json"
+}
+harness harnesses/claude-code | curl -X PUT localhost:8000/harnesses/claude-code -H 'content-type: application/json' -d @-
 ```
 
-[harnesses/README.md](../harnesses/README.md) has a loop that registers all twenty-five.
+The same function registers all 25 in a loop; see [harnesses/README.md](../harnesses/README.md).
 
-That is the whole of adding a harness. Nothing on the server changed, and nothing on the server
-knows what `ANTHROPIC_BASE_URL` means.
+That is all it takes to add a harness. Nothing changed on the server, and nothing on the server
+knows what `ANTHROPIC_BASE_URL` means. To run the same CLI on DeepSeek, set
+`"provider": "deepseek"` and register it again, under this name or another. The run script maps
+whatever provider it is given.
 
-To run the same CLI on DeepSeek, change one word, `"provider": "deepseek"`, and register it under
-another name, or edit this one. The run script already maps whatever provider it is given.
-
-Other CLIs differ only in the lines that are about them. Codex speaks the Responses API, so its
-run script exports `OPENAI_BASE_URL` from `HI_PROVIDER_URL`, logs the key in with
-`codex login --with-api-key`, runs `codex exec --json` or `codex exec resume --last` when
-`HI_SESSION_ID` is set, and its reporter reads `thread.started`, `item.completed` and
-`turn.completed`. DeepSeek Harness exports `DEEPSEEK_BASE_URL` and `DEEPSEEK_API_KEY`, runs
-`dsh --profile headless --json` with `--session-id` on a follow-up, and its reporter sums the
-usage over `status` events. A CLI with no JSON mode at all gets a reporter that picks the answer
-out of its text and declares `stdout: text/plain`.
+Other CLIs differ only in the lines that are about them:
+- **Codex** speaks the Responses API. Its run script exports `OPENAI_BASE_URL`, logs the key in, and runs `codex exec --json`, or `codex exec resume` on a follow-up.
+- **Cline** resumes only through its Agent Client Protocol mode, so its folder carries a small ACP client.
+- **A CLI with no JSON mode** gets a `report.py` that picks the answer out of its text, and declares `"stdout": "text/plain"`.
 
 ## 5. Make the first request
 
@@ -181,57 +204,68 @@ curl -N localhost:8000/responses -H 'content-type: application/json' -d '{
 }'
 ```
 
-`model` names the harness. `claude-code/claude-opus-5-5` would also pass a model through, as
-`HI_MODEL`, for the run script to put on the CLI's model flag. On DeepSeek that is
-`claude-code-deepseek/deepseek-chat`.
+`model` names the harness. `claude-code/claude-opus-5-5` also passes a model through as
+`HI_MODEL`, and the run script puts it on the CLI's `--model` flag. Each `input_file` is written
+into the workspace before the run.
 
-The response is server-sent events. `response.created` comes first with the record in progress.
-Then one `harness.output` event per line of Claude Code's own stream-json, exactly as the CLI
-printed it, until it exits. Then `response.completed` with the finished record. Leave `stream`
-out and the whole record comes back as one JSON object when the run is done.
+With `"stream": true` the response comes back as server-sent events:
+1. `response.created`, carrying the record while it is in progress;
+2. one `harness.output` event for each line Claude Code prints, exactly as printed, until it exits;
+3. `response.completed`, carrying the finished record.
+
+Leave `stream` out and the finished record comes back as one JSON object once the run is done.
+Either way, the `X-Response-Id` header carries the id.
 
 The record:
 
 ```json
 {"id": "resp_…", "object": "response", "status": "completed", "model": "claude-code",
- "output": [{"type": "message", "role": "assistant", "content": [{"type": "output_text", "text": "Fixed. …"}]}],
+ "output": [{"type": "message", "role": "assistant", "status": "completed",
+             "content": [{"type": "output_text", "text": "Fixed. …", "annotations": []}]}],
  "usage": {"input_tokens": 2, "output_tokens": 312, "cache_read_input_tokens": 35438},
- "previous_response_id": null, "metadata": {},
+ "previous_response_id": null, "metadata": {}, "error": null, "incomplete_details": null,
  "harness": {"name": "claude-code", "provider": "anthropic", "sandbox": "default", "runtime": "docker",
-             "image": "hi/default:3f9c…", "session_id": "babde362-…", "exit_code": 0,
-             "latency_s": 10.2, "cost_usd": 0.14, "files": ["prices.py"], "workspace": "…"}}
+             "image": "harness-interface/default:3f9c…", "workspace": "…/data/workspaces/resp_…",
+             "session_id": "babde362-…", "exit_code": 0, "latency_s": 10.2, "cost_usd": 0.14,
+             "files": ["prices.py"]}}
 ```
 
-`status` is `completed`, `failed`, `incomplete` on timeout, or `cancelled`. `output` holds the
-answer the harness reported. `usage` is whatever the harness reported, in its own names. Under
-`harness` is everything the Responses shape has no field for, including which sandbox image the
-run happened in.
+The fields:
+- `status` is one of:
+  - `completed`;
+  - `failed`, with `error`;
+  - `incomplete` on timeout, with `incomplete_details`;
+  - `cancelled`.
+- `output` holds the answer the harness reported.
+- `usage` is whatever the harness reported, in its own key names.
+- `harness` holds everything the Responses shape has no field for, including the image the run used and the session it can be resumed from.
 
 ## 6. Read what happened
 
 ```bash
-curl localhost:8000/responses/resp_…              # the record
-curl localhost:8000/responses/resp_…/output       # the CLI's stdout, byte for byte
-curl localhost:8000/responses/resp_…/log          # its stderr, where a CLI explains a failure
-curl localhost:8000/responses/resp_…/files/prices.py
-curl localhost:8000/responses                     # every record
-curl -X POST localhost:8000/responses/resp_…/cancel
+curl localhost:8000/responses/resp_…                   # the record
+curl localhost:8000/responses/resp_…/output            # the harness's stdout, byte for byte
+curl localhost:8000/responses/resp_…/log               # its stderr, where a CLI explains a failure
+curl localhost:8000/responses/resp_…/files/prices.py   # any file in its workspace
+curl localhost:8000/responses                          # every record
+curl -X POST localhost:8000/responses/resp_…/cancel    # stop a run in progress
 ```
 
 ## 7. Continue
 
-A conversation is a chain of responses. Name the one to continue from:
+A conversation is a chain of responses. Name the response to continue from:
 
 ```bash
 curl localhost:8000/responses -H 'content-type: application/json' -d '{
   "model": "claude-code",
-  "input": "Now add a count() function and say what you changed earlier.",
+  "input": "Now add a count() function, and say what you changed earlier.",
   "previous_response_id": "resp_…"
 }'
 ```
 
-The same workspace is reused with the files as the harness left them, and the CLI is relaunched
-with the session id it reported, so it remembers the earlier turn. A response can only continue
-one made on the same harness. Leave `previous_response_id` out to start fresh.
+The run reuses that response's workspace, with the files as the harness left them, and hands the
+CLI the session id it reported as `HI_SESSION_ID`, so it remembers the earlier turn. A response
+can only continue one made on the same harness. Leave `previous_response_id` out to start a new
+conversation in a new workspace.
 
-That is the loop: add resources once, post tasks, read records, continue or start over.
+That is the whole loop: add resources once, post requests, read the records, continue or start over.

@@ -60,6 +60,24 @@ step creates no tag.
 A change to `resources/default.Dockerfile` changes the default sandbox's tag, so every user's
 next run after upgrading builds the image once. Say so in the notes.
 
+## The default sandbox's image
+
+[`sandbox-image.yml`](../../.github/workflows/sandbox-image.yml) builds that image once and
+publishes it to this repository's packages, under the name the server gives it plus the registry:
+`ghcr.io/mrcloudchase/harness-interface/default:<hash>`. Something that runs harnesses on a fresh
+machine, such as a CI job, pulls it and tags it `harness-interface/default:<hash>`; the server then
+finds the image already there and builds nothing.
+
+| When | It |
+|---|---|
+| a pull request changes the Dockerfile | builds it and runs its CLIs, to prove it builds |
+| that change merges to `main` | builds and publishes it |
+| someone runs it by hand | rebuilds and republishes it, with the latest release of the CLIs whose vendors' installers fetch one |
+
+The image holds the CLIs and nothing secret. The build has an empty context, no build arguments
+and no secret mounts, the registry login comes only after it, and the workflow fails if the image's
+environment names a credential. A run gets its provider's key only when it starts, by name.
+
 ## When a release goes wrong
 
 - **The workflow failed before tagging** (tests, build, missing notes): fix it on a branch and

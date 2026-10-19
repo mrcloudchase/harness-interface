@@ -10,11 +10,12 @@ read it from the installed package. Versions are [semantic](https://semver.org):
 | Bump | When | For example |
 |---|---|---|
 | **major** (`2.0.0`) | something that worked stops working | an endpoint, field, CLI flag or contract variable removed or changed; the public library API changed incompatibly |
-| **minor** (`1.1.0`) | something new, and everything that worked still does | a new endpoint, field, command, runtime, or shipped harness; a new contract variable |
+| **minor** (`1.1.0`) | something new, and everything that worked still does | a new endpoint, field, command, runtime, or shipped harness |
 | **patch** (`1.0.1`) | a fix, with nothing new | a bug fix; a harness's script fixed; a CLI in the default sandbox updated |
 
-The harness contract is part of the public interface: third-party harnesses depend on it, so
-removing or repurposing a variable is a major version.
+The harness contract is part of the public interface, and it is closed: nothing is added to it
+([extending](extending.md#the-harness-contract-is-closed)), and since third-party harnesses
+depend on it, removing or repurposing any of it would be a major version.
 
 ## Changes as they land
 

@@ -9,8 +9,9 @@ A harness is given:
 
 It gives back whatever it prints, whatever it changes in the workspace, and, if it likes, a JSON
 object in the file at HI_OUTPUT: `answer`, `status` ("ok" or "fail"), `session_id`, `usage`,
-`cost_usd`. Every key is optional. The contract only grows: a name it gives a harness is never
-taken away or renamed.
+`cost_usd`. Every key is optional. The contract is closed: nothing is added to it, and nothing it
+gives a harness is taken away or renamed. Of any harness, now or later, it assumes only that it
+takes input and returns output.
 """
 from __future__ import annotations
 

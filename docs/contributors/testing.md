@@ -20,7 +20,7 @@ layer. When a promise changes, its test changes first.
 | `test_api.py` | 7 | every endpoint and error as documented; the Responses shape and its SSE framing; runs outlive clients, run side by side and cancel; the diff is live; the OpenAI SDK works unchanged |
 | `test_cli.py` | 8 | `hi` end to end against a real server: add, run, continue, read, a failed run's exit code, the server's lifecycle |
 | `test_examples.py` | — | the library example runs, twice, continuing its session |
-| `test_release.py` | — | the version has CHANGELOG notes, and the server reports it |
+| `test_release.py` | — | the newest CHANGELOG section is a version, and the package and the server report it |
 
 ## The stand-ins
 

@@ -9,7 +9,7 @@ afternoon. These rules keep it that way.
   hook or an abstraction until something needs it. Every line is something the next contributor
   has to read.
 - **Say each thing once.** Each fact has one home: the harness contract in `contract.py`, the
-  wire format in `wire.py`, the version in `pyproject.toml`. Everything else refers to it.
+  wire format in `wire.py`, the version in `CHANGELOG.md`. Everything else refers to it.
 - **One job per module, one owner per idea.** Each module docstring says what the module is for.
   If a change makes that sentence untrue, the change belongs somewhere else.
 - **Objects for what has state and identity, functions for what doesn't.** `Turn`, `Service` and
@@ -84,7 +84,7 @@ The docs are part of the change. A pull request that changes behaviour updates:
 - [docs/users](../users/README.md) for anything a user can see: a command, an endpoint, a field,
   an error, a guarantee;
 - these docs for anything a contributor needs: a layer, a rule, a file, a test;
-- `CHANGELOG.md`, under `Unreleased`.
+- `CHANGELOG.md`: a new section, which releases it ([releasing](releasing.md)).
 
 Users' docs are written for someone who wants to get something done. Say what to do, then what
 happens, with a real example, in plain sentences.

@@ -1,6 +1,7 @@
-# A release is a version bump merged to main. When pyproject.toml's version has no tag yet, this
-# tests that commit, builds it, tags it vX.Y.Z and publishes a GitHub release with the built
-# package and the version's notes from CHANGELOG.md. Nothing else creates tags.
+# A release is a CHANGELOG.md section merged to main. The newest section's heading is the version
+# (pyproject.toml reads it from there too); when it has no tag yet, this tests that commit, builds
+# it, tags it vX.Y.Z and publishes a GitHub release with the built package and the section as its
+# notes. Nothing else creates tags.
 name: release
 
 on:
@@ -23,7 +24,7 @@ jobs:
       - name: Is this version released yet?
         id: version
         run: |
-          version=$(python3 -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')
+          version=$(sed -n 's/^## \[\([^]]*\)\].*/\1/p' CHANGELOG.md | head -n 1)
           echo "version=$version" >> "$GITHUB_OUTPUT"
           if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
             echo "new=false" >> "$GITHUB_OUTPUT"

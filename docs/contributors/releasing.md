@@ -1,11 +1,14 @@
 # Releasing
 
-A release is a version bump merged to `main`. Nothing else creates a tag, and no one tags by hand.
+A release is a `CHANGELOG.md` section merged to `main`. Nothing else creates a tag, and no one
+tags by hand.
 
 ## Versions
 
-The version is written once, in `pyproject.toml`. `hi --version` and the server's OpenAPI document
-read it from the installed package. Versions are [semantic](https://semver.org):
+The version is written once: the heading of the newest section of `CHANGELOG.md`, such as
+`## [1.0.4]`. `pyproject.toml` reads it from there when the package is built, and `hi --version`
+and the server's OpenAPI document read it from the installed package. Versions are
+[semantic](https://semver.org):
 
 | Bump | When | For example |
 |---|---|---|
@@ -17,30 +20,30 @@ The harness contract is part of the public interface, and it is closed: nothing 
 ([extending](extending.md#the-harness-contract-is-closed)), and since third-party harnesses
 depend on it, removing or repurposing any of it would be a major version.
 
-## Changes as they land
-
-Every pull request that changes behaviour adds a line to `CHANGELOG.md` under `## [Unreleased]`,
-saying what changed for a user, in their words.
-
 ## Cut a release
 
-1. On a branch, set `version` in `pyproject.toml`, and rename `## [Unreleased]` in
-   `CHANGELOG.md` to `## [X.Y.Z]`. `test_release.py` fails if the two disagree, so CI catches it
-   before the merge.
-2. For a release that touches the Docker runtime, the contract, a shipped harness or the default
-   sandbox, run the [live checks](testing.md#live-checks) and note them in the pull request.
+Every pull request that changes behaviour is a release:
+1. Add a section at the top of `CHANGELOG.md`, `## [X.Y.Z]`: the last version, bumped by the
+   table above. Under it, say what changed for a user, in their words. `test_release.py` fails if
+   the newest section's heading isn't a version, so CI catches it before the merge.
+2. If it touches the Docker runtime, the contract, a shipped harness or the default sandbox, run
+   the [live checks](testing.md#live-checks) and note them in the pull request.
 3. Open the pull request, get CI green, and merge it.
+
+A pull request that changes nothing a user sees, such as a test or a typo, adds no section. If
+another release merges first, your section conflicts with its: merge `main` in and take the next
+version.
 
 On that push to `main`, [`release.yml`](../../.github/workflows/release.yml) does the rest:
 
 ```
-version in pyproject.toml ─► tagged already? ─ yes ─► nothing to do
+newest CHANGELOG section ─► tagged already? ─ yes ─► nothing to do
                                    │ no
                                    ▼
-              its CHANGELOG section ─► the tests ─► uv build ─► gh release create vX.Y.Z
-                                                                 (tag at the merged commit,
-                                                                  the built wheel and sdist,
-                                                                  the section as its notes)
+                             its notes ─► the tests ─► uv build ─► gh release create vX.Y.Z
+                                                                   (tag at the merged commit,
+                                                                    the built wheel and sdist,
+                                                                    the section as its notes)
 ```
 
 Every other push to `main` finds its version already tagged and does nothing. A failure at any

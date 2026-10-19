@@ -169,7 +169,7 @@ Python 3.11, 3.13 and 3.14, the Docker tests and the lint, on every pull request
 - **Keep it simple.** The plainest code that keeps the promise. No option, hook or abstraction
   until something needs it. No dead code, commented-out code or `TODO`s.
 - **Say each thing once.** The contract in `contract.py`, the wire format in `wire.py`, the
-  version in `pyproject.toml`.
+  version in `CHANGELOG.md`.
 - **One job per module.** If a change makes a module's docstring untrue, it belongs elsewhere.
 - **Objects for state and identity, functions for the rest.** `Turn`, `Service`, `Workspace` are
   classes; `prepare`, `collect`, `render` are functions.
@@ -194,10 +194,12 @@ All of it: [conventions](docs/contributors/conventions.md), [testing](docs/contr
 - [ ] If it touches the runtime, the contract, a shipped harness or the default sandbox, the
       [live checks](docs/contributors/testing.md#live-checks) ran, and the PR says what passed.
 - [ ] `docs/users` says what a user now sees; `docs/contributors` what a contributor needs.
-- [ ] `CHANGELOG.md` has a line under `## [Unreleased]` for any change in behaviour.
+- [ ] For any change in behaviour, `CHANGELOG.md` has a new section at the top, `## [X.Y.Z]`, the
+      next version, saying what changed.
 - [ ] No key, token or private URL anywhere in the diff.
 
-A release is a version bump in `pyproject.toml` with `## [Unreleased]` renamed to that version,
-merged to `main`; `release.yml` tags and publishes it. Nobody tags by hand. Removing or
+A release is a new `CHANGELOG.md` section merged to `main`: its heading is the version (the
+only place it is written; `pyproject.toml` reads it from there), and `release.yml` tags and
+publishes it with the section as its notes. Nobody tags by hand. Removing or
 changing anything in the API or the CLI is a major version
 ([releasing](docs/contributors/releasing.md)).

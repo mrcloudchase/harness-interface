@@ -14,6 +14,7 @@ The whole package is about 1,900 lines, and every module opens by saying what it
 | [Extending](extending.md) | where each kind of change goes: a harness, a runtime, a router, an endpoint, a front end |
 | [Conventions](conventions.md) | the principles, errors, data, concurrency, secrets, style and docs |
 | [Releasing](releasing.md) | versions, the changelog, and how a merge becomes a tagged release |
+| [Keeper](../keeper-spec.md) | how agents build and maintain this repository from VISION.md, and how to port it to another |
 
 ## The shortest path to a pull request
 

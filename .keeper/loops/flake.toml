@@ -1,0 +1,7 @@
+name = "flake"
+goal = """A test failed and then passed on the same commit. Find why it is nondeterministic and make
+it reliable: wait on events, not time; remove shared state. Never weaken what it checks."""
+verifiers = [
+  { kind = "command", run = "test", repeat = 5 },
+  { kind = "rule", rules = ["tests_only_grow", "no_workflows"] },
+]

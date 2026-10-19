@@ -1,0 +1,10 @@
+name = "upgrade"
+goal = """Bring the pinned versions in the project's upgrade targets (keeper.toml [upgrade].targets) up
+to their latest releases, one compatible step at a time, adapting what must change so every check
+and the live run pass. If everything is current, say so as no_op."""
+verifiers = [
+  { kind = "command", run = "checks" },
+  { kind = "rule", rules = ["tests_only_grow", "no_workflows"] },
+  { kind = "live" },
+]
+needs = "upgrade.targets"

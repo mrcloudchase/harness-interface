@@ -1,0 +1,88 @@
+# One Keeper task, in the job for its kind, each with only the permissions that kind needs:
+#   gate   checks a pull request and sets its keeper/gate status
+#   write  deterministic jobs that change the repository: merge, nightly, revert, promote, …
+#   agent  anything that runs an agent, through harness-interface in Docker sandboxes
+# GITHUB_TOKEN and the secrets reach only the engine's step; the engine keeps them from every
+# command it runs (.keeper/engine/env.py), and agents run in sandboxes that get only a provider key.
+name: keeper-run
+
+on:
+  workflow_call:
+    inputs:
+      task: { type: string, required: true }
+      item: { type: string, required: false, default: "" }
+      kind: { type: string, required: true }
+
+permissions: {}
+
+jobs:
+  gate:
+    if: inputs.kind == 'gate'
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    permissions: { contents: read, pull-requests: write, issues: write, statuses: write, actions: write }
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: ./.github/actions/keeper-setup
+      - name: ${{ inputs.task }} ${{ inputs.item }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          KEEPER_ENABLED: ${{ vars.KEEPER_ENABLED }}
+          TASK: ${{ inputs.task }}
+          ITEM: ${{ inputs.item }}
+        run: uv run --extra dev python .keeper/engine/main.py run "$TASK" "$ITEM"
+
+  write:
+    if: inputs.kind == 'write'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    permissions: { contents: write, pull-requests: write, issues: write, statuses: write, actions: write }
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: ./.github/actions/keeper-setup
+      - name: ${{ inputs.task }} ${{ inputs.item }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          KEEPER_SECRETS: ${{ toJSON(secrets) }}
+          KEEPER_ENABLED: ${{ vars.KEEPER_ENABLED }}
+          TASK: ${{ inputs.task }}
+          ITEM: ${{ inputs.item }}
+        run: uv run --extra dev python .keeper/engine/main.py run "$TASK" "$ITEM"
+
+  agent:
+    if: inputs.kind == 'agent'
+    runs-on: ubuntu-latest
+    timeout-minutes: 300
+    permissions: { contents: write, pull-requests: write, issues: write, discussions: write, actions: write }
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0, persist-credentials: false }
+      - uses: ./.github/actions/keeper-setup
+      - name: start harness-interface, Docker runtime, no credentials
+        run: |
+          mkdir -p "$RUNNER_TEMP/hi"
+          HI_RUNTIME=docker HI_DATA_DIR="$RUNNER_TEMP/hi/data" \
+            nohup uv run --extra server harness-interface > "$RUNNER_TEMP/hi/server.log" 2>&1 &
+          for i in $(seq 120); do curl -sf localhost:8000/sandboxes > /dev/null && exit 0; sleep 1; done
+          cat "$RUNNER_TEMP/hi/server.log"; exit 1
+      - name: ${{ inputs.task }} ${{ inputs.item }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          KEEPER_SECRETS: ${{ toJSON(secrets) }}
+          KEEPER_ENABLED: ${{ vars.KEEPER_ENABLED }}
+          TASK: ${{ inputs.task }}
+          ITEM: ${{ inputs.item }}
+        run: uv run --extra dev python .keeper/engine/main.py run "$TASK" "$ITEM"
+      - name: keep every turn's record
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: keeper-${{ inputs.task }}-${{ inputs.item || 'none' }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/hi/server.log
+            ${{ runner.temp }}/hi/data/records
+            ${{ runner.temp }}/hi/data/logs
+          if-no-files-found: ignore
+          retention-days: 30

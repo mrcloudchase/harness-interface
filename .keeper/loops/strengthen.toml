@@ -1,0 +1,8 @@
+name = "strengthen"
+goal = """Make the tests catch more: add tests or assertions until the mutation score reaches its
+target. Change only tests."""
+verifiers = [
+  { kind = "command", run = "mutation" },
+  { kind = "rule", rules = ["tests_only", "tests_only_grow"] },
+]
+needs = "rigor.mutation"

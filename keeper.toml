@@ -1,0 +1,70 @@
+# Keeper's configuration for this repository. The spec: docs/keeper-spec.md.
+spec = "0.3"
+
+[human]
+login = "mrcloudchase"                      # whose approval the human tier needs, and whose events start work
+
+[branches]
+work = "main"                               # where agents' pull requests land
+release = "main"                            # what releases are cut from; set work = "next" to soak first
+soak = 3                                    # green nightlies on `work` before it is promoted
+
+[checks]                                    # level 1: every one must pass for any pull request
+test = "uv run --extra dev pytest -q"
+docker = "uv run --extra dev pytest -q -m docker"
+lint = "uvx ruff check --select F,E9 --target-version py311 ."
+
+[live]                                      # level 3: nightly, and for repair and upgrade
+command = "uv run --extra server python scripts/live_matrix.py"
+secrets = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY"]   # the only secrets a live run is given
+
+[tiers]                                     # paths only the human approves; everything else is the agents'
+human = [
+  "VISION.md", "AGENTS.md", "keeper.toml", ".keeper/engine/*", ".keeper/tests/*", ".github/*", "scripts/live_matrix.py",
+  "harness_interface/execution.py", "harness_interface/runtimes/*",
+  "harness_interface/harness/contract.py", "harness_interface/resources/default.Dockerfile",
+]
+
+[reviewers]                                 # path → checker roles that must approve; the first match wins
+"harness_interface/*" = ["correctness", "principles", "simplicity"]
+"frontend/*" = ["correctness", "principles"]
+"harnesses/*" = ["correctness"]
+"docs/*" = ["docs"]
+"*.md" = ["docs"]
+".keeper/*" = ["principles"]
+"*" = ["correctness"]
+
+[roles]                                     # role → harness-interface harness
+planner = "claude-code"
+maker = "claude-code"
+checker = "codex"
+writer = "claude-code"
+
+[providers]                                 # harness-interface providers; key = the secret holding it
+anthropic = { url = "https://api.anthropic.com", key = "ANTHROPIC_API_KEY" }
+openai = { url = "https://api.openai.com/v1", key = "OPENAI_API_KEY" }
+deepseek = { url = "https://api.deepseek.com/anthropic", key = "DEEPSEEK_API_KEY" }
+deepseek-openai = { url = "https://api.deepseek.com/v1", key = "DEEPSEEK_API_KEY" }
+
+[budget]
+run_usd = 5
+day_usd = 40
+week_usd = 200
+open_prs = 5
+tries = 3
+
+[rigor]
+size_budget = { path = "harness_interface", glob = "*.py", lines = 2000 }
+mutation = ""                               # a mutation-testing command turns the strengthen loop on
+stable_branch = ""                          # e.g. "stable-1.x" turns backports on
+
+[upgrade]
+targets = ["harness_interface/resources/default.Dockerfile", "pyproject.toml"]
+
+[compat]
+command = ""                                # a downstream project's tests against this checkout turn compat on
+
+[schedule]                                  # cron (UTC) → tasks; .github/workflows/keeper.yml lists the same crons
+"17 3 * * *" = ["nightly", "status"]
+"23 5 * * 1" = ["plan", "upgrade", "simplify", "docs", "evolve"]
+"41 6 * * 1" = ["digest"]

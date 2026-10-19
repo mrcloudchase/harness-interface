@@ -1,0 +1,9 @@
+name = "compat"
+goal = """A downstream project's tests fail against this project's work branch (keeper.toml [compat]).
+Find what this project broke for its users and restore it, without breaking anything else."""
+verifiers = [
+  { kind = "command", run = "checks" },
+  { kind = "rule", rules = ["tests_only_grow", "no_workflows"] },
+  { kind = "live", run = "compat" },
+]
+needs = "compat.command"

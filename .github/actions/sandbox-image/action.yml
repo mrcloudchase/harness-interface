@@ -1,0 +1,30 @@
+# The default sandbox's image, pulled from this repository's packages (sandbox-image.yml publishes
+# it) and tagged with the name the server gives it, so no run builds it. If it isn't published,
+# for a Dockerfile not yet merged, the first run builds it as before. The token is used only to
+# log in and pull, in a step that runs no project code, and is logged out at once.
+name: sandbox-image
+description: Pull the published default sandbox image and name it as the server expects.
+inputs:
+  token: { description: "a GITHUB_TOKEN with packages: read", required: true }
+runs:
+  using: composite
+  steps:
+    - id: name
+      shell: bash
+      run: |
+        tag=$(python3 -c 'from harness_interface.resources import DEFAULT_SANDBOX; print(DEFAULT_SANDBOX.tag)')
+        echo "local=$tag" >> "$GITHUB_OUTPUT"
+        echo "remote=ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/$tag" >> "$GITHUB_OUTPUT"
+    - shell: bash
+      env:
+        LOCAL: ${{ steps.name.outputs.local }}
+        REMOTE: ${{ steps.name.outputs.remote }}
+        TOKEN: ${{ inputs.token }}
+      run: |
+        trap 'docker logout ghcr.io >/dev/null' EXIT
+        echo "$TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin >/dev/null
+        if docker pull -q "$REMOTE"; then
+          docker tag "$REMOTE" "$LOCAL"
+        else
+          echo "::notice::$REMOTE is not published; the first run builds $LOCAL"
+        fi

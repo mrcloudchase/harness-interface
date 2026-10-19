@@ -1,0 +1,53 @@
+# Keeper's entry point: every GitHub event, schedule and dispatch becomes zero or more tasks, each
+# run by keeper-run.yml with only the permissions its kind needs. Only the human's own actions and
+# Keeper's own dispatches start work (.keeper/engine/router.py). The design: docs/keeper-spec.md.
+name: keeper
+
+on:
+  issues: { types: [opened, labeled] }
+  issue_comment: { types: [created] }
+  pull_request: { types: [opened, synchronize, reopened, ready_for_review] }
+  pull_request_review: { types: [submitted] }
+  push: { branches: [main, next] }          # keeper.toml's work and release branches
+  schedule:                                 # the same crons as keeper.toml's [schedule]
+    - cron: "17 3 * * *"
+    - cron: "23 5 * * 1"
+    - cron: "41 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      task: { description: "the task: gate, merge, build, triage, nightly, status, …", required: true }
+      item: { description: "the issue or pull request it works on, if any", required: false, default: "" }
+
+permissions: {}
+
+jobs:
+  route:
+    if: vars.KEEPER_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    permissions: { contents: read }
+    outputs:
+      tasks: ${{ steps.route.outputs.tasks }}
+    steps:
+      - uses: actions/checkout@v4
+        with: { persist-credentials: false }
+      - id: route
+        run: python3 .keeper/engine/main.py route
+
+  run:
+    needs: route
+    if: needs.route.outputs.tasks != '[]'
+    strategy:
+      fail-fast: false
+      max-parallel: 3
+      matrix:
+        task: ${{ fromJSON(needs.route.outputs.tasks) }}
+    concurrency:
+      group: keeper-${{ matrix.task.task }}-${{ matrix.task.item }}
+      cancel-in-progress: false
+    permissions: { contents: write, pull-requests: write, issues: write, statuses: write, actions: write, discussions: write, packages: read }
+    uses: ./.github/workflows/keeper-run.yml
+    with:
+      task: ${{ matrix.task.task }}
+      item: ${{ matrix.task.item }}
+      kind: ${{ matrix.task.kind }}
+    secrets: inherit

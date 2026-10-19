@@ -1,0 +1,10 @@
+# What every Keeper job needs first: room for the sandbox image, and uv.
+name: keeper-setup
+description: Free disk space for the sandbox image and install uv.
+runs:
+  using: composite
+  steps:
+    - name: free disk space for the sandbox image
+      shell: bash
+      run: sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /opt/hostedtoolcache/CodeQL && df -h /
+    - uses: astral-sh/setup-uv@v5

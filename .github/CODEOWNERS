@@ -1,0 +1,11 @@
+# Generated from keeper.toml's [tiers] by Keeper's Owners job. Edit keeper.toml, not this.
+/VISION.md @mrcloudchase
+/AGENTS.md @mrcloudchase
+/keeper.toml @mrcloudchase
+/.keeper/engine/ @mrcloudchase
+/.keeper/tests/ @mrcloudchase
+/.github/ @mrcloudchase
+/scripts/live_matrix.py @mrcloudchase
+/harness_interface/execution.py @mrcloudchase
+/harness_interface/runtimes/ @mrcloudchase
+/harness_interface/harness/contract.py @mrcloudchase

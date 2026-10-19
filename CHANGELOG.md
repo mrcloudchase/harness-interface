@@ -4,6 +4,16 @@ Every release is a section here, newest first, and the newest section's heading 
 A merge to `main` that adds a section releases it: the release workflow tags that version and
 publishes the section as its notes.
 
+## [1.0.5]
+
+- **The default sandbox builds the same way every time.** Its CLIs were pinned, but what they
+  depend on floated, so a release published upstream an hour earlier could break the build (one
+  did: a package that requires a version its publisher never released). npm and uv now resolve
+  every dependency as published by one date, `RESOLVED_AS_OF` in the Dockerfile, which moves
+  forward with the pins. The image's tag changes, so the first run after upgrading builds it once.
+- **The image is published.** `sandbox-image.yml` builds it once per Dockerfile and publishes it to
+  this repository's packages, so a fresh machine can pull it instead of building it.
+
 ## [1.0.4]
 
 - **AGENTS.md** gives anyone changing the code, person or coding agent, the founding principles,

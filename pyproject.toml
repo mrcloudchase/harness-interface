@@ -33,6 +33,6 @@ packages = ["harness_interface", "frontend/cli/hi_cli"]
 "harnesses" = "hi_cli/harnesses"                         # the shipped harnesses travel with the command line
 
 [tool.pytest.ini_options]
-testpaths = ["tests"]
+testpaths = ["tests", ".keeper/tests"]
 addopts = "-m 'not docker'"
 markers = ["docker: needs a running Docker daemon"]

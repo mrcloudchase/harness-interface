@@ -1,0 +1,11 @@
+name = "spec"
+goal = """Write the acceptance tests for this task, and nothing else: tests that encode its acceptance
+criteria and fail on the code as it is now, for the reason the task exists. Put them where the
+project keeps its tests. Change no other file. If tests that already encode the criteria exist,
+change nothing and say so as no_op."""
+verifiers = [
+  { kind = "command", run = "test", expect = "fail" },
+  { kind = "rule", rules = ["tests_only", "tests_only_grow", "no_workflows"] },
+]
+opens_pr = false
+then = "build"

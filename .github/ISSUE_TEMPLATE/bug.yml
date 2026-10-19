@@ -1,0 +1,11 @@
+name: Bug
+description: Something that doesn't work. Keeper triages it, writes a failing test and fixes it.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes: { label: What happened, description: "What you ran, what you expected, what happened. Remove any key." }
+    validations: { required: true }
+  - type: textarea
+    id: record
+    attributes: { label: The record, description: "hi show ID and hi log ID, if a run was involved." }

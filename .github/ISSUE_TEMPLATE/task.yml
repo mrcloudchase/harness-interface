@@ -1,0 +1,12 @@
+name: Task
+description: Something the project should do. Keeper triages it, writes its tests and builds it.
+labels: [task]
+body:
+  - type: textarea
+    id: what
+    attributes: { label: What and why, description: "What should change, and which theme in VISION.md it serves." }
+    validations: { required: true }
+  - type: textarea
+    id: acceptance
+    attributes: { label: Acceptance criteria, description: "How a test can tell it is done, one per line." }
+    validations: { required: true }

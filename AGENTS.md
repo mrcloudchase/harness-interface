@@ -15,6 +15,25 @@ server. With those they build agents, loops and workflows on top of whichever ha
 
 **We don't manage harness protocol; we manage the execution layer.**
 
+## Keeper runs this repository
+
+Coding agents build and maintain this project through Keeper ([the spec](docs/keeper-spec.md)),
+which runs entirely in this repository's GitHub Actions. The human owner steers with
+[VISION.md](VISION.md) and approves only the human tier; everything else is planned, built,
+reviewed, merged and released by Keeper's jobs, prompts and loops.
+
+- **Every task serves a theme in `VISION.md`.** A Keeper PR names it in a `Theme:` trailer.
+- **The human tier** (`[tiers]` in [keeper.toml](keeper.toml)) is the vision, this file, Keeper's
+  engine, tests and configuration, the workflows, and the execution layer: `execution.py`,
+  `runtimes/` (the sandbox's hardening and the egress door) and `harness/contract.py`. A change
+  there waits for the owner. The default sandbox's Dockerfile is the agents' to keep current: the
+  hardening applies whatever it says, and a change to it must pass the live run and a security
+  review, and is published as an image once merged.
+- **Keeper's gate decides what merges:** every `[checks]` command, tests that only grow, the size
+  budget, `area: summary` titles, and the loop's verdict on that exact commit.
+- **If you are an agent working for Keeper,** your role's prompt says what to do and the workflow
+  does the rest: you never push, merge or open anything yourself.
+
 ## Founding principles
 
 Every change keeps all five. A change that needs to break one is the wrong change.
@@ -128,6 +147,7 @@ All but the first have a test. Keep them; to change one, change its test first a
 | give a harness something it doesn't get | its folder (`run.sh`, `files`, `artifacts`) or its sandbox | the contract, or a harness-specific branch |
 | serve another wire format | a package beside `api/`, calling `Service` | the platform |
 | add a command to `hi` | `frontend/cli/hi_cli/` | the server |
+| change how Keeper works here | `.keeper/loops/`, `.keeper/prompts/` | `.keeper/engine/`, `keeper.toml` or the workflows, which are the owner's |
 
 If a change seems to need two layers to learn something new, the lower one is missing a general
 idea; add that. Full guide: [extending](docs/contributors/extending.md).

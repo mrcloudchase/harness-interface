@@ -1,11 +1,14 @@
 # The built-in sandbox: one image for every harness, built once and reused for every run. It holds
-# the CLI of every harness in harnesses/, pinned where its publisher allows, and runs as the
+# the CLI of every harness in harnesses/, pinned where its publisher allows, with what those CLIs
+# depend on resolved as of one date, so a release published since can't change or break it; it runs as the
 # unprivileged user `agent`, uid 1000. Each run mounts its workspace at the workspace's own path and
 # works there, and each harness sets HOME inside it, so the image sets neither. What locks it down
 # is not in here but on every `docker run`: all capabilities dropped, no privilege escalation,
 # read-only root, tmpfs /tmp, pid and memory caps, and an internal network whose only exit is the
 # egress door.
 FROM node:22-bookworm-slim
+# npm and uv resolve every dependency as published by then. Move it forward with the pins.
+ARG RESOLVED_AS_OF=2026-10-19T00:00:00Z
 
 RUN apt-get update \
  && apt-get install -y --no-install-recommends git python3 python3-pip python3-venv ca-certificates curl bzip2 xz-utils unzip \
@@ -13,7 +16,7 @@ RUN apt-get update \
  && curl -LsSf https://astral.sh/uv/install.sh | env UV_INSTALL_DIR=/usr/local/bin sh
 
 # CLIs published on npm
-RUN npm install -g \
+RUN npm install -g --before="$RESOLVED_AS_OF" \
       @anthropic-ai/claude-code@2.1.42 @openai/codex@0.163.0 @deepseek-ai/dsh@0.2.0-rc.2 \
       @earendil-works/pi-coding-agent@1.3.0 @oh-my-pi/pi-coding-agent@18.12.0 gajae-code@0.18.12 \
       opencode-ai@1.19.3 @kilocode/cli@7.8.12 cline@3.0.73 @qwen-code/qwen-code@0.25.2 \
@@ -25,7 +28,7 @@ ENV UV_TOOL_DIR=/opt/uv/tools UV_TOOL_BIN_DIR=/usr/local/bin UV_PYTHON_INSTALL_D
 RUN for t in "aider-chat==0.86.2" "hermes-agent[anthropic]==0.19.0" "openhands==1.16.0" \
              "nanobot-ai==0.3.5" "cheetahclaws==3.5.89" \
              "opensquilla[recommended] @ https://github.com/TokenRhythm/opensquilla/releases/download/v0.5.6/opensquilla-0.5.6-py3-none-any.whl"; do \
-      uv tool install --python 3.12 "$t" || exit 1; done \
+      uv tool install --python 3.12 --exclude-newer "$RESOLVED_AS_OF" "$t" || exit 1; done \
  && pip3 install --no-cache-dir --break-system-packages anthropic \
  && chmod -R a+rX /opt/uv
 
@@ -46,7 +49,7 @@ RUN found() { p="$(command -v "$1" || find "$HOME" -name "$1" -type f -perm -u+x
  && for b in goose kimi grok jcode; do "$b" --version >/dev/null 2>&1 || { echo "$b does not run"; exit 1; }; done
 
 # Bun, the runtime Gajae and OMP run on.
-RUN npm install -g bun@1.4.2 && npm cache clean --force
+RUN npm install -g --before="$RESOLVED_AS_OF" bun@1.4.2 && npm cache clean --force
 
 # The node image already has a `node` user at uid 1000; it makes way for `agent`.
 RUN userdel -r node 2>/dev/null; useradd --create-home --uid 1000 --user-group agent

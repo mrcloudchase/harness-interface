@@ -15,6 +15,7 @@ from pathlib import Path
 DOCKERFILE = Path(__file__).resolve().parents[1] / "harness_interface" / "resources" / "default.Dockerfile"
 NPM = re.compile(r"(?<![\w/.-])((?:@[\w.-]+/)?[\w.-]+)@(\d[\w.+-]*)")      # name@1.2.3, @scope/name@1.2.3
 PYPI = re.compile(r'"([\w.-]+)(?:\[[\w,]+\])?==([\w.+-]+)"')               # "name==1.2.3", "name[extra]==1.2.3"
+AS_OF = re.compile(r"^ARG RESOLVED_AS_OF=(\S+)", re.M)                       # what dependencies resolve as of
 BY_URL = re.compile(r'"([\w.-]+)(?:\[[\w,]+\])? @ (https://[^"]+)"')        # "name @ https://…/name-1.2.3.whl"
 
 
@@ -43,6 +44,8 @@ def main() -> int:
         rows.append(f"{index}  {package:<36} pinned {pinned:<16} latest {newest}"
                     + ("" if newest == pinned else "   ← behind"))
     print("\n".join(rows))
+    print(f"\nEverything they depend on resolves as published by {AS_OF.search(dockerfile).group(1)} "
+          "(ARG RESOLVED_AS_OF); move it forward with the pins, to a time after the newest pin's release.")
     for package, url in BY_URL.findall(dockerfile):
         print(f"url  {package:<36} pinned by {url}: check its releases by hand")
     print("\nCLIs installed by their vendors' own scripts (curl … | bash) take the latest at build time; nothing pins them.")

@@ -3,6 +3,14 @@
 Every release has a section here; the release workflow publishes it as the release's notes. Add
 to "Unreleased" as you change things, and rename it to the version when you bump it.
 
+## [Unreleased]
+
+- **AGENTS.md** gives anyone changing the code, person or coding agent, the founding principles,
+  the layers, the flow of a turn, the rules that always hold and where each change goes.
+- **The harness contract is closed.** The server assumes only that a harness takes input and
+  returns output, so nothing is added to the contract; a harness builds anything more in its own
+  folder. The contributor docs now say so.
+
 ## [1.0.3]
 
 - **Bring artifacts to any harness.** Drop files in a harness's folder and list them in its

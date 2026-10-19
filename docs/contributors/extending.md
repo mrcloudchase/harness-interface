@@ -12,7 +12,7 @@ general idea. Add that, not the special case.
 | run things somewhere new (a VM, Kubernetes, a remote host) | a new `Runtime` in `runtimes/`, and a `Placement` | the harness contract or the platform |
 | choose harnesses another way | a new `Router` in `routing.py` | the platform or the API |
 | store resources or records somewhere else | a class with `JsonStore`'s four methods, built in `Registry` and `Service` | the registry's callers |
-| give every harness something new | the contract, in `harness/contract.py` | a harness-specific branch anywhere |
+| give a harness something it doesn't get | its folder: `run.sh`, `files`, `artifacts`; or its sandbox | the contract, or a harness-specific branch anywhere |
 | serve another wire format | a package beside `api/`, calling `Service`, given layer 7 in `tests/test_layers.py` | the platform |
 | add a command to `hi` | `frontend/cli/hi_cli/` | the server |
 
@@ -36,9 +36,9 @@ harness-interface:
    the list in the root README.
 5. `test_every_shipped_harness_loads_and_prepares` checks it loads and prepares, and
    `test_every_shipped_harness_puts_dropped_artifacts_in_place` that it carries the shared
-   artifacts lines and an `artifacts` file; the first counts the shipped harnesses, so raise its
-   count. Run it live,
-   two turns with instructions, as in [Testing](testing.md#live-checks).
+   artifacts lines and an `artifacts` file. The shipped harnesses are counted in that first test
+   and in `test_pack_and_the_shipped_harnesses` in `test_cli.py`, so raise both counts. Run it
+   live, two turns with instructions, as in [Testing](testing.md#live-checks).
 
 ## Add a runtime
 
@@ -65,17 +65,17 @@ the model to pass through. It decides only; it never runs, stores or resolves an
 harness: its workspace and session belong to that harness. Pass it to `Service(router=...)`; the
 server builds its `Service` in `build` in `api/app.py`.
 
-## Change the harness contract
+## The harness contract is closed
 
-The contract is the one interface every harness depends on, so change it by adding, not by
-changing:
-- **A new variable or placeholder:** add it to `prepare` in `harness/contract.py`, to the
-  contract test in `test_harness.py`, and to [the contract](../users/harness-contract.md). If a
-  harness's argv, env or files could use it, add it to the template context too.
-- **A new field a harness reports:** read it strictly in `collect`, so a wrong type is ignored
-  rather than trusted, and add it to `Result`, the `Record` and the wire format.
-- **Never remove or repurpose one.** Shipped and third-party harnesses depend on it. If one has
-  to go, that is a major version.
+The execution layer doesn't care that it runs a harness. It gives a program its inputs and
+returns its outputs, and that is all it can count on from any harness, now or in the future. So
+the contract in `harness/contract.py` is fixed:
+- **Nothing is added:** no new variable, placeholder, `harness.json` field or reported key.
+- **Nothing is removed or repurposed:** shipped and third-party harnesses depend on all of it.
+
+What a harness needs beyond that, it builds in its own folder from what it already gets: `run.sh`
+maps the inputs onto its CLI, and `report.py` maps the CLI's output onto the report. A change that
+seems to need the contract to know more about harnesses belongs in a harness folder or a sandbox.
 
 ## Add an endpoint
 

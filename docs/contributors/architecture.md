@@ -54,7 +54,7 @@ all three:
 | `runtimes/egress.py` | the egress door: a CONNECT-only allowlist proxy, run inside its own container | the door's rules change |
 | `workspace.py` | `Workspace`: init, write, snapshot, changes, diff, files, read; internal paths hidden | what a change or a file means changes |
 | `harness/template.py` | `{name}` placeholders, the one templating mechanism | rarely |
-| `harness/contract.py` | `harness.json` (`Harness`, `Run`), `Provider`, `Request`, `Result`, and `prepare`/`collect`: what a harness is given and what is read back | the harness contract changes |
+| `harness/contract.py` | `harness.json` (`Harness`, `Run`), `Provider`, `Request`, `Result`, and `prepare`/`collect`: what a harness is given and what is read back | never to add to it: the contract is closed ([extending](extending.md#the-harness-contract-is-closed)) |
 | `harness/turn.py` | `Turn`: prepare, start, stream, cancel, collect, snapshot | how a turn is sequenced changes |
 | `resources/store.py` | `JsonStore`: one JSON file per item, written whole | storage changes |
 | `resources/registry.py` | `Registry`: the three kinds, the built-in `default` sandbox, `resolve` | a resource kind is added or changes |

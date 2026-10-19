@@ -1,6 +1,6 @@
 [project]
 name = "harness-interface"
-version = "1.0.2"
+version = "1.0.3"
 description = "Run any harness in a sandbox: an execution library, an OpenAI Responses-compatible server, and `hi`, its command line."
 readme = "README.md"
 requires-python = ">=3.11"

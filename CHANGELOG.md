@@ -3,12 +3,12 @@
 Every release has a section here; the release workflow publishes it as the release's notes. Add
 to "Unreleased" as you change things, and rename it to the version when you bump it.
 
-## [Unreleased]
+## [1.0.3]
 
 - **Bring artifacts to any harness.** Drop files in a harness's folder and list them in its
   `artifacts` file, which every shipped folder has, listing nothing; every shipped `run.sh` puts
-  them under the CLI's home before each turn. Skills,
-  settings, MCP servers, hooks: whatever that CLI reads, with no server change.
+  them under the CLI's home before each turn. Skills, settings, MCP servers, hooks: whatever that
+  CLI reads, with no server change.
 - **The harness guide says what a harness is, and whose choices it holds:** three files, and every
   CLI setting (permissions, MCP servers, skills, hooks) is the harness author's to configure.
 - **Every shipped harness is a template you can read.** Each `run.sh` now explains every setting

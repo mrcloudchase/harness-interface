@@ -18,8 +18,9 @@ flowchart LR
 - **The server owns the run:** the sandbox, the conversation's workspace and session, streaming,
   cancelling, timeouts, and the record of what happened.
 - **A harness owns everything about its CLI.** It is a folder: a `harness.json`, and a script
-  that turns the request into the CLI's own flags. It decides where instructions go, how a
-  session resumes, which API the CLI speaks, and how its output becomes an answer.
+  that turns the request into the CLI's own flags, plus any artifacts it brings: settings,
+  skills, MCP config. It decides where instructions go, how a session resumes, which API the CLI
+  speaks, how its output becomes an answer, and how the CLI is configured.
 
 ## The words
 

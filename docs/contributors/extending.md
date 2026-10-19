@@ -23,8 +23,10 @@ A harness is configuration, so adding one changes no platform code.
 [harness contract](../users/harness-contract.md) has every field and variable. To ship it with
 harness-interface:
 
-1. Add `harnesses/NAME/`: `harness.json`, `run.sh` and, if its output needs translating,
-   `report.py`. Follow a shipped harness that is close to yours.
+1. Add `harnesses/NAME/`: `harness.json`, `run.sh`, an `artifacts` file and, if its output
+   needs translating, `report.py`. Copy a shipped harness that is close to yours: its `run.sh`
+   opens with the lines that place artifacts, which every shipped harness shares word for word,
+   and its `artifacts` file lists nothing.
 2. Put the request's instructions where the CLI reads them, usually `AGENTS.md` through
    `files`, or a flag. Resume with `HI_SESSION_ID`, and report the session the CLI gives back.
 3. If its CLI isn't in the default sandbox, add it to `resources/default.Dockerfile`, pinned to
@@ -32,7 +34,10 @@ harness-interface:
    once on upgrade.
 4. Add a row to the table in [harnesses/README.md](../../harnesses/README.md), and its name to
    the list in the root README.
-5. `test_every_shipped_harness_loads_and_prepares` checks it loads and prepares. Run it live,
+5. `test_every_shipped_harness_loads_and_prepares` checks it loads and prepares, and
+   `test_every_shipped_harness_puts_dropped_artifacts_in_place` that it carries the shared
+   artifacts lines and an `artifacts` file; the first counts the shipped harnesses, so raise its
+   count. Run it live,
    two turns with instructions, as in [Testing](testing.md#live-checks).
 
 ## Add a runtime

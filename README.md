@@ -131,8 +131,10 @@ OpenCode, OpenHands, OpenSquilla, Pi and Qwen Code. [harnesses/](harnesses/READM
 one's default provider and notes.
 
 A harness's provider is a default, not a limit: Claude Code runs on DeepSeek by changing one word
-([providers](docs/users/providers.md)). Your own CLI is two files away
-([write a harness](docs/users/harnesses.md#write-your-own)).
+([providers](docs/users/providers.md)). Configure any of them your way: drop skills, settings
+or MCP config in its folder and it brings them to every run
+([configure it your way](docs/users/harnesses.md#configure-it-your-way)). Your own CLI is two
+files away ([write a harness](docs/users/harnesses.md#write-your-own)).
 
 ## Use it from code
 

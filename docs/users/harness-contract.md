@@ -10,7 +10,11 @@ my-harness/
   harness.json     how it runs
   run.sh           the command, by default
   report.py …      any other files it needs; all of them are its scripts
+  artifacts        the files it brings, and where they go (the shipped harnesses' convention)
 ```
+
+`artifacts` is not part of the contract: the server never reads it. Every shipped `run.sh` reads
+it and puts the files it lists in place ([bring artifacts](harnesses.md#configure-it-your-way)).
 
 The PUT body for `/harnesses/{name}` is `harness.json` plus a `scripts` object, holding every
 other file in the folder by name. `hi harness add ./my-harness` builds that body for you.

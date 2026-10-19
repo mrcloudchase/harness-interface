@@ -9,4 +9,3 @@
 /harness_interface/execution.py @mrcloudchase
 /harness_interface/runtimes/ @mrcloudchase
 /harness_interface/harness/contract.py @mrcloudchase
-/harness_interface/resources/default.Dockerfile @mrcloudchase

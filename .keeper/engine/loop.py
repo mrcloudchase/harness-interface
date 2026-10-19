@@ -38,9 +38,19 @@ class Loop:
         the work branch it will land on."""
         self.ctx, self.doc, self.issue, self.memory = ctx, doc, issue, memory
         self.start, self.since = start, since
+        self.facts = ""
+
+    def gather(self) -> str:
+        """The output of the loop's `context` command, run on the runner, which can reach what an
+        agent's sandbox can't: a package index, say. No credentials."""
+        command = self.ctx.config.setting(self.doc.context) if self.doc.context else ""
+        if not command:
+            return ""
+        ok, out = self.ctx.workspace.run(command)
+        return f"## {'Facts from outside your sandbox' if ok else 'Gathering facts failed'} (`{command}`)\n\n{out.strip()}"
 
     def prompt(self, feedback: str) -> str:
-        parts = [self.doc.goal.strip(), task_text(self.issue)]
+        parts = [self.doc.goal.strip(), task_text(self.issue), *([self.facts] if self.facts else [])]
         if feedback:
             parts.append(f"## What failed last time, verbatim\n\n{feedback}")
         parts.append(RESULT + ' Shape: {"title": "<area>: <summary>", "summary": "<what you changed and why>"}'
@@ -58,6 +68,7 @@ class Loop:
     def run(self) -> Outcome:
         ctx, ws, memory = self.ctx, self.ctx.workspace, self.memory
         memory.state.loop = self.doc.name
+        self.facts = self.gather()
         tries, last, feedback = self.doc.tries or ctx.config.budget.tries, STALLED, ""
         before = memory.state.spent()
         spent = lambda: round(memory.state.spent() - before, 4)    # this run's spend, judges included

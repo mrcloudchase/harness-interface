@@ -103,6 +103,15 @@ def test_spec_writes_failing_tests_and_hands_over_to_build(project, gh):
     assert "tests/test_checked.py" in git(project, "show", "--stat", f"keeper/{n}~1")
 
 
+def test_a_loop_is_given_facts_its_sandbox_cannot_reach(project, gh):
+    rt = scripted({"result": {"no_op": "everything is current"}})
+    assert tasks.run_loop(make_ctx(project, gh, rt), "upgrade", "").startswith("no_op")
+    assert "Facts from outside your sandbox" in rt.turns[0]["text"] and "left-pad pinned 1.0 latest 1.3" in rt.turns[0]["text"]
+    rt = scripted({"result": {"no_op": "nothing to do"}})
+    tasks.run_loop(make_ctx(project, gh, rt), "docs", "")
+    assert "Facts from outside" not in rt.turns[0]["text"]                      # only a loop that names a context
+
+
 def test_a_scheduled_loop_keeps_a_weekly_issue(project, gh):
     rt = scripted({"result": {"no_op": "docs match"}})
     tasks.run_loop(make_ctx(project, gh, rt), "docs", "")

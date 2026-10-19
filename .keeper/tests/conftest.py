@@ -44,6 +44,11 @@ open_prs = 3
 tries = 2
 [rigor]
 size_budget = { path = "src", glob = "*.py", lines = 50 }
+[upgrade]
+targets = ["deps.txt"]
+versions = "echo 'left-pad pinned 1.0 latest 1.3'"
+[publish]
+"CHANGELOG.md" = "release.yml"
 [schedule]
 "0 3 * * *" = ["nightly", "status"]
 """
@@ -74,6 +79,8 @@ def project(tmp_path):
     (root / "live.sh").write_text("test ! -f live-broken.txt\n")
     (root / "src").mkdir()
     (root / "src" / "app.py").write_text("def add(a, b):\n    return a + b\n")
+    (root / ".github" / "workflows").mkdir(parents=True)
+    (root / ".github" / "workflows" / "release.yml").write_text("on: workflow_dispatch\n")
     (root / "tests").mkdir()
     (root / "tests" / "test_app.py").write_text("def test_add():\n    assert 1 + 1 == 2\n    assert True\n")
     git(root, "init", "-q", "-b", "main")

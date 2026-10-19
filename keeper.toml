@@ -22,10 +22,11 @@ secrets = ["ANTHROPIC_API_KEY", "OPENAI_API_KEY", "DEEPSEEK_API_KEY"]   # the on
 human = [
   "VISION.md", "AGENTS.md", "keeper.toml", ".keeper/engine/*", ".keeper/tests/*", ".github/*", "scripts/live_matrix.py",
   "harness_interface/execution.py", "harness_interface/runtimes/*",
-  "harness_interface/harness/contract.py", "harness_interface/resources/default.Dockerfile",
+  "harness_interface/harness/contract.py",
 ]
 
 [reviewers]                                 # path → checker roles that must approve; the first match wins
+"harness_interface/resources/default.Dockerfile" = ["correctness", "security"]
 "harness_interface/*" = ["correctness", "principles", "simplicity"]
 "frontend/*" = ["correctness", "principles"]
 "harnesses/*" = ["correctness"]
@@ -60,6 +61,11 @@ stable_branch = ""                          # e.g. "stable-1.x" turns backports 
 
 [upgrade]
 targets = ["harness_interface/resources/default.Dockerfile", "pyproject.toml"]
+versions = "python3 scripts/latest_versions.py"   # run on the runner; the Upgrade loop's agent is given its output
+
+[publish]                                   # a change Keeper merges to the release branch → the workflow it dispatches
+"CHANGELOG.md" = "release.yml"
+"harness_interface/resources/default.Dockerfile" = "sandbox-image.yml"
 
 [compat]
 command = ""                                # a downstream project's tests against this checkout turn compat on

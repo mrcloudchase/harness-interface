@@ -113,7 +113,7 @@ Bringing in a later version is a human-tier PR.
 |---|---|---|
 | **Gate** | a PR opened or updated by a person, a human review, or a dispatch | checks out the PR head; runs every `[checks]` command; re-runs a failure once, and a pass the second time is a flake (filed, not blamed on the PR); applies the rules `tests_only_grow`, `size_budget`, `commit_format`, `themed`, `verified`; holds human-tier paths until the human approves this exact commit, unless the human wrote the PR. Sets the commit status `keeper/gate`. A Keeper PR that passes is dispatched to Merge. |
 | **Merge** | a dispatch from Gate | squash-merges a Keeper PR whose `keeper/gate` is success, with its trailers (§11). The promotion PR is merged with a merge commit. Then dispatches the follow-ups (§5.4). |
-| **Release** | a follow-up of a Keeper merge that changed `CHANGELOG.md` on the release branch | dispatches the project's own release workflow, which tags the newest changelog section if it is untagged |
+| **Publish** | a follow-up of a Keeper merge to the release branch that changed a path `[publish]` names | dispatches the workflow it names: the project's release (which tags the newest changelog section if it is untagged), its sandbox image, anything it publishes |
 | **Nightly** | schedule | runs `[live]` on the work branch. Green: records the commit and counts the streak; after `soak` green runs on a separate work branch, dispatches Promote. Red: files a regression issue with the last green commit, and dispatches Revert. |
 | **Revert** | a dispatch from Nightly | finds the culprit (the only commit since the last green, or `git bisect run` with the live command), writes its diff into the regression issue, opens a revert PR, and dispatches Gate. Merging it dispatches Repair. |
 | **Promote** | a dispatch from Nightly, when `work` ≠ `release` | opens a PR from the work branch to the release branch, verified by the streak, and dispatches Gate |
@@ -154,13 +154,13 @@ is also given `AGENTS.md` and `VISION.md`, which no prompt repeats.
 
 ### 5.4 Follow-ups
 After Keeper merges a PR, it dispatches what that PR's paths and labels need. A push by the human
-to the work or release branch sets off the same tasks, except Release, which the push starts itself.
+to the work or release branch sets off the same tasks, except Publish: the push starts those workflows itself.
 
 | When the change | Dispatch |
 |---|---|
 | touches `VISION.md` | Labels, Plan |
 | touches `keeper.toml` | Owners |
-| touches `CHANGELOG.md` on the release branch, merged by Keeper | Release |
+| touches a path `[publish]` names, merged by Keeper to the release branch | Publish, with that path's workflow |
 | is a revert, with `Regression: #n` | Repair on #n |
 | carries `Cc: stable`, with a stable branch set | Backport |
 | is labelled `design` | Decide |
@@ -203,7 +203,7 @@ A loop succeeds only when every verifier it lists passes. Judges count.
 | **Build** | a dispatch from Spec | every check passes and the judges approve | command `checks`; rules `tests_only_grow`, `size_budget`, `no_workflows`; judge | a PR, then Gate |
 | **Repair** | a dispatch after a revert merges | the reverted change re-lands with its fix | command `checks`; rules; live | a PR |
 | **Flake** | a dispatch from Gate | the test passes 5 runs out of 5 | command `test` ×5; rules `tests_only_grow`, `no_workflows` | a PR |
-| **Upgrade** | weekly, if `[upgrade].targets` is set | the pins are current and checks and the live run pass | command `checks`; rules; live | a PR |
+| **Upgrade** | weekly, if `[upgrade].targets` is set | the pins are current and checks and the live run pass | command `checks`; rules; live. Its maker is given `[upgrade].versions`'s output: the latest releases, which its sandbox can't look up | a PR |
 | **Strengthen** | weekly, if `[rigor].mutation` is set | the mutation score reaches its target | command `mutation`; rules `tests_only`, `tests_only_grow` | a PR |
 | **Simplify** | weekly, if `[rigor].size_budget` is set | fewer lines, every check passing | command `checks`; rules `size_decreased`, `tests_only_grow`, `no_workflows`; judges `simplicity`, `principles` | a PR |
 | **Docs** | weekly | the docs match the code | command `checks`; rules; judge `docs` | a PR |
@@ -211,7 +211,8 @@ A loop succeeds only when every verifier it lists passes. Judges count.
 | **Evolve** | weekly | the loops and prompts changed, Keeper's tests pass, and the replay (§8.4) accepts the last accepted builds again for no more than they cost | rule `keeper_paths`; command Keeper's tests; command the replay; judge `principles` | a PR |
 
 A project adds a loop by adding a document to `.keeper/loops/`, with these fields: `name`, `goal`,
-`verifiers`, and optionally `maker`, `escalate`, `tries`, `opens_pr`, `then`, `needs`. It never
+`verifiers`, and optionally `maker`, `escalate`, `tries`, `opens_pr`, `then`, `needs`, and `context`: a
+setting naming a command, run on the runner without credentials, whose output the maker is given. It never
 adds engine code for one.
 
 ---
@@ -249,7 +250,8 @@ everything under `src/`. The reference is harness-interface's own `keeper.toml`.
 | `[providers]` | name → `url`, and `key`: the name of the secret holding it |
 | `[budget]` | `run_usd`, `day_usd`, `week_usd`, `open_prs`, `tries` |
 | `[rigor]` | `size_budget` (`path`, `glob`, `lines`), `mutation`, `stable_branch`, and optionally `tests`, `test_pattern`, `assert_pattern` for a language other than Python |
-| `[upgrade]` | `targets`: what the Upgrade loop keeps current |
+| `[upgrade]` | `targets`: what the Upgrade loop keeps current; `versions`: a command that lists each pin and its latest release |
+| `[publish]` | path → a workflow in `.github/workflows` that Keeper dispatches on the release branch when it merges a change to that path |
 | `[compat]` | `command`: the downstream projects' tests against this checkout |
 | `[schedule]` | cron (UTC) → tasks; `keeper.yml` lists the same crons, and a test keeps them equal |
 
@@ -275,7 +277,7 @@ escalate = ["maker", "checker"]
 | Kind | Tasks | `permissions:` | Has |
 |---|---|---|---|
 | `gate` | Gate | `contents: read`, `pull-requests: write`, `issues: write`, `statuses: write`, `actions: write` | `GITHUB_TOKEN` |
-| `write` | Merge, Release, Nightly, Revert, Promote, Backport, Labels, Owners, Status | the same with `contents: write`, and `packages: read` | `GITHUB_TOKEN`, secrets (for live runs) |
+| `write` | Merge, Publish, Nightly, Revert, Promote, Backport, Labels, Owners, Status | the same with `contents: write`, and `packages: read` | `GITHUB_TOKEN`, secrets (for live runs) |
 | `agent` | every prompt and loop | `contents`, `pull-requests`, `issues`, `discussions`, `actions`: `write`; `packages: read` | `GITHUB_TOKEN`, secrets, a harness-interface server |
 
 Every checkout is made with `persist-credentials: false`. `GITHUB_TOKEN` and the secrets (as
@@ -318,9 +320,10 @@ start = workspace.start("keeper/<n>", work)              # the branch, as origin
 since = merge_base(start, origin/work)                   # what the change is measured against
 for role in doc.escalate:
     reset to start; a fresh conversation; forget the last failure
+    (once, before the first role: facts = the output of the doc's context command, if it has one)
     for each try:
         governor.allow(this run's spend)          else → blocked
-        turn = runtime.turn(harness(role), instructions(maker), goal + task + feedback,
+        turn = runtime.turn(harness(role), instructions(maker), goal + task + facts + feedback,
                             files = seed if it is the conversation's first turn)
         record the turn's spend; apply its changes (never its own instruction files, .home, .hi, keeper.json)
         nothing changed and keeper.json says no_op  → no_op
@@ -406,7 +409,7 @@ A pinned issue, "Keeper status", rewritten daily and after every merge:
 ### 10.1 What the token can and can't do
 | Fact | What Keeper does about it |
 |---|---|
-| Events it causes (a PR, a label, a push, a merge) **start no new workflow runs**, except `workflow_dispatch` | Keeper chains its own steps with `workflow_dispatch` on `keeper.yml` (`actions: write`). A merge by Keeper dispatches the release workflow too. The human's own actions arrive as ordinary events. |
+| Events it causes (a PR, a label, a push, a merge) **start no new workflow runs**, except `workflow_dispatch` | Keeper chains its own steps with `workflow_dispatch` on `keeper.yml` (`actions: write`). A merge by Keeper dispatches the workflows `[publish]` names for its paths, such as the release. The human's own actions arrive as ordinary events. |
 | It **can't approve a PR it opened** | The required check is `keeper/gate`. It needs the loop's verdict for the head commit and, for human-tier paths, the human's approval of that commit. |
 | It **can't change `.github/workflows/`** | Workflows are the human's by construction; a loop's change to them fails before it is pushed. |
 | It **can't reach Projects** | The board is the status issue; themes are labels; epics have sub-issues. |
@@ -478,6 +481,7 @@ Labels are created by the Labels job.
 | a test deleted or weakened | the `tests_only_grow` rule, in the loops and at the Gate |
 | a loop without a deterministic verifier | `LoopDoc` refuses it |
 | a role without a prompt, or a harness | `Config` refuses it |
+| a `[publish]` entry naming a workflow that isn't there | `Config` refuses it |
 | `success` without every verifier passing | `Loop.run` |
 | spend past budget | the Governor, before every turn |
 | work started by anyone but the human | `route` acts only on the human's events and on dispatches |
@@ -496,8 +500,9 @@ Each row has a test in `.keeper/tests/`, except the rulesets, which are GitHub's
 2. **Write** `VISION.md` and `keeper.toml`, and make sure `AGENTS.md` describes the project.
    `keeper.toml`'s `[checks]` are the project's own commands. `[roles]` names any harness-interface
    harness.
-3. **Make** the project's checks and its release workflow run from a clean checkout. Keeper
-   dispatches a workflow named `release.yml` with `workflow_dispatch`.
+3. **Make** the project's checks and its release workflow run from a clean checkout. Give every
+   workflow Keeper should start after its merges (the release, an image) a `workflow_dispatch`
+   trigger, and name it in `[publish]`.
 4. **Settings** (§10.3), once. Then set `KEEPER_ENABLED=true`.
 5. **Kick it off:**
    - run Labels, then Status (`gh workflow run keeper.yml -f task=labels`);

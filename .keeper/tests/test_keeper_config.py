@@ -39,6 +39,9 @@ def test_refusals(project):
     (project / "keeper.toml").write_text(toml.replace('writer = "write-cli"\n', ""))
     with pytest.raises(ConfigError, match="writer"):
         Config.load(project)
+    (project / "keeper.toml").write_text(toml.replace('"release.yml"', '"nowhere.yml"'))
+    with pytest.raises(ConfigError, match="nowhere.yml"):
+        Config.load(project)
     (project / "keeper.toml").write_text(toml)
     (project / ".keeper" / "loops" / "bad.toml").write_text('name = "other"\ngoal = "x"\nverifiers = [{ kind = "rule" }]\n')
     with pytest.raises(ConfigError, match="names its loop"):

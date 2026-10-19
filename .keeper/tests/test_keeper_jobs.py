@@ -74,7 +74,8 @@ def test_merge_only_after_the_gate_and_then_its_follow_ups(project, gh):
     assert jobs.merge(ctx, pr["number"]) == "merged"
     m = gh.merged[0]
     assert m["method"] == "squash" and "Closes #2" in m["message"] and "Theme: fast-tests" in m["message"] and "noise" not in m["message"]
-    assert {t for t, _ in gh.dispatched} >= {"labels", "plan", "release", "status"}
+    assert {"labels", "plan", "status"} <= {t for t, _ in gh.dispatched} and ("publish", "release.yml") in gh.dispatched
+    assert jobs.publish(ctx, "release.yml") == "dispatched release.yml" and gh.workflows == ["release.yml"]
 
 
 def test_follow_ups(project, gh):

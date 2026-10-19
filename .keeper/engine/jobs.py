@@ -1,5 +1,5 @@
 """The deterministic tasks: rules written as code, no agent anywhere. Gate decides what may merge;
-Merge, Release, Nightly, Revert, Backport, Promote, Labels, Owners and Status keep the project
+Merge, Publish, Nightly, Revert, Backport, Promote, Labels, Owners and Status keep the project
 moving and visible."""
 from __future__ import annotations
 
@@ -98,15 +98,16 @@ def merge(ctx, n: int) -> str:
 
 
 def follow_ups(config, paths, branch: str, pr: dict | None = None, by_keeper: bool = False) -> list[tuple[str, str]]:
-    """The tasks a change to `branch` sets off. Keeper's own merges start no workflow, so they also
-    dispatch the release; a human's push starts it already."""
+    """The tasks a change to `branch` sets off. Keeper's own merges start no workflow, so a merge to
+    the release branch also dispatches what `[publish]` names for its paths; a human's push starts
+    those workflows already."""
     tasks: list[tuple[str, str]] = []
     if "VISION.md" in paths:
         tasks += [("labels", ""), ("plan", "")]
     if "keeper.toml" in paths:
         tasks.append(("owners", ""))
-    if by_keeper and branch == config.release and "CHANGELOG.md" in paths:
-        tasks.append(("release", ""))
+    if by_keeper and branch == config.release:
+        tasks += [("publish", workflow) for path, workflow in config.publish.items() if path in paths]
     if pr:
         labels = {label["name"] for label in pr.get("labels", [])}
         body = pr.get("body") or ""
@@ -120,11 +121,11 @@ def follow_ups(config, paths, branch: str, pr: dict | None = None, by_keeper: bo
     return tasks
 
 
-def release(ctx, _=None) -> str:
-    """The project's release workflow, started on the release branch: it tags the newest changelog
-    section if it isn't tagged yet."""
-    ctx.gh.dispatch("", "", ref=ctx.config.release, workflow="release.yml")
-    return "dispatched"
+def publish(ctx, workflow: str) -> str:
+    """One of the project's own publishing workflows, started on the release branch: the release, an
+    image, whatever `[publish]` names."""
+    ctx.gh.dispatch("", "", ref=ctx.config.release, workflow=workflow)
+    return f"dispatched {workflow}"
 
 
 # ── Nightly, Revert, Promote, Backport ─────────────────────────────────────────────────────────

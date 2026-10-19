@@ -45,6 +45,6 @@ def test_a_push_sets_off_what_its_paths_need(project):
             "commits": [{"added": [], "modified": ["VISION.md", "keeper.toml", "CHANGELOG.md"], "removed": []}]}
     tasks = route(c, "push", push)
     assert ("labels", "") in tasks and ("plan", "") in tasks and ("owners", "") in tasks and ("status", "") in tasks
-    assert ("release", "") not in tasks                  # the human's push starts the release workflow itself
+    assert not any(t == "publish" for t, _ in tasks)     # the human's push starts the publishing workflows itself
     assert route(c, "push", {**push, "ref": "refs/heads/feature"}) == []
     assert route(c, "push", {**push, "sender": {"login": "stranger"}}) == []

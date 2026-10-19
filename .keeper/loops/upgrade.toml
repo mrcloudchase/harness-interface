@@ -8,3 +8,4 @@ verifiers = [
   { kind = "live" },
 ]
 needs = "upgrade.targets"
+context = "upgrade.versions"

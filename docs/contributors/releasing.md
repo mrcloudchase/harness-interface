@@ -71,7 +71,7 @@ finds the image already there and builds nothing.
 | When | It |
 |---|---|
 | a pull request changes the Dockerfile | builds it and runs its CLIs, to prove it builds |
-| that change merges to `main` | builds and publishes it |
+| that change merges to `main` | builds and publishes it; when Keeper merges it, Keeper starts this workflow itself (`[publish]` in `keeper.toml`), since its merges start no workflows |
 | someone runs it by hand | rebuilds and republishes it, with the latest release of the CLIs whose vendors' installers fetch one |
 
 The image holds the CLIs and nothing secret. The build has an empty context, no build arguments

@@ -51,6 +51,7 @@ class LoopDoc:
     then: str = ""                          # the task to dispatch after success or no_op
     opens_pr: bool = True                   # False: the work stays on its branch for `then`
     needs: str = ""                         # a config key that must be set, or the loop is off
+    context: str = ""                       # a config key naming a command: its output is given to the maker
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "verifiers", tuple(v if isinstance(v, Verify) else Verify(**v) for v in self.verifiers))
@@ -90,6 +91,7 @@ class Config:
     rigor: dict = field(default_factory=dict)
     upgrade: dict = field(default_factory=dict)
     compat: dict = field(default_factory=dict)
+    publish: dict = field(default_factory=dict)   # path → workflow dispatched when Keeper merges a change to it
     work: str = "main"                       # where agents' PRs land
     release: str = "main"                    # what releases are cut from
     soak: int = 3                            # green nightlies on `work` before promoting it
@@ -115,6 +117,7 @@ class Config:
                          roles=d["roles"], providers=d["providers"], budget=Budget(**d["budget"]),
                          loops=loops, schedule=d.get("schedule", {}), live=d.get("live", {}),
                          rigor=d.get("rigor", {}), upgrade=d.get("upgrade", {}), compat=d.get("compat", {}),
+                         publish=d.get("publish", {}),
                          work=branches.get("work", "main"), release=branches.get("release", "main"),
                          soak=branches.get("soak", 3), spec=d.get("spec", ""))
         except KeyError as e:
@@ -140,6 +143,9 @@ class Config:
         for cron, tasks in self.schedule.items():
             if not tasks:
                 raise ConfigError(f"schedule {cron!r} runs nothing")
+        for path, workflow in self.publish.items():
+            if not (self.root / ".github" / "workflows" / workflow).is_file():
+                raise ConfigError(f"[publish] {path!r} names {workflow!r}, which is not in .github/workflows")
 
     def harness(self, role: str) -> str:
         """The harness a role runs on: `checker-security` falls back to `checker`."""
@@ -161,12 +167,14 @@ class Config:
                     break
         return roles
 
+    def setting(self, key: str):
+        """A setting by its dotted name, as loop documents name them: `upgrade.targets`."""
+        section, _, name = key.partition(".")
+        return getattr(self, section, {}).get(name)
+
     def enabled(self, loop: LoopDoc) -> bool:
         """A loop that needs a setting runs only once the setting is there."""
-        if not loop.needs:
-            return True
-        section, _, key = loop.needs.partition(".")
-        return bool(getattr(self, section, {}).get(key))
+        return not loop.needs or bool(self.setting(loop.needs))
 
     def tasks_for(self, cron: str) -> list[str]:
         return list(self.schedule.get(cron, []))

@@ -25,7 +25,10 @@ reviewed, merged and released by Keeper's jobs, prompts and loops.
 - **Every task serves a theme in `VISION.md`.** A Keeper PR names it in a `Theme:` trailer.
 - **The human tier** (`[tiers]` in [keeper.toml](keeper.toml)) is the vision, this file, Keeper's
   engine, tests and configuration, the workflows, and the execution layer: `execution.py`,
-  `runtimes/`, `harness/contract.py`, `default.Dockerfile`. A change there waits for the owner.
+  `runtimes/` (the sandbox's hardening and the egress door) and `harness/contract.py`. A change
+  there waits for the owner. The default sandbox's Dockerfile is the agents' to keep current: the
+  hardening applies whatever it says, and a change to it must pass the live run and a security
+  review, and is published as an image once merged.
 - **Keeper's gate decides what merges:** every `[checks]` command, tests that only grow, the size
   budget, `area: summary` titles, and the loop's verdict on that exact commit.
 - **If you are an agent working for Keeper,** your role's prompt says what to do and the workflow

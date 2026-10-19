@@ -12,7 +12,7 @@ from loop import Loop, publish
 from memory import Memory, Scratch
 from workspace import Workspace
 
-JOBS = {f.__name__: f for f in (jobs.merge, jobs.release, jobs.nightly, jobs.revert, jobs.promote,
+JOBS = {f.__name__: f for f in (jobs.merge, jobs.publish, jobs.nightly, jobs.revert, jobs.promote,
                                 jobs.backport, jobs.labels, jobs.owners, jobs.status)}
 PROMPTS = {f.__name__: f for f in (prompts.triage, prompts.plan, prompts.digest, prompts.answer,
                                    prompts.escalate, prompts.decide)}

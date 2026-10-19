@@ -142,9 +142,8 @@ class Workspace:
         """The first commit between `good` and `bad` on which `command` fails."""
         try:
             self.git("bisect", "start", "--first-parent", bad, good)
-            out = self.git("bisect", "run", "sh", "-c", command, check=False,
-                           env=clean(self._secrets))           # the live command needs its keys
-            return next(line.split()[0] for line in out.splitlines() if "is the first bad commit" in line)
+            self.git("bisect", "run", "sh", "-c", command, env=clean(self._secrets))   # the live command needs its keys
+            return self.git("rev-parse", "refs/bisect/bad")     # where bisect ended, whatever it printed
         finally:
             self.git("bisect", "reset", check=False)
 

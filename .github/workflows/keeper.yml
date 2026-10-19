@@ -44,7 +44,7 @@ jobs:
     concurrency:
       group: keeper-${{ matrix.task.task }}-${{ matrix.task.item }}
       cancel-in-progress: false
-    permissions: { contents: write, pull-requests: write, issues: write, statuses: write, actions: write, discussions: write }
+    permissions: { contents: write, pull-requests: write, issues: write, statuses: write, actions: write, discussions: write, packages: read }
     uses: ./.github/workflows/keeper-run.yml
     with:
       task: ${{ matrix.task.task }}

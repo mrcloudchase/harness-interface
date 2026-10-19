@@ -2,6 +2,7 @@
 #   gate   checks a pull request and sets its keeper/gate status
 #   write  deterministic jobs that change the repository: merge, nightly, revert, promote, …
 #   agent  anything that runs an agent, through harness-interface in Docker sandboxes
+# Jobs that run harnesses pull the default sandbox's published image first (sandbox-image.yml).
 # GITHUB_TOKEN and the secrets reach only the engine's step; the engine keeps them from every
 # command it runs (.keeper/engine/env.py), and agents run in sandboxes that get only a provider key.
 name: keeper-run
@@ -37,11 +38,14 @@ jobs:
     if: inputs.kind == 'write'
     runs-on: ubuntu-latest
     timeout-minutes: 300
-    permissions: { contents: write, pull-requests: write, issues: write, statuses: write, actions: write }
+    permissions: { contents: write, pull-requests: write, issues: write, statuses: write, actions: write, packages: read }
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0, persist-credentials: false }
       - uses: ./.github/actions/keeper-setup
+      - if: inputs.task == 'nightly' || inputs.task == 'revert'     # the jobs that run the live command
+        uses: ./.github/actions/sandbox-image
+        with: { token: "${{ github.token }}" }
       - name: ${{ inputs.task }} ${{ inputs.item }}
         env:
           GITHUB_TOKEN: ${{ github.token }}
@@ -55,11 +59,13 @@ jobs:
     if: inputs.kind == 'agent'
     runs-on: ubuntu-latest
     timeout-minutes: 300
-    permissions: { contents: write, pull-requests: write, issues: write, discussions: write, actions: write }
+    permissions: { contents: write, pull-requests: write, issues: write, discussions: write, actions: write, packages: read }
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0, persist-credentials: false }
       - uses: ./.github/actions/keeper-setup
+      - uses: ./.github/actions/sandbox-image
+        with: { token: "${{ github.token }}" }
       - name: start harness-interface, Docker runtime, no credentials
         run: |
           mkdir -p "$RUNNER_TEMP/hi"

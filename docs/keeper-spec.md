@@ -76,6 +76,7 @@ the project's repository
     ├── workflows/keeper.yml       the entry workflow: events, schedules and dispatches → tasks
     ├── workflows/keeper-run.yml   the reusable workflow every task runs through
     ├── actions/keeper-setup/      disk space for the sandbox image, and uv
+    ├── actions/sandbox-image/     the published sandbox image, pulled so no job builds it
     ├── CODEOWNERS                 generated from keeper.toml
     └── ISSUE_TEMPLATE/            task and bug forms
 
@@ -274,12 +275,18 @@ escalate = ["maker", "checker"]
 | Kind | Tasks | `permissions:` | Has |
 |---|---|---|---|
 | `gate` | Gate | `contents: read`, `pull-requests: write`, `issues: write`, `statuses: write`, `actions: write` | `GITHUB_TOKEN` |
-| `write` | Merge, Release, Nightly, Revert, Promote, Backport, Labels, Owners, Status | the same with `contents: write` | `GITHUB_TOKEN`, secrets (for live runs) |
-| `agent` | every prompt and loop | `contents`, `pull-requests`, `issues`, `discussions`, `actions`: `write` | `GITHUB_TOKEN`, secrets, a harness-interface server |
+| `write` | Merge, Release, Nightly, Revert, Promote, Backport, Labels, Owners, Status | the same with `contents: write`, and `packages: read` | `GITHUB_TOKEN`, secrets (for live runs) |
+| `agent` | every prompt and loop | `contents`, `pull-requests`, `issues`, `discussions`, `actions`: `write`; `packages: read` | `GITHUB_TOKEN`, secrets, a harness-interface server |
 
 Every checkout is made with `persist-credentials: false`. `GITHUB_TOKEN` and the secrets (as
-`KEEPER_SECRETS`, `toJSON(secrets)`) reach only the engine's step. Turn records are uploaded as an
+`KEEPER_SECRETS`, `toJSON(secrets)`) reach only the engine's step, and the token also the image
+pull's registry login, which runs no project code and logs out at once. Turn records are uploaded as an
 artifact of every agent job.
+
+The sandbox image is built once, not per job: the project publishes it to its own packages when
+its Dockerfile changes, and every job that runs harnesses (agents, Nightly, Revert) pulls it first
+and tags it with the name the server looks for. It holds the harnesses' CLIs and nothing secret;
+keys reach a run only when it starts. An image not yet published is built by the first run.
 
 ---
 
@@ -484,7 +491,8 @@ Each row has a test in `.keeper/tests/`, except the rulesets, which are GitHub's
 ## 13. Porting Keeper to a project
 
 1. **Copy** `.keeper/`, `.github/workflows/keeper.yml`, `.github/workflows/keeper-run.yml`,
-   `.github/actions/keeper-setup/` and the issue forms from the reference.
+   `.github/actions/keeper-setup/`, `.github/actions/sandbox-image/` and the issue forms from the
+   reference.
 2. **Write** `VISION.md` and `keeper.toml`, and make sure `AGENTS.md` describes the project.
    `keeper.toml`'s `[checks]` are the project's own commands. `[roles]` names any harness-interface
    harness.

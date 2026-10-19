@@ -22,7 +22,7 @@ permissions: {}
 
 jobs:
   route:
-    if: vars.KEEPER_ENABLED == 'true'
+    if: vars.KEEPER_ENABLED == 'true' || github.head_ref == 'keeper'   # TEMPORARY: exercise the gate on PR #39; reverted next
     runs-on: ubuntu-latest
     permissions: { contents: read }
     outputs:

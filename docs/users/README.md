@@ -17,7 +17,7 @@ nothing installed to a conversation you've continued.
 | [How it works](how-it-works.md) | who owns what, the words, no new protocol, the three ways in, when it fits |
 | [Install, upgrade and uninstall](install.md) | requirements, the installer, versions, running from source |
 | [Providers](providers.md) | add a model provider, handle keys, run a harness on another provider |
-| [Harnesses](harnesses.md) | the shipped harnesses, and wrapping any CLI as your own |
+| [Harnesses](harnesses.md) | the shipped harnesses, configuring them and bringing artifacts, and wrapping any CLI as your own |
 | [Sandboxes](sandboxes.md) | add tools or hosts a harness needs, with your own Dockerfile |
 | [Calling the API from code](api-clients.md) | curl, Python, the OpenAI SDK, streaming, continuing, cancelling, an agent on a harness |
 | [The Python library](library.md) | run a harness, or anything else, in a sandbox from Python |

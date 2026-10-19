@@ -92,7 +92,6 @@ wheels = [
 
 [[package]]
 name = "harness-interface"
-version = "1.0.3"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
@@ -114,15 +113,17 @@ server = [
 
 [package.metadata]
 requires-dist = [
+    { name = "fastapi", marker = "extra == 'dev'", specifier = ">=0.115" },
     { name = "fastapi", marker = "extra == 'server'", specifier = ">=0.115" },
-    { name = "harness-interface", extras = ["server"], marker = "extra == 'dev'" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "openai", marker = "extra == 'dev'", specifier = ">=1.40" },
+    { name = "pydantic", marker = "extra == 'dev'", specifier = ">=2.7" },
     { name = "pydantic", marker = "extra == 'server'", specifier = ">=2.7" },
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8" },
+    { name = "uvicorn", extras = ["standard"], marker = "extra == 'dev'", specifier = ">=0.30" },
     { name = "uvicorn", extras = ["standard"], marker = "extra == 'server'", specifier = ">=0.30" },
 ]
-provides-extras = ["server", "dev"]
+provides-extras = ["dev", "server"]
 
 [[package]]
 name = "httpcore"

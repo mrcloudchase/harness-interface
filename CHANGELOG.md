@@ -1,15 +1,19 @@
 # Changelog
 
-Every release has a section here; the release workflow publishes it as the release's notes. Add
-to "Unreleased" as you change things, and rename it to the version when you bump it.
+Every release is a section here, newest first, and the newest section's heading is the version.
+A merge to `main` that adds a section releases it: the release workflow tags that version and
+publishes the section as its notes.
 
-## [Unreleased]
+## [1.0.4]
 
 - **AGENTS.md** gives anyone changing the code, person or coding agent, the founding principles,
   the layers, the flow of a turn, the rules that always hold and where each change goes.
 - **The harness contract is closed.** The server assumes only that a harness takes input and
   returns output, so nothing is added to the contract; a harness builds anything more in its own
   folder. The contributor docs now say so.
+- **A changelog section is a release.** The version is written only in `CHANGELOG.md`, as its
+  newest section's heading; a merge that adds a section tags and publishes it, with no separate
+  version bump.
 
 ## [1.0.3]
 

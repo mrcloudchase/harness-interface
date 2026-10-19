@@ -39,7 +39,8 @@ New harnesses are the easiest place to start: a harness is a folder, not code
       [live checks](testing.md#live-checks) ran, and the PR says what passed.
 - [ ] [docs/users](../users/README.md) says what a user now sees; these docs say what a contributor
       now needs to know.
-- [ ] `CHANGELOG.md` has a line under `Unreleased`.
+- [ ] `CHANGELOG.md` has a new section, the next version, saying what changed
+      ([releasing](releasing.md)); merging it releases it.
 - [ ] No key, token or private URL anywhere in the diff.
 
 ## Reporting a problem

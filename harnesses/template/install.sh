@@ -11,5 +11,5 @@ npm install --global --prefix "$HI_TOOLS" --no-audit --no-fund semver@7.6.3
 "$HI_TOOLS/bin/semver" --help >/dev/null
 # 2. the stand-in CLI itself, pinned by checksum like any download: editing standin.py fails the
 #    install until this line changes, which is a new tools directory (only this file is hashed)
-echo "cc1ffcb0b21c9f67faf8c4350aafaa96d92ef2457216f6458deb8150b3406e98  $HI_HARNESS_DIR/standin.py" | sha256sum -c --quiet
+echo "4fd11b93945e5918951e01769ac8882b7f19be87e722462e275336766e302c4f  $HI_HARNESS_DIR/standin.py" | sha256sum -c --quiet
 install -m 0755 "$HI_HARNESS_DIR/standin.py" "$HI_TOOLS/bin/standin"

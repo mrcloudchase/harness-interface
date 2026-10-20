@@ -14,7 +14,7 @@ It behaves like the real ones in the ways the contract cares about:
 - with a provider, one call to it (GET <base>/v1/models or <base>/models) with the credential from its key file;
 - an npm-installed helper (`semver`, from the tools directory) to prove the cached install is usable.
 
-Commands: {"type":"prompt","text":…} {"type":"steer","text":…} {"type":"abort"}; the end of stdin exits.
+Commands: {"type":"prompt","text":…} {"type":"steer","text":…} {"type":"abort"}; the end of stdin aborts, then exits.
 Events: session, loaded, tools, provider, steer_accepted, count, turn_end.
 """
 import argparse
@@ -123,7 +123,8 @@ def main():
                 else:
                     inbox.append(cmd)
                 wake.notify()
-        with wake:
+        with wake:                                  # its caller is gone: stop the work, then exit
+            abort.set()
             inbox.append({"type": "eof"})
             wake.notify()
     threading.Thread(target=listen, daemon=True).start()

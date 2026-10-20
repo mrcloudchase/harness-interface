@@ -11,6 +11,7 @@ PACKAGE = ROOT / "harness_interface"
 LAYER = {"errors": 0, "execution": 0, "runtimes": 1, "workspace": 2, "harness": 3, "store": 4, "sessions": 5,
          "api": 6}
 PUBLIC_API = 5.5                                     # harness_interface/__init__.py: the library's front door
+SHIPPED = {"harness_interface.harness.hi_adapter"}  # copied into harness folders and run there: no layer header
 
 
 def layer_of(module: str) -> float:
@@ -53,7 +54,7 @@ def test_every_module_belongs_to_a_layer():
 
 def test_every_module_opens_by_naming_its_layer():
     for path, module in library_modules():
-        if layer_of(module) == PUBLIC_API:
+        if layer_of(module) == PUBLIC_API or module in SHIPPED:
             continue
         doc = ast.get_docstring(ast.parse(path.read_text())) or ""
         assert doc.startswith(f"Layer {layer_of(module)}:"), f"{module} must open with 'Layer {layer_of(module)}: …'"

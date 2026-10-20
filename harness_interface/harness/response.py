@@ -45,16 +45,17 @@ class Response:
     @classmethod
     async def start(cls, folder: HarnessFolder, installed: Installed, workspace: Workspace, request: Request, *,
                     placement: Placement, rundir: Path, provider: Provider | None = None,
-                    new_session: bool = False) -> Response:
+                    new_session: bool = False, session: str | None = None) -> Response:
         """Start one response of `folder` in `workspace`. The provider's credential mode is the folder's
-        (`run.credential`); under the gateway it must carry the session's token."""
+        (`run.credential`); under the gateway it must carry the session's token. Naming the `session`
+        keeps its provider URL and key path the same on every response of it."""
         if provider:
             if provider.api not in folder.apis:
                 raise Invalid(f"{folder.name} speaks {', '.join(folder.apis)}, not {provider.api}")
             check_provider_url(provider.url, provider.api)
             provider = replace(provider, credential=folder.run.credential)
         runtime = placement.runtime(installed.image, read_only=(folder.path, installed.path), writable=(rundir,),
-                                    egress=folder.run.egress, provider=provider)
+                                    egress=folder.run.egress, provider=provider, session=session)
         prepared = await whole(asyncio.to_thread(
             prepare, folder, workspace, request, rundir=rundir, tools=installed.path, path=placement.path,
             provider_url=runtime.provider_url, provider_api=provider.api if provider else None,

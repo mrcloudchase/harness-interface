@@ -234,3 +234,30 @@ def test_cancelling_the_result_kills_the_response_and_waits_for_its_end(setup):
     result = asyncio.run(go())
     assert result.outcome == Outcome.killed()
     assert gone(str(setup["tmp"]))
+
+
+def test_a_local_session_keeps_one_gateway_url_and_key_path_across_its_responses(setup):
+    """A CLI may save its provider's URL with its session (Hermes does): on this machine, every
+    response of a session is given the same gateway and key file, and another session its own."""
+    up = Upstream(setup["tmp"])
+    placement = Placement(ca_file=up.ca)
+
+    def provider(key):
+        return Provider(up.url + "/anthropic", "anthropic-messages", key, token=session_token("anthropic-messages"))
+
+    async def go():
+        seen = []
+        for n, (session, key) in enumerate((("s1", KEY), ("s1", KEY + "-replaced"), ("s2", KEY)), 1):
+            r = await start(setup, Request("count to 1"), n=n, provider=provider(key), placement=placement,
+                            session=session)
+            await follow(r)
+            seen.append(((await r.result()).status, r.prepared.spec.env["HI_PROVIDER_URL"],
+                         r.prepared.spec.env["HI_PROVIDER_KEY_FILE"]))
+        return seen
+    try:
+        first, again, other = asyncio.run(go())
+    finally:
+        up.close()
+    assert first == again and first[0] == "ok"
+    assert other[1:] != first[1:]
+    assert f"x-api-key: {KEY}-replaced" in up.requests[1].decode("latin-1")    # the key may change; the URL doesn't

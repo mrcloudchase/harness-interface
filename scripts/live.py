@@ -20,7 +20,8 @@ sessions at once, then audits what they left:
   stop       stopped once count.txt holds 3 numbers, then continued by an interrupt: it says what it was
              doing and how far it got
   secrets    the key is in no record, log, workspace or .home, nothing served, no `docker inspect`, no
-             process inside the sandbox, no host process the runs started, and no new host process at all
+             process inside the sandbox, no host process the runs started, and no new host process at all;
+             only this data directory's containers are audited (by their owner label), never another's
 
 A folder proves its config artifacts by naming each example `hi-live-<kind>` (`hi-live-skill`,
 `hi-live-mcp`, `hi-live-hook`, …). Every such name in its home/ must then show in a response's stdout or
@@ -48,7 +49,8 @@ from pathlib import Path
 
 import httpx
 
-from harness_interface import Ask, HarnessFolder, Images, Placement, ProviderEntry, Sessions
+from harness_interface import Ask, HarnessFolder, Images, Placement, ProviderEntry, Sessions, owner_of
+from harness_interface.runtimes.docker import LABEL
 from harness_interface.runtimes.process import host_env
 from harness_interface.store import decode, folder_map
 
@@ -258,10 +260,12 @@ def docker_out(*args: str) -> bytes:
     return subprocess.run(["docker", *args], capture_output=True, env=host_env()).stdout
 
 
-def live_audit(key: bytes, mode: str, before: set[str], docker: bool) -> list[str]:
-    """While the runs are live: the containers, what runs in them, and the host's processes."""
+def live_audit(key: bytes, mode: str, before: set[str], owner: str | None) -> list[str]:
+    """While the runs are live: the containers of `owner` (None: the runs are not sandboxed), what runs
+    in them, and the host's processes. Another owner's containers are another server's runs."""
     problems, pids = [], set()
-    names = docker_out("ps", "--filter", "name=hi-", "--format", "{{.Names}}").decode().split() if docker else []
+    label = f"label={LABEL}={owner}"
+    names = docker_out("ps", "--filter", label, "--format", "{{.Names}}").decode().split() if owner else []
     for name in names:
         if key in docker_out("inspect", name):
             problems.append(f"docker inspect {name}")
@@ -317,7 +321,8 @@ class Suite:
         ca = Path(self.args.ca_file) if self.args.ca_file else None
         if via == "api":
             return await Api.open(self.data, self.args.local, ca)
-        return Library(self.data, Placement(None if self.args.local else Images(self.data / "logs"), ca_file=ca))
+        images = None if self.args.local else Images(self.data / "logs")
+        return Library(self.data, Placement(images, ca_file=ca, owner=owner_of(self.data)))
 
     async def run(self, via: str, credential: str) -> dict[str, tuple[bool | None, str]]:
         d = await self.driver(via)
@@ -383,7 +388,7 @@ class Suite:
                 fired["at"] = count(self.data / "workspaces" / sid)
                 fired["outcome"], _ = await d.interrupt(sid, STEER)
                 self.audits += await asyncio.to_thread(live_audit, self.key.encode(), credential, self.before,
-                                                       not self.args.local)
+                                                       None if self.args.local else owner_of(self.data))
                 self.audited = True
         g = await d.start(self.model, COUNT, cue=cue)
         ws = self.data / "workspaces" / g.session

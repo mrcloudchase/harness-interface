@@ -1,0 +1,1 @@
+{"mcpServers": {"hi-live": {"command": "python3", "args": ["~/.pi/agent/hi-live-mcp.py"], "exposure": "direct"}}}

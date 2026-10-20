@@ -1,14 +1,7 @@
-"""harness-interface: run any harness in a sandbox.
+"""harness-interface: run any coding harness in a locked-down sandbox.
 
-This is the library's public API: everything below the HTTP front end, with no dependencies beyond
-Python's standard library and git. See docs/users/library.md.
-"""
+The library's public API is layers 0 to 5, so Python callers need no server; the server (layer 6,
+`harness_interface.api`) is built on it."""
 from .errors import Conflict, Invalid, NotFound
-from .execution import Event, Execution, Outcome, Runtime, Spec
-from .harness import Harness, Provider, Request, Result, Run, Turn
-from .runtimes import Docker, DockerRuntime, LocalRuntime, Sandbox
-from .workspace import Workspace
 
-__all__ = ["Conflict", "Docker", "DockerRuntime", "Event", "Execution", "Harness", "Invalid", "LocalRuntime",
-           "NotFound", "Outcome", "Provider", "Request", "Result", "Run", "Runtime", "Sandbox", "Spec", "Turn",
-           "Workspace"]
+__all__ = ["Conflict", "Invalid", "NotFound"]

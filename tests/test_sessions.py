@@ -476,7 +476,7 @@ def test_the_providers_key_is_in_no_record_log_or_artifact(world):
 
 
 def test_the_library_drives_a_session_with_no_server(world):
-    """The plan's own example, as written."""
+    """The library, as docs/users/library.md drives it: a session, followed and waited on."""
     async def go(made):
         await (await world.ready()).close()
         sessions = Sessions(world.data, Placement(ca_file=world.up.ca))

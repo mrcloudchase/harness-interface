@@ -4,6 +4,38 @@ Every release is a section here, newest first, and the newest section's heading 
 A merge to `main` that adds a section releases it: the release workflow tags that version and
 publishes the section as its notes.
 
+## [2.0.0]
+
+A rebuild. harness-interface is now sessions you can steer and stop, harnesses are self-contained
+folders on contract 1, and the provider's key never enters the sandbox. Nothing of 1.x carries over:
+re-register providers and harnesses.
+
+- **Sessions.** A response starts a session, or continues one with `previous_response_id`: the same
+  workspace and the CLI's own `$HOME`, one response at a time. New routes: `GET /sessions`,
+  `GET /sessions/{id}` (`?stream=true` follows it), `POST /sessions/{id}/interrupt` (steered into the
+  running work where the harness can take it, else continued in a new response) and
+  `POST /sessions/{id}/stop` (SIGINT, then a kill). `GET /responses` and the `/responses/{id}` routes
+  (cancel, output, log, diff, files) are gone: a session holds its responses, each with everything it
+  produced. `/sandboxes` is gone too.
+- **Harness folders, contract 1.** A folder is `harness.json` (a closed schema), `install.sh`,
+  `run.sh`, `adapter.py`, `hi_adapter.py`, `home/` (config artifacts, copied into `$HOME` every
+  response), `workspace/` (work artifacts, copied into a new session) and optionally
+  `image.Dockerfile`. `report` globs bring files back from `$HOME`. A folder is sent to
+  `PUT /harnesses/{name}` as a map of its files.
+- **Installed once, per version.** `install.sh` puts the pinned CLI in a cached tools directory, on a
+  small base image with no CLI and no secret; sandboxes are gone, and with them the 10 GB image.
+- **The provider per request.** `model` is `harness[@provider][/model]`; a provider has a `url`, an
+  `api` shape and a key.
+- **The key stays out.** Each sandbox's door is also a gateway that swaps a session token for the key;
+  a folder can opt into a read-only key file instead. Never an environment variable.
+- **Everything comes back:** the answer, the CLI's stdout and stderr, the diff and changed files, the
+  reported artifacts, usage with fixed keys, cost and the resume handle, streamed as
+  `harness.stdout`, `harness.stderr`, `harness.steer` and `session.interrupted` events.
+- **Five harnesses:** Claude Code, Codex, pi, OpenCode and Hermes, each steerable and resumable, and
+  proven with the new live suite (`scripts/live.py`). The other eighteen are surveyed in
+  `docs/contributors/harness-survey/`.
+- **Removed:** the `hi` command line, and Keeper. The server is the one command, `harness-interface`.
+
 ## [1.0.5]
 
 - **The default sandbox builds the same way every time.** Its CLIs were pinned, but what they

@@ -1,9 +1,0 @@
-{
-  "name": "opencode",
-  "description": "OpenCode (sst) 1.19.3 driven through its local HTTP server (serve + prompt_async + SSE); steered; Anthropic Messages, OpenAI Responses, OpenAI-compatible chat.",
-  "provider": {"url": "https://api.anthropic.com", "api": "anthropic-messages"},
-  "apis": ["anthropic-messages", "openai-responses", "openai-chat"],
-  "install": {"egress": ["registry.npmjs.org", "pypi.org", "files.pythonhosted.org"], "timeout_s": 600},
-  "files": {".home/.config/opencode/AGENTS.md": "{instructions}"},
-  "run": {"interrupt": "steered", "stdout": "application/x-ndjson", "timeout_s": 900, "stop_timeout_s": 15}
-}

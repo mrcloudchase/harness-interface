@@ -5,7 +5,7 @@ Run it to prove a folder, and before every release:
 
     uv run --extra dev python scripts/live.py harnesses/claude-code \\
         --url https://api.deepseek.com/anthropic --api anthropic-messages \\
-        --key-file data/secrets/DEEPSEEK_API_KEY --model deepseek-chat --ca-file /root/.ccr/ca-bundle.crt
+        --key-file ~/deepseek.key --model deepseek-chat
 
 For each way in (`--via library,api`) and credential mode (`--credential gateway,file`) it runs four
 sessions at once, then audits what they left:
@@ -59,8 +59,9 @@ INSTRUCTIONS = "End every answer with the code word PAPAYA."
 ONE_SHOT = "What is 2+2?"
 REMEMBER = "Remember the word ORCHID: save it to your memory. Reply OK."
 RECALL = "Which word did I ask you to remember? Reply with the word only."
-COUNT = ("Using the shell, write the numbers 1 to 30 to count.txt, one per line, running `sleep 1` between each "
-         "number (one shell command per number). Do not write them all at once.")
+COUNT = ("Write the numbers 1 to 30 to count.txt, one per line, with a separate shell tool call for each number: "
+         "each call appends one number and then runs `sleep 1`. Never use a loop, and never write two numbers in "
+         "one call.")
 STEER = "Stop counting now. Instead write the word DONE into done.txt and finish."
 ASK = "What were you doing before you were stopped, and how far did you get? One sentence; do not continue the task."
 MARKER = re.compile(r"hi-live-[a-z]+")

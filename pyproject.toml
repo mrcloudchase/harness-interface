@@ -30,6 +30,3 @@ packages = ["harness_interface"]
 testpaths = ["tests"]
 addopts = "-m 'not docker'"
 markers = ["docker: needs a running Docker daemon"]
-
-[tool.ruff]
-extend-exclude = ["prototype"]       # the evidence the plan rests on, kept as it ran; removed once ported

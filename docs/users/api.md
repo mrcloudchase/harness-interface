@@ -1,170 +1,172 @@
 # HTTP API
 
-The server's whole surface. It listens on `http://127.0.0.1:8000` by default. Bodies are JSON.
-FastAPI also serves the schema at `/openapi.json`, and interactive docs at `/docs`.
-
-## Endpoints
+The server's whole surface. It listens on `http://127.0.0.1:8000` by default; bodies are JSON.
+FastAPI also serves the schema at `/openapi.json` and interactive docs at `/docs`.
 
 | Method | Path | |
 |---|---|---|
 | PUT | `/providers/{name}` | add or replace a provider |
-| GET | `/providers`, `/providers/{name}` | list, or get one; keys are never returned |
-| DELETE | `/providers/{name}` | `{"deleted": true\|false}` |
-| PUT | `/sandboxes/{name}` | add or replace a sandbox |
-| GET | `/sandboxes`, `/sandboxes/{name}` | list (`default` first), or get one |
-| DELETE | `/sandboxes/{name}` | `{"deleted": true\|false}` |
-| PUT | `/harnesses/{name}` | add or replace a harness |
-| GET | `/harnesses`, `/harnesses/{name}` | list, or get one |
-| DELETE | `/harnesses/{name}` | `{"deleted": true\|false}` |
-| POST | `/responses` | run a harness |
-| GET | `/responses`, `/responses/{id}` | list every record, or get one |
-| GET | `/responses/{id}/output` | the harness's stdout, byte for byte, in its declared content type |
-| GET | `/responses/{id}/log` | its stderr |
-| GET | `/responses/{id}/diff` | what the response changed, as a unified diff; live while it runs |
-| GET | `/responses/{id}/files` | every file in the workspace, as the response left it |
-| GET | `/responses/{id}/files/{path}` | one file, as the response left it |
-| POST | `/responses/{id}/cancel` | `{"cancelled": true}` if the run was in flight |
+| GET | `/providers`, `/providers/{name}` | list, or get one; the key is never returned |
+| DELETE | `/providers/{name}` | remove it |
+| PUT | `/harnesses/{name}` | add or replace a harness folder, and start its install |
+| GET | `/harnesses` | every harness, with its install state |
+| GET | `/harnesses/{name}` | one harness, with its install state and log, and its files |
+| DELETE | `/harnesses/{name}` | remove it |
+| POST | `/responses` | start a session, or continue one: the OpenAI Responses API |
+| GET | `/sessions` | every session, without its responses |
+| GET | `/sessions/{id}` | a session and all its responses; `?stream=true` follows it |
+| POST | `/sessions/{id}/interrupt` | put more text into a session |
+| POST | `/sessions/{id}/stop` | stop what it is running |
 
-## Resources
+Refusals: **400** the request can't be done (an unknown harness or provider, a shape the harness doesn't
+speak, a continued session on another harness, a harness whose install failed), **404** it names
+something that doesn't exist, **409** the session already has a response running (interrupt it instead),
+**422** the body is malformed. The body is `{"detail": "…"}`. A harness that fails is not an HTTP error:
+its response says why.
 
-A PUT adds or replaces a resource, and the next request uses it. The `name` in the body must
-match the one in the path. Names are lowercase letters, digits and dashes.
-
-**Provider**
+## Providers
 
 ```json
-{"name": "anthropic", "url": "https://api.anthropic.com", "key": "sk-ant-..."}
+PUT /providers/anthropic
+{"url": "https://api.anthropic.com", "api": "anthropic-messages", "key": "sk-ant-…"}
 ```
 
-**Sandbox**
+`api` is `anthropic-messages`, `openai-responses` or `openai-chat`. `url` is the base URL the shape's
+official SDK takes: `anthropic-messages` without a version path, `openai-*` with one
+(`https://api.openai.com/v1`). The reply, and every `GET`, shows `name`, `url` and `api`, never the key.
+
+## Harnesses
+
+A harness is a [folder](harnesses.md), sent as a map of relative path to content: its text, or
+`{"base64": "…"}` for a file that isn't UTF-8.
 
 ```json
-{"name": "python-dev", "dockerfile": "FROM python:3.12-slim\n…", "egress": ["pypi.org"]}
+PUT /harnesses/claude-code
+{"harness.json": "{…}", "install.sh": "…", "run.sh": "…", "adapter.py": "…", "hi_adapter.py": "…",
+ "home/.claude/settings.json": "{…}"}
 ```
 
-`egress` lists hosts the run may reach besides its provider, as `host`, `host:port` or a URL.
-`default` is built in, and can't be replaced or deleted.
-
-**Harness:** `harness.json` plus its `scripts`. Every field is in the
-[harness contract](harness-contract.md#harnessjson).
-
-```json
-{"name": "hello", "provider": "anthropic", "run": {"stdout": "text/plain"},
- "scripts": {"run.sh": "echo \"asked: $HI_TASK\"\n"}}
-```
+It is stored only if it is a valid contract-1 folder named as in the path. Storing it starts its install
+in the background; replacing it installs again. `GET` shows
+`"install": {"state": "installing" | "ready" | "failed", "log": "…", "error": "…"}`. A request for a
+harness still installing waits for the install.
 
 ## POST /responses
 
-The request is the OpenAI Responses shape:
+The OpenAI Responses shape:
 
 | Field | |
 |---|---|
-| `model` | the harness's name, or `harness/model` to pass a model through to it |
-| `input` | the task: a string, or a list of `{"type": "input_text", "text": …}` and `{"type": "input_file", "filename": …, "file_data": "<the file's text>"}` items. Files are written into the workspace. |
-| `instructions` | text the harness can place for its CLI, as `{instructions}` |
-| `previous_response_id` | continue that response's conversation |
-| `stream` | `true` for server-sent events; otherwise one JSON object when the run ends |
-| `metadata` | any object, kept on the record |
+| `model` | `harness[@provider][/model]`: `claude-code`, `claude-code/claude-sonnet-4-6`, `claude-code@deepseek/deepseek-chat`. With no provider, the one registered for the harness's default URL and shape. |
+| `input` | the task: a string, or a list of `{"type": "input_text", "text"}`, `{"type": "input_file", "filename", "file_data"}` and `{"type": "message", "role": "user", "content"}` items. `file_data` is the file's text, or a `data:<type>;base64,…` URL. Files are written into the workspace. |
+| `instructions` | rendered into the harness's `files`, where its CLI reads instructions |
+| `previous_response_id` | continue that response's session, on the same harness and provider |
+| `stream` | `true` for server-sent events |
+| `metadata` | any object, kept on the response |
 
-The server checks the request, prepares the workspace and starts the run. With `stream` it
-answers at once; without it, when the run ends. Either way the run belongs to the server: it
-finishes and is recorded whether or not the client stays.
+Without `previous_response_id` it starts a new session: a fresh workspace. With it, the same session
+continues: the same workspace and `.home`, and the CLI resumes its own conversation. A session runs one
+response at a time.
 
-### Without `stream`
+Without `stream` the reply is the finished response. With it, server-sent events (below). Either way
+the `X-Response-Id` and `X-Session-Id` headers carry the ids at once, and the response belongs to the
+server: leaving early stops the following, never the work.
 
-The response is the finished record, when the run ends. The `X-Response-Id` header carries its id.
-
-### With `stream`
-
-Server-sent events. The `X-Response-Id` header carries the id from the start.
-
-```
-event: response.created
-data: {"type": "response.created", "response": {…the record, in_progress…}}
-
-event: harness.output
-data: {"type": "harness.output", "line": "…one line the harness printed on stdout…"}
-
-event: harness.log
-data: {"type": "harness.log", "line": "…one line the harness printed on stderr…"}
-
-event: response.completed
-data: {"type": "response.completed", "response": {…the finished record…}}
-```
-
-There is one `harness.output` event for every line the harness prints on stdout, and one
-`harness.log` event for every line on stderr, as they arrive. Together they are everything the
-harness prints, as if you were watching it in a terminal. A client that disconnects only stops
-following.
-
-### Continuing
-
-With `previous_response_id`, the run:
-- uses the same harness, and that response's workspace, with the files as they were left;
-- hands the harness the session id that response reported, so it resumes its own session.
-
-A conversation runs one request at a time; a second one gets a 409 until the first ends.
-
-## The record
+## The response
 
 ```json
 {
-  "id": "resp_254e3da1d07b4a5f",
-  "object": "response",
-  "created_at": 1792309774.1,
-  "status": "completed",
-  "model": "claude-code",
-  "instructions": "",
-  "input": "Write a haiku about a hermit crab trying on shells.",
+  "id": "resp_…", "object": "response", "created_at": 1792540000.1, "status": "completed",
+  "model": "claude-code", "instructions": "Answer in one line.", "input": "What is 17 * 23?",
   "previous_response_id": null,
-  "output": [{"type": "message", "role": "assistant", "status": "completed",
-              "content": [{"type": "output_text", "text": "Tiny tenant seeks—…", "annotations": []}]}],
-  "usage": {"input_tokens": 3, "output_tokens": 24},
-  "error": null,
-  "incomplete_details": null,
-  "metadata": {},
+  "output": [{"type": "message", "id": "msg_…", "role": "assistant", "status": "completed",
+              "content": [{"type": "output_text", "text": "391", "annotations": []}]}],
+  "usage": {"input_tokens": 10587, "output_tokens": 6, "total_tokens": 10593,
+            "input_tokens_details": {"cached_tokens": 0}, "output_tokens_details": {"reasoning_tokens": 0}},
+  "error": null, "incomplete_details": null, "metadata": {},
   "harness": {
-    "name": "claude-code", "provider": "anthropic", "sandbox": "default", "runtime": "docker",
-    "image": "harness-interface/default:1eee0e59f140", "workspace": "…/workspaces/resp_254e3da1d07b4a5f",
-    "session_id": "863ff72c-…", "exit_code": 0, "latency_s": 21.1, "cost_usd": 0.1174,
-    "files": [], "deleted": [],
-    "base": "3f1c9e2…", "commit": "a77d1b0…"
+    "session": "sess_…", "name": "claude-code", "provider": "anthropic", "exit_code": 0, "latency_s": 9.4,
+    "usage": {"input_tokens": 10587, "output_tokens": 6, "cache_read_tokens": 0, "cache_write_tokens": 0,
+              "reasoning_tokens": 0},
+    "cost_usd": 0.032, "resume": "1edd94d2-…",
+    "stdout": "…everything it printed on stdout…", "stderr": "…",
+    "diff": "…a unified diff of this response's changes…",
+    "changes": {"notes.txt": "plan: build a calculator\n", "old.txt": null},
+    "files": ["notes.txt"],
+    "home": {".claude/projects/…/memory/MEMORY.md": "…"},
+    "output": {"answer": "391", "status": "ok", "resume": "1edd94d2-…", "usage": {…}, "cost_usd": 0.032, "steers": 0},
+    "steers": [], "undelivered": [], "stop": null, "base": "…", "commit": "…"
   }
 }
 ```
 
 | Field | |
 |---|---|
-| `status` | `in_progress`, then `completed`, `failed`, `incomplete` (timed out) or `cancelled` |
-| `output` | the harness's reported answer, as one assistant message; empty if it reported none |
-| `usage` | as the harness reported it, in its own keys |
-| `error` | when `failed`: `{"code", "message"}`, where `code` is `harness_failed` (it ran and failed), `setup_failed` (it never ran), `server_restarted`, or `internal_error` (a bug) |
-| `incomplete_details` | when it timed out: `{"reason": "timeout"}` |
-| `harness` | what the Responses shape has no field for: where it ran, the session to resume, exit code, latency, cost; `files` it added or changed and `deleted`; and the workspace commits before (`base`) and after (`commit`) the turn |
+| `status` | `in_progress`, then `completed`, `failed`, `incomplete` (its time limit stopped it) or `cancelled` (stopped, or interrupted) |
+| `output` | the harness's answer as one assistant message; empty if it gave none |
+| `error` | when `failed`: `{"code", "message"}`; `code` is `harness_failed`, `failed_to_start`, `server_restarted` or `internal_error` |
+| `harness.stdout`, `harness.stderr` | everything it printed, so far while it runs |
+| `harness.diff`, `harness.changes` | the workspace's changes: a diff, and each changed file's new content (`null` if deleted); a file that isn't UTF-8 is `{"base64": "…"}` |
+| `harness.files` | every file in the workspace after the response |
+| `harness.home` | the reported artifacts (the folder's `report`) that the response added, changed or deleted |
+| `harness.output` | everything the harness wrote to its result file, its own keys too |
+| `harness.resume` | the CLI's handle to its conversation |
+| `harness.steers`, `harness.undelivered` | the text sent into the response, and any it didn't take |
+| `harness.stop` | `stopped` or `killed` when it was asked to stop |
+| `harness.base`, `harness.commit` | the workspace's snapshots before and after |
 
-## Errors
+`.home/` (the CLI's own state), `.git/` and the server's files are never listed, diffed or returned as
+the session's work; only `report` brings files back from `$HOME`.
 
-| Status | When |
+## Streaming
+
+| Event | Data |
 |---|---|
-| 400 | the path name and body name differ; a harness, provider, sandbox or previous response doesn't exist; a follow-up names another harness's response; a template is invalid; a name breaks the naming rule; an attempt to change or delete `default` |
-| 404 | the provider, sandbox, harness or response isn't there, or the response has no output, log, diff or such file |
-| 409 | the conversation already has a run in progress |
-| 422 | the body doesn't fit its shape: `input` has no text, a field is missing, or a value is refused, such as a script name that isn't a plain filename, a non-positive timeout or an empty Dockerfile |
+| `response.created` | `{"response": <the response, in_progress>}` |
+| `harness.stdout` | `{"response": "resp_…", "line": "…"}`, one per line the harness prints on stdout |
+| `harness.stderr` | the same, for stderr |
+| `harness.steer` | `{"response", "input", "at"}`: text sent into the running response, in order with its output |
+| `session.interrupted` | `{"response", "from", "outcome", "input", "at"}`: the session continues with new text, in a new response |
+| `response.completed` | `{"response": <the finished response>}` |
 
-A 400, 404 or 409 body is `{"detail": "<what went wrong>"}`. A 422 body is FastAPI's list of
-validation errors. A run that fails is not an HTTP error: its record says why.
+Every event also carries `type` (its name) and `sequence_number`.
 
-## Seeing everything a harness did
+## Sessions
 
-Every turn ends in a commit in the conversation's workspace, so each response can be read as it
-left things, even after later turns have changed them:
+```json
+{"id": "sess_…", "object": "session", "status": "active", "harness": "claude-code", "provider": "anthropic",
+ "model": "", "interrupt": "steered", "resume": "…", "created_at": …, "updated_at": …,
+ "interrupts": [{"at": …, "input": "…", "outcome": "steered", "response": "resp_…"}],
+ "responses": [ …every response, oldest first… ]}
+```
 
-| | |
-|---|---|
-| `GET /responses/{id}/diff` | the turn's changes: added, modified and deleted files, as a unified diff. While the run is going, the changes so far. |
-| `GET /responses/{id}/files` | every file in the workspace after the turn (now, while it runs) |
-| `GET /responses/{id}/files/{path}` | one file after the turn; 404 if the turn deleted it |
-| `GET /responses/{id}/output`, `/log` | everything it printed, byte for byte |
+`status` is `active` while a response runs, else `idle`. `interrupt` is the harness's tier, so a client
+knows what an interrupt will do. `GET /sessions` lists sessions without their responses.
+`GET /sessions/{id}?stream=true` follows the session's events from its current response on, through any
+continuations, until it is idle; on an idle session the stream ends at once.
 
-The harness's own state (`.home/`, where CLIs keep sessions and credentials) and the server's
-(`.hi/`) are never committed, diffed, listed or served.
+### POST /sessions/{id}/interrupt
+
+```json
+{"input": "Stop counting; write DONE to done.txt instead.", "instructions": null, "stream": false}
+```
+
+It degrades by the harness's tier and replies `{"outcome", "response"}`:
+- **`steered`:** a `steered` harness is running, and the text went into the running work. The reply is
+  that response, at once.
+- **`continued`:** the session was idle, or its harness can't be steered: the running response (if any)
+  was stopped, and the session continues with the text in a new response. The reply waits for it.
+- **`responded`:** as `continued`, for a harness that promises no resume.
+
+With `"stream": true` it replies with the events instead. Text a response didn't take before ending is
+sent again, joined, as the next response when it ended `completed`.
+
+### POST /sessions/{id}/stop
+
+```json
+{"timeout_s": 20}
+```
+
+SIGINT to the harness, and a kill if it hasn't ended `timeout_s` later (the harness's `stop_timeout_s`
+by default). It replies once nothing is running: `{"outcome": "stopped" | "killed" | "idle", "session"}`.
+A stopped session can be continued later with `previous_response_id`.

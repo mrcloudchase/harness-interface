@@ -1,9 +1,0 @@
-{
-  "name": "pi",
-  "description": "pi coding agent 1.3.0 (earendil-works) over `pi --mode rpc`: steered via streamingBehavior steer; no permission system; base URL via models.json.",
-  "provider": {"url": "https://api.anthropic.com", "api": "anthropic-messages"},
-  "apis": ["anthropic-messages", "openai-chat", "openai-responses"],
-  "install": {"egress": ["registry.npmjs.org"], "timeout_s": 600},
-  "files": {".home/.pi/agent/AGENTS.md": "{instructions}"},
-  "run": {"interrupt": "steered", "stdout": "application/x-ndjson", "timeout_s": 900, "stop_timeout_s": 15}
-}

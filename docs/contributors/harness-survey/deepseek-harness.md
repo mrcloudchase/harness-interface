@@ -75,4 +75,3 @@ Not needed: resume works. Fallback if the cwd-scoping ever breaks: decode the se
 - SIGINT at the 3rd tool_call: exit 130 in 0.06 s, count=2. Resume named 2 and the interrupted `printf '3'`.
 - Steer (hooks): STEER queued at 14.7 s with count=3. `printf 4` was already running. Then done.txt checked, `printf 'DONE' > done.txt`, read; final "Stopped counting and wrote `DONE` to `done.txt`.", exit 0 at 25.4 s; count.txt=4 lines.
 - Proxy log (all runs with telemetry disabled): only `CONNECT api.deepseek.com:443`.
-- Scripts: SCRATCH/harness-survey/work/deepseek-harness/bin/{sigint.py,steer_test.py,logproxy.py}, steer/{steer_hook.py,hooks.json,patch.yml}.

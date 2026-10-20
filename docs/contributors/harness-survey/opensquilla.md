@@ -108,4 +108,3 @@ Not needed: the conversation survives SIGINT, abort and a gateway restart. If it
 - Abort: `{"aborted":true,"cancelled_tasks":1}`, then done 0.3 s later. Resume cost_usd 0.009.
 - Egress: CLI with defaults sent 3× CONNECT telemetry.opensquilla.ai. Gateway with the OpenSquilla vars only: 1× mobile.events.data.microsoft.com. With ORT_DISABLE_TELEMETRY=1: none. Without a `/v1` suffix the sink got `POST /v1/messages`.
 - OpenAI: `openai_responses` with gpt-5-mini gave ok, "four", cost 0.0023. `openai` (chat) gave error `invalid_stream_order`.
-- Scratch work: /tmp/claude-0/-home-user/37719b48-fc3a-58ba-bb72-5869c819d794/scratchpad/harness-survey/work/opensquilla (bin/steer.py is the working steer client; 20 MB).

@@ -1,69 +1,86 @@
 # How it works
 
 harness-interface is an execution layer for coding harnesses. You send it a request; it runs the
-harness the request names, in a sandbox, and keeps a record of what happened.
+harness the request names in a sandbox, streams back everything the harness prints, and returns
+everything it produced. It doesn't speak any harness's protocol: each harness's folder does.
 
 ```mermaid
 flowchart LR
-  C["Your code, hi,<br>or the OpenAI SDK"] -->|OpenAI Responses API| S["harness-interface<br>the execution layer"]
-  S -->|starts, streams, records| H
-  subgraph SB["A fresh sandbox for every run"]
-    H["Your harness<br>harness.json + a script<br>around any CLI"]
+  C["Your code, curl,<br>or the OpenAI SDK"] -->|OpenAI Responses API,<br>sessions| S["harness-interface"]
+  S -->|installs once, runs,<br>streams, collects| H
+  subgraph SB["A fresh container for every response"]
+    H["A harness folder<br>run.sh + adapter.py<br>around its CLI"]
   end
-  H -->|its only way out| P["Its model provider"]
+  H -->|through the gateway,<br>its only way out| P["Its model provider"]
 ```
 
 ## Who owns what
 
-- **The server owns the run:** the sandbox, the conversation's workspace and session, streaming,
-  cancelling, timeouts, and the record of what happened.
-- **A harness owns everything about its CLI.** It is a folder: a `harness.json`, and a script
-  that turns the request into the CLI's own flags, plus any artifacts it brings: settings,
-  skills, MCP config. It decides where instructions go, how a session resumes, which API the CLI
-  speaks, how its output becomes an answer, and how the CLI is configured.
+- **The server owns execution:** the sandbox, the install cache, the session's workspace, copying the
+  folder's artifacts in, the provider and its key, streaming, steering and stopping, and returning
+  every output.
+- **A harness folder owns everything about its CLI:** how to install it, which config and work
+  artifacts it brings and where they go, how to run it, how to steer and stop it, and how to read its
+  answer, resume handle and usage. The server has no code for any harness.
 
 ## The words
 
 | | |
 |---|---|
-| **Harness** | a program that does coding work, such as Claude Code or Codex, wrapped in a folder ([harnesses](harnesses.md)) |
+| **Harness** | a coding CLI, such as Claude Code or Codex, wrapped in a [folder](harnesses.md) |
 | **Provider** | where a harness's model calls go, and the key for them ([providers](providers.md)) |
-| **Sandbox** | the Dockerfile a harness runs in, and any extra hosts it may reach ([sandboxes](sandboxes.md)) |
-| **Response** | one turn: a request to a harness, and its record |
-| **Conversation** | turns chained with `previous_response_id`, sharing one workspace and the harness's session |
-| **Workspace** | the conversation's directory, a git repository; every turn's changes can be read back |
+| **Session** | one harness and provider, one workspace, the CLI's own conversation, and every response in it, one at a time |
+| **Response** | one request to a session, and everything it produced |
+| **Workspace** | the session's directory: the work, with the CLI's `$HOME` in `.home/`. Every response's changes can be read back. |
+| **Config artifacts** | what configures the CLI (instructions, skills, MCP, hooks, settings): the folder's `home/` and `files` |
+| **Work artifacts** | what the CLI works on: the folder's `workspace/`, and the files a request sends |
+| **Interrupt** | more text for a running session: steered into the work, or the start of the next response |
 
-## No new harness protocol
+## One response
 
-Clients use the OpenAI Responses API they already know. Inside, a harness is any program that
-reads a few environment variables (`HI_TASK`, `HI_PROVIDER_KEY` and the rest) and may write one
-JSON file back. That is the whole [harness contract](harness-contract.md). No harness has to
-implement a shared protocol, so a CLI works the way it ships, and adding one never changes the
-server.
+1. **Install, once.** The folder's `install.sh` puts its pinned CLI in a tools directory, keyed by a
+   hash of the install script, the image and the CPU. Every later response reuses it.
+2. **Prepare.** A new session copies the folder's `workspace/` in. Every response writes the request's
+   files into the workspace, copies `home/` into `.home/`, and renders `files` (the request's
+   `instructions` go wherever the CLI reads them).
+3. **Run.** A fresh, locked-down container mounts the workspace and the tools at their own paths and
+   runs `run.sh`, with the request on stdin and the provider as a gateway URL and a token file.
+4. **Stream.** Every line the CLI prints is a `harness.stdout` or `harness.stderr` event, as it comes.
+   An interrupt is one more line on stdin, which the folder's adapter hands to the CLI; a stop is
+   SIGINT, then a kill.
+5. **Collect.** The adapter's result file (`HI_OUTPUT`) gives the answer, status, resume handle, usage
+   and cost. The server adds the workspace's diff and changed files, and any files the folder
+   `report`s from `$HOME`, and returns all of it with the harness's raw output.
 
-The trade-off: the server doesn't translate harnesses into a common vocabulary. Every run gets
-the same record (the answer, usage, cost, the files it changed and their diff) beside the
-harness's own output, byte for byte. There is no shared event schema, and no capability
-discovery across harnesses.
+A continued session runs the same way, in the same workspace and `.home/`, and the CLI resumes its own
+conversation. A new session is a clean workspace: it never sees another session's work.
 
-## Three ways in
+## No shared protocol
+
+Clients use the OpenAI Responses API they already know. Inside, the contract between the server and a
+folder is environment variables, stdin and one JSON file ([the harness contract](harness-contract.md)).
+A CLI works the way it ships; its folder adapts it, and adding one never changes the server.
+
+The trade-off: the server doesn't translate harnesses into a common event vocabulary. Every response
+has the same fields (answer, usage, cost, changes, diff, reported artifacts) beside the harness's own
+output, byte for byte.
+
+## Two ways in
 
 | | For |
 |---|---|
-| [`hi`](cli.md), the command line | running harnesses from a terminal |
-| [the server](api-clients.md), an OpenAI Responses-compatible API | any language, the OpenAI SDK, many clients at once |
+| [the server](api-clients.md), an OpenAI Responses-compatible API with session routes | any language, the OpenAI SDK, many clients at once |
 | [the library](library.md) | Python that runs harnesses itself, with no server |
 
-The server and `hi` are built on the library, so all three run a harness the same way.
+The server is built on the library, so both run a harness the same way.
 
-## When to use it
+## When it fits
 
 A good fit for:
-- running harnesses from your own code or loops, on a machine you control;
-- wrapping your own CLI, or one nobody else supports, without changing the server;
-- running the same task on several harnesses, each sandboxed and recorded.
+- running coding CLIs from your own code, agents or loops, sandboxed, on a machine you control;
+- one configuration of a CLI, as a folder, run the same way by anyone who calls it;
+- running the same task on several harnesses or providers.
 
 Not a fit, today, for:
-- a hosted service for many users: there is no authentication or tenancy;
-- fast, high-volume decisions such as classifying or routing: every run starts a container and
-  a workspace, which costs seconds, not milliseconds.
+- a service for many users: there is no authentication or tenancy;
+- fast, high-volume calls: every response starts a container, which costs a second or two.

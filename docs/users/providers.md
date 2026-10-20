@@ -1,88 +1,63 @@
-# Add providers
+# Providers
 
-A provider is where a harness's model calls go, and the key that unlocks them. It is three
-fields: a `name`, a `url` and a `key`. The server stores them and hands them to the harness. The
-only thing it reads from them is the url's host, to let a sandboxed run reach it. Each harness's
-run script decides which of its CLI's settings get the url and key.
+A provider is where a harness's model calls go: a name, a base URL, the API shape it serves, and its
+key. The server keeps the key; a harness never gets it, only a way to call the provider through its
+sandbox's gateway ([keys](security.md#keys)).
 
 ## Add one
 
 ```bash
-hi provider add anthropic --url https://api.anthropic.com --key-env ANTHROPIC_API_KEY
+python3 -c 'import json, os; print(json.dumps({"url": "https://api.anthropic.com",
+  "api": "anthropic-messages", "key": os.environ["ANTHROPIC_API_KEY"]}))' \
+| curl -s -X PUT localhost:8000/providers/anthropic -H 'content-type: application/json' -d @-
 ```
 
-There are three ways to give the key; none of them puts it on the command line:
+Building the body in a program keeps the key off the command line. From Python:
+`sessions.registry.put_provider(ProviderEntry("anthropic", url, api, key))` ([library](library.md)).
 
-| | |
+| Field | |
 |---|---|
-| `--key-env VAR` | read it from an environment variable |
-| no flag, in a terminal | `hi` prompts for it, without echoing |
-| no flag, piped | `hi` reads it from stdin: `pass show anthropic \| hi provider add …` |
+| `url` | the base URL the shape's official SDK takes: `https://api.anthropic.com` for `anthropic-messages` (no version path), `https://api.openai.com/v1` for `openai-*` (with one). `https` only, no credentials, query or fragment. |
+| `api` | the shape it serves: `anthropic-messages`, `openai-responses` or `openai-chat` |
+| `key` | its API key; stored privately, never returned |
 
-Over HTTP, the same thing is one PUT:
+Putting a provider under an existing name replaces it; the next response uses the new one. `GET
+/providers` lists them, without keys; `DELETE /providers/{name}` removes one.
 
-```bash
-curl -X PUT localhost:8000/providers/anthropic -H 'content-type: application/json' \
-  -d '{"name": "anthropic", "url": "https://api.anthropic.com", "key": "sk-ant-..."}'
-```
+Some that work:
 
-Adding a provider under an existing name replaces it, and the next run uses the new url and key.
+| Provider | `url` | `api` |
+|---|---|---|
+| Anthropic | `https://api.anthropic.com` | `anthropic-messages` |
+| OpenAI | `https://api.openai.com/v1` | `openai-responses` or `openai-chat` |
+| DeepSeek, Anthropic shape | `https://api.deepseek.com/anthropic` | `anthropic-messages` |
+| DeepSeek, OpenAI shape | `https://api.deepseek.com/v1` | `openai-chat` |
 
-## The names the shipped harnesses expect
+## Which provider a response uses
 
-Each shipped harness names its provider in its `harness.json`. Add providers under these names
-to run them as they ship:
+`model` in a request is `harness[@provider][/model]`:
 
-| Name | url | Serves | Used by |
-|---|---|---|---|
-| `anthropic` | `https://api.anthropic.com` | Anthropic Messages | 16 harnesses, including Claude Code, Hermes, Pi, OpenCode |
-| `openai` | `https://api.openai.com/v1` | OpenAI Responses and chat | Codex, CheetahClaws |
-| `deepseek` | `https://api.deepseek.com/anthropic` | DeepSeek models in the Anthropic Messages shape | DeepSeek Harness, Kimi Code, MiniMax Code |
-| `deepseek-openai` | `https://api.deepseek.com/v1` | DeepSeek models in the OpenAI chat shape | Grok CLI, Qwen Code |
+| `model` | Provider | Model |
+|---|---|---|
+| `claude-code` | the one registered for the harness's default URL and shape | the CLI's default |
+| `claude-code/claude-sonnet-4-6` | the same | `claude-sonnet-4-6` |
+| `claude-code@deepseek/deepseek-chat` | `deepseek` | `deepseek-chat` |
 
-The full list, harness by harness, is in [harnesses/README.md](../../harnesses/README.md).
+Each folder's `harness.json` names a default (`provider.url` and `provider.api`) and every shape its CLI
+speaks (`apis`). With no `@provider`, the server uses a registered provider whose URL and shape match
+the default; if there is none, the request is a 400 that says what to register. A named provider must
+serve a shape in `apis`. A session keeps its provider for its whole life.
 
-## Run a harness on another provider
+So running Claude Code on DeepSeek is one word: register DeepSeek's Anthropic endpoint, and ask for
+`claude-code@deepseek/deepseek-chat`. The shipped folders' shapes are in
+[harnesses/README.md](../../harnesses/README.md).
 
-Any provider that serves the API shape a CLI speaks works. To run Claude Code on DeepSeek,
-point its `provider` at a provider that serves the Anthropic Messages shape:
+## What a harness gets
 
-```bash
-hi provider add deepseek --url https://api.deepseek.com/anthropic --key-env DEEPSEEK_API_KEY
+`HI_PROVIDER_URL`, `HI_PROVIDER_API` and `HI_PROVIDER_KEY_FILE`, and the model as `HI_MODEL`. Under the
+gateway (the default) the URL is the sandbox's gateway, `http://hi-provider:8080` plus the provider's
+path, and the file holds a session token; the gateway swaps it for the key. A folder whose CLI can't
+use a plain-HTTP base URL sets `"credential": "file"` in `run`: then the URL is the provider's own and
+the file holds the key. Either way the folder's `run.sh` maps them onto the CLI's own settings.
 
-# a copy of claude-code, under a new name, on the new provider
-hi harness show claude-code | jq '.name = "claude-deepseek" | .provider = "deepseek"' \
-  | curl -sX PUT localhost:8000/harnesses/claude-deepseek -H 'content-type: application/json' -d @-
-
-hi run claude-deepseek/deepseek-chat "Write a haiku about a hermit crab."
-```
-
-The copy leaves the original `claude-code` as it was. The `/deepseek-chat` after the harness name
-picks the model; the run script passes it to the CLI's model flag. To change a harness in place
-instead, edit its folder and `hi harness add` it again.
-
-## What the provider controls in a sandbox
-
-A sandboxed run can reach its provider's host, and nothing else, unless its sandbox allows more
-([sandboxes](sandboxes.md)). The host and port come from the provider's `url`: port 443 for
-`https`, 80 for `http`, or the port written in the url.
-
-## Keys at rest and in flight
-
-- **Stored** in `~/.harness-interface/data/providers/` as files only you can read (mode 600).
-- **Never returned:** `hi provider ls`, `hi provider show` and `GET /providers` show names and
-  urls only.
-- **In a run,** the key reaches the harness as an environment variable inside its container. The
-  server never puts it on a command line; the harness's own script decides how its CLI gets it
-  ([security](security.md)).
-
-## List, show, remove
-
-```bash
-hi provider ls
-hi provider show anthropic
-hi provider rm anthropic
-```
-
-A harness whose provider is removed fails its next request with a 400 that names the missing
-provider.
+The sandbox reaches the provider, and nothing else but the hosts a folder lists in `run.egress`.

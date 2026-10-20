@@ -78,4 +78,3 @@ Not needed: resume works by id in both modes. As a fallback, the transcript JSON
 - SIGINT to the ACP front end's pgrp → front end exit 0 in 0.1 s; host kept counting to 16+ (leftovers killed by hand).
 - Supervised broker (`sdk broker run` + `GJC_SDK_BROKER_AUTOSTART=0`): cancel → `cancelled` at +0.3 s; steer → count 3, DONE; `session/close` `{}`; broker SIGTERM → 143 in 0.2 s, no processes left.
 - `session/resume` in a new process after killing the broker → correct recall (9-25 s to resume).
-- Scripts and logs: `SCRATCH/harness-survey/work/gajae/{bin,out}`.

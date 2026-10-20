@@ -1,117 +1,131 @@
-# Harness contract
+# Harness contract (version 1)
 
-What a harness is, what the server gives it, and what it gives back. The server knows only this
-contract. Everything specific to a CLI lives in the harness's own folder.
+The contract between the server and a harness folder: what the folder must contain, what a harness is
+given, and what it gives back. It assumes only what is true of any program: it is installed, started
+in a directory with files and an environment, reads input, writes output, and can be signalled. No
+protocol, output format, language or provider is assumed; the folder translates its CLI into this.
+
+It is written down in code in one place, `harness_interface/harness/contract.py`, and the folder rules
+in `harness_interface/harness/folder.py`.
 
 ## The folder
 
-```
-my-harness/
-  harness.json     how it runs
-  run.sh           the command, by default
-  report.py …      any other files it needs; all of them are its scripts
-  artifacts        the files it brings, and where they go (the shipped harnesses' convention)
-```
+| File | Required | |
+|---|---|---|
+| `harness.json` | yes | below |
+| `install.sh` | yes | installs the CLI into `$HI_TOOLS` |
+| `run.sh` | yes | runs the harness: `bash run.sh`, in the workspace |
+| `adapter.py` | yes | drives the CLI (run by `run.sh`) |
+| `hi_adapter.py` | yes | the shared plumbing, byte-identical to `harness_interface/harness/hi_adapter.py` |
+| `home/` | no | config artifacts, copied into `$HOME` before every response |
+| `workspace/` | no | work artifacts, copied into a new session's workspace |
+| `image.Dockerfile` | no | starts `FROM hi-base`; built once, for OS packages `install.sh` can't add |
 
-`artifacts` is not part of the contract: the server never reads it. Every shipped `run.sh` reads
-it and puts the files it lists in place ([bring artifacts](harnesses.md#configure-it-your-way)).
-
-The PUT body for `/harnesses/{name}` is `harness.json` plus a `scripts` object, holding every
-other file in the folder by name. `hi harness add ./my-harness` builds that body for you.
+A folder holds plain files; links are refused. A folder whose `hi_adapter.py` differs from the
+server's is refused.
 
 ## harness.json
 
+A closed schema: an unknown or missing field is an error, and every problem is named at once.
+
 ```json
 {
+  "contract": 1,
   "name": "claude-code",
-  "description": "Claude Code, headless.",
-  "provider": "anthropic",
-  "sandbox": "default",
-  "files": {"AGENTS.md": "{instructions}"},
-  "run": {
-    "argv": ["bash", "{harness_dir}/run.sh"],
-    "env": {"HOME": "{workspace}/.home"},
-    "stdout": "application/x-ndjson",
-    "timeout_s": 900
-  }
+  "description": "Claude Code, headless over stream-json and steered mid-turn.",
+  "provider": {"url": "https://api.anthropic.com", "api": "anthropic-messages"},
+  "apis": ["anthropic-messages"],
+  "install": {"egress": ["registry.npmjs.org"], "timeout_s": 900},
+  "files": {".home/.claude/CLAUDE.md": "{instructions}"},
+  "run": {"interrupt": "steered", "stdout": "application/x-ndjson", "timeout_s": 1800, "stop_timeout_s": 20,
+          "credential": "gateway", "egress": []},
+  "report": [".claude/projects/*/memory/**"]
 }
 ```
 
-| Field | Default | |
-|---|---|---|
-| `name` | required | lowercase letters, digits and dashes, starting with a letter or digit |
-| `description` | `""` | free text |
-| `provider` | required | the name of a provider; it must exist when the harness runs |
-| `sandbox` | `default` | the name of a sandbox; it must exist when the harness runs |
-| `files` | `{}` | path → content, written into the workspace before every run; both are [templated](#templates) |
-| `run.argv` | `["bash", "{harness_dir}/run.sh"]` | the command, templated |
-| `run.env` | `{}` | extra environment variables, templated, set alongside the contract's |
-| `run.stdout` | `application/x-ndjson` | the content type of what the harness prints; `GET /responses/{id}/output` serves it as this |
-| `run.timeout_s` | `900` | after this many seconds the run is killed, and recorded `incomplete` |
-| `scripts` | `{}` | filename → content. Names must be plain filenames, with no `/` and no leading `.`. They are written to `{harness_dir}`, which Docker mounts read-only. |
-
-## Templates
-
-`files`, `run.argv` and `run.env` can use these placeholders:
-
-| Placeholder | Is |
+| Field | Meaning |
 |---|---|
-| `{task}` | the request's text |
-| `{instructions}` | the request's `instructions` |
-| `{model}` | the model after the `/` in `harness/model`, or empty |
-| `{session_id}` | the session to resume, or empty |
-| `{workspace}` | the workspace's path. In Docker it is mounted at the same path, so it is the same inside and out |
-| `{harness_dir}` | the harness's scripts directory. In Docker it is mounted read-only, at the same path |
-| `{provider_url}` | the provider's url |
-| `{provider_key}` | the provider's key |
+| `contract` | `1`: the version this folder was written for. A server refuses a contract it doesn't know. |
+| `name` | lowercase letters, digits and dashes, at most 63 |
+| `description` | one line |
+| `provider` | the default provider: `url` and `api`. `api` must be one of `apis`; `url` follows the rule below. |
+| `apis` | the API shapes the harness speaks: `anthropic-messages`, `openai-responses`, `openai-chat` |
+| `install.egress` | the hosts (`host` or `host:port`) `install.sh` may reach |
+| `install.timeout_s` | the install's time limit |
+| `files` | `{workspace path: template}`, rendered before every response. `{instructions}` is the request's instructions. An empty render deletes the file. Not under `.git/`. |
+| `run.interrupt` | `steered`: later stdin lines reach the running work. `continued`: it stops gracefully and resumes. `responded`: neither. |
+| `run.stdout` | the content type of what it prints, such as `application/x-ndjson` |
+| `run.timeout_s` | a response's time limit; then it is stopped |
+| `run.stop_timeout_s` | the time between a stop's SIGINT and the kill |
+| `run.credential` | optional: `gateway` (the default) or `file`. See [security](security.md#keys). |
+| `run.egress` | optional: hosts a session may reach besides its provider; none by default |
+| `report` | optional: globs under `$HOME` (`*`, `?`, `**`) of files the harness writes that come back with each response |
 
-- Only `{identifier}` is a placeholder, so other braces, such as JSON or code, pass through.
-- An unknown placeholder fails the request with a 400.
+**The provider URL** is the base URL the shape's official SDK takes, `https://` with no credentials,
+query or fragment: for `anthropic-messages` without a version path (`https://api.anthropic.com`,
+`https://api.deepseek.com/anthropic`), for `openai-*` with one (`https://api.openai.com/v1`,
+`https://api.deepseek.com/v1`). The same rule holds for every provider registered with the server, so
+an adapter never guesses.
 
-## What the harness gets
+## What a harness is given
 
-| | Where |
+| | |
 |---|---|
-| the request, as JSON: `task`, `instructions`, `model`, `session_id`, `files` (their names), `metadata` | stdin, and the file at `HI_REQUEST` |
-| the task | `HI_TASK` |
-| the model | `HI_MODEL`, or empty |
-| the session to resume | `HI_SESSION_ID`: what the previous turn reported, or empty on a first turn |
-| the provider | `HI_PROVIDER_URL`, `HI_PROVIDER_KEY` |
-| where things are | `HI_WORKSPACE`, `HI_HARNESS_DIR`, `HI_OUTPUT` |
-| the way out, in Docker | `HTTPS_PROXY`, `HTTP_PROXY`, pointing at the egress door |
-| the request's input files, and the harness's `files` | in the workspace, which is the working directory |
+| working directory | the session's workspace, at the same path inside the sandbox as outside |
+| `HI_WORKSPACE` | that path |
+| `HOME` | `$HI_WORKSPACE/.home`, kept for the whole session |
+| `HI_HARNESS_DIR` | the folder, read-only |
+| `HI_OUTPUT` | the result file's path, outside the workspace |
+| `HI_MODEL` | the model the request named, or empty |
+| `HI_PROVIDER_URL` | the provider's base URL, or under the gateway the gateway's URL with the same path |
+| `HI_PROVIDER_API` | the provider's shape |
+| `HI_PROVIDER_KEY_FILE` | a read-only file holding a session token (gateway) or the key (file mode) |
+| `PATH` | `$HI_TOOLS/bin` first |
+| `HTTPS_PROXY`, `NO_PROXY` | in the sandbox: the egress door, and loopback left unproxied |
+| stdin, line 1 | `{"task": "…", "resume": "…" or null}`, one compact JSON line |
+| stdin, later lines | one JSON string each: more text, for a `steered` harness |
+| `$HOME` | the folder's `home/`, then `files`, copied in before every response |
+| the workspace | the folder's `workspace/` when the session starts, then the request's files |
 
-Reading stdin is optional: a harness that ignores it is fine.
+Nothing else of the server's environment. `install.sh` is given `HI_TOOLS` (where to install),
+`HI_HARNESS_DIR`, and a scratch `HOME`; no provider, key or token.
 
-## What the harness gives back
+## What it gives back
 
-| | Where |
-|---|---|
-| its output | stdout, streamed to clients as it prints (`harness.output`) and kept byte for byte (`GET /responses/{id}/output`) |
-| its log | stderr, streamed the same way (`harness.log`) and kept (`GET /responses/{id}/log`) |
-| what the record reports | optional JSON written to the file at `HI_OUTPUT` (below) |
-| its changes | whatever it adds, changes or deletes in the workspace: the record lists `files` and `deleted`, and `GET /responses/{id}/diff` shows them |
+- **stdout and stderr**, streamed as they are written and kept byte for byte.
+- **The workspace's changes:** every file it adds, changes or deletes outside `.home/`.
+- **Reported artifacts:** the files under `$HOME` matching `report` that the response added, changed
+  or deleted.
+- **`$HI_OUTPUT`**, a JSON object, written atomically (to a temporary file, then renamed): early,
+  with `"status": "running"` and `resume` as soon as it knows it, and again at the end:
 
-The `HI_OUTPUT` file holds a JSON object. Every key is optional:
+  | Key | |
+  |---|---|
+  | `answer` | the answer, as text |
+  | `status` | `running`, `ok`, `fail` or `stopped`: from the CLI's own events, never its exit code |
+  | `resume` | the CLI's handle to continue this conversation; given back on line 1 next time |
+  | `usage` | `input_tokens`, `output_tokens`, `cache_read_tokens`, `cache_write_tokens`, `reasoning_tokens`; others allowed |
+  | `cost_usd` | the harness's own figure, if it has one |
+  | `steers` | how many steer lines the CLI took |
 
-| Key | Becomes |
-|---|---|
-| `answer` | the record's `output`: one assistant message with this text, if it isn't blank |
-| `status` | `ok` or `fail`. Without it, exit code 0 is `ok`, and anything else `fail`. A timeout or a cancel decides first, whatever it says. |
-| `session_id` | the resume handle; the next turn gets it as `HI_SESSION_ID`. Without it, the previous one is kept. |
-| `usage` | the record's `usage`, as given, if it is an object |
-| `cost_usd` | the record's `harness.cost_usd` |
+  Every key is optional, and any other key comes back too, untouched.
 
-## The rules of the workspace
+A response cut off while its file still says `running` (or says nothing) ends `stopped` if it was
+asked to stop and had a resume handle, otherwise failed.
 
-- **One per conversation.** Every turn of a conversation runs in the same workspace, with the
-  files as the last turn left them.
-- **Internal paths are never produced files.** That covers `.hi/` (the server's own),
-  `.home/`, `.git/` and `__pycache__/`. Set `"HOME": "{workspace}/.home"` so a CLI's own state
-  survives between turns without being listed.
-- **Changes are found with git:** each turn starts and ends with a commit, so its diff and its
-  files can be read later, as it left them.
-- **A `.gitignore` is the project's own.** The internal paths are ignored by the server
-  separately, so a request or harness can add or replace `.gitignore` freely.
-- **Owned by whoever runs in it.** In Docker that is uid 1000 when the server runs as root, and the
-  server's own user otherwise, so the harness can always write to it.
+## Control
+
+- **stdin stays open** for the whole response. Its end means stop gracefully.
+- **SIGINT** to the run's process group means stop gracefully. If it hasn't ended
+  `run.stop_timeout_s` later, it is killed. `run.timeout_s` stops it the same way.
+- **Interrupting a session** degrades by the harness's tier: an idle session is continued with the
+  text; a running `steered` harness gets the text as a stdin line; otherwise the response is stopped
+  and the session continued with the text (`continued`, or `responded`).
+- **Steers it didn't take.** If `steers` is less than the lines sent, the rest arrived too late: when
+  the response ends `ok` the server sends them, joined, as the next response; otherwise it reports
+  them undelivered. Nothing is sent after a stop.
+
+## The smallest harness
+
+`harness.json`, an `install.sh` that installs nothing, and a `run.sh` that reads line 1 and writes
+`{"answer": "…", "status": "ok"}` to `$HI_OUTPUT`. It is `responded`, with no resume, and it works.

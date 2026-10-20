@@ -1,5 +1,5 @@
 name: Bug
-description: Something that doesn't work. Keeper triages it, writes a failing test and fixes it.
+description: Something that doesn't work.
 labels: [bug]
 body:
   - type: textarea
@@ -7,5 +7,5 @@ body:
     attributes: { label: What happened, description: "What you ran, what you expected, what happened. Remove any key." }
     validations: { required: true }
   - type: textarea
-    id: record
-    attributes: { label: The record, description: "hi show ID and hi log ID, if a run was involved." }
+    id: response
+    attributes: { label: The response, description: "Its status, error and harness.stderr, if a response was involved; the install log if an install was." }

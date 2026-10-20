@@ -1,4 +1,4 @@
-"""Layer 6: the HTTP API, behaving as the plan's §8 says, with the template's stand-in on this machine.
+"""Layer 6: the HTTP API, as docs/users/api.md says, with the template's stand-in on this machine.
 Every route and every error; the Responses shape with its `harness` object; the stream's events and
 their order, a steer among the output and an interrupt before its continuation; interrupt's and
 stop's outcomes; a response outliving its client; one response per session; the OpenAI SDK as a

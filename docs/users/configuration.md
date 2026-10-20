@@ -1,73 +1,41 @@
 # Configuration
 
-Everything is set through environment variables; there is no configuration file.
-
-## The server
-
-Read when `harness-interface` (or `hi server start`) starts:
+Everything is set through environment variables, read when the server starts; there is no
+configuration file.
 
 | Variable | Default | |
 |---|---|---|
 | `HI_HOST` | `127.0.0.1` | the address to listen on |
 | `HI_PORT` | `8000` | the port |
-| `HI_DATA_DIR` | `~/.harness-interface/data` | where resources, records, logs and workspaces live |
-| `HI_RUNTIME` | `docker` | where harnesses run: `docker` or `local` ([below](#runtimes)) |
+| `HI_DATA_DIR` | `~/.harness-interface/data` | where everything is kept |
+| `HI_RUNTIME` | `docker` | `docker`: every install and response in a hardened container. `local`: plain processes on this machine, no isolation, for developing a harness |
+| `HI_CA_FILE` | none | a CA bundle, for a network that re-signs TLS (a corporate proxy); given to the egress door and to harnesses in file mode |
 
-At startup the server checks that git is installed. With the Docker runtime, it also checks that
-Docker is reachable. If either check fails, it refuses to start and says which one.
+The installer reads `HI_REF`: the release tag, branch or commit to install.
 
-## The CLI
-
-| Variable | Default | |
-|---|---|---|
-| `HI_URL` | `http://127.0.0.1:8000` | the server `hi` talks to; `--url` overrides it for one command |
-
-`hi server start` starts the server on the host and port in `HI_URL`, and passes the rest of your
-environment through: `HI_RUNTIME=local hi server start` starts a local-runtime server.
-
-## The installer
-
-| Variable | Default | |
-|---|---|---|
-| `HI_REF` | the latest release | the tag, branch or commit to install |
-
-## Runtimes
-
-| | `docker` (default) | `local` |
-|---|---|---|
-| A harness runs as | a fresh container from its sandbox's image | a plain process, in the workspace directory |
-| It needs | Docker | the harness's CLI installed on this machine |
-| Isolation | every capability dropped, read-only root, process and memory limits ([security](security.md)) | none |
-| Network | only its provider's host, plus its sandbox's `egress` | anything this machine can reach |
-| A sandbox's Dockerfile | is built and used | is ignored |
-| Use it for | everything | developing a harness, or where Docker isn't an option |
-
-Every record says which runtime it ran on, in `harness.runtime`.
+The server passes nothing of its own environment to what it runs but an allowlist (`PATH`, locale,
+terminal and time zone, proxy and CA settings, and Docker's client settings), so a key in the server's
+environment never reaches a harness.
 
 ## Where data lives
 
 Under `HI_DATA_DIR`:
 
 ```
-providers/{name}.json      the keys: files mode 600, in a mode 700 directory
-sandboxes/{name}.json      the sandboxes you added; default is built in, not stored
-harnesses/{name}.json
-scripts/{harness}/         each harness's scripts, mounted read-only into its runs
-records/{id}.json          the records, one per turn
-logs/{id}.out              each run's stdout, byte for byte
-logs/{id}.log              each run's stderr
-logs/build-{sandbox}-{hash}.log
-workspaces/{id}/           one per conversation, named after its first response; a git repository
+providers/{name}.json       providers and their keys: files mode 600, in a mode 700 directory
+harnesses/{name}/           each harness folder, as it was sent
+tools/{name}-{key}/         each harness's install, by version (a hash of install.sh, image.Dockerfile,
+                            the base image and the CPU); {name}-{key}.log is its install log
+sessions/{id}.json          each session, private
+responses/{id}.json         each response's record
+logs/{id}.stdout, .stderr   each response's output, byte for byte; .door, its egress door's log;
+                            image build logs
+runs/{id}/output.json       each response's result file, outside its workspace
+workspaces/{session}/       each session's workspace; .home/ inside it is the harness's $HOME
 ```
 
-`hi` keeps three files of its own in `~/.harness-interface`:
+## Images and containers
 
-| | |
-|---|---|
-| `server.pid` | the server `hi server start` started |
-| `server.log` | that server's log |
-| `last-response` | the response `hi run -c` continues |
-
-Docker images are named `harness-interface/{sandbox}:{hash of the Dockerfile}`. A run's
-containers and network share a random id of their own: `harness-run-…`, `harness-door-…` and
-`harness-net-…`.
+The base image is `hi-base:<hash of its Dockerfile>`; a harness with an `image.Dockerfile` gets
+`hi-harness-<name>:<hash>`. A response's containers and network are named `hi-run-…`, `hi-door-…` and
+`hi-net-…`, and carry a label with their data directory's id, so a server only ever removes its own.

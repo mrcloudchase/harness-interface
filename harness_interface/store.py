@@ -99,17 +99,30 @@ class InstallState:
     error: str = ""
 
 
+def encode(data: bytes) -> str | dict[str, str]:
+    """A file's content as JSON holds it: its text, or `{"base64": …}` when it isn't UTF-8."""
+    try:
+        return data.decode()
+    except UnicodeDecodeError:
+        return {"base64": base64.b64encode(data).decode()}
+
+
+def decode(content: Any, where: str = "content") -> bytes:
+    """The bytes `encode` made, or Invalid."""
+    if isinstance(content, str):
+        return content.encode()
+    if isinstance(content, Mapping) and set(content) == {"base64"} and isinstance(content["base64"], str):
+        try:
+            return base64.b64decode(content["base64"], validate=True)
+        except binascii.Error:
+            raise Invalid(f"{where}: not base64") from None
+    raise Invalid(f"{where}: a file's content is text or {{\"base64\": …}}")
+
+
 def folder_map(path: Path) -> dict[str, str | dict[str, str]]:
-    """Every file of a folder, by relative path: its text, or `{"base64": …}` when it isn't UTF-8."""
-    files: dict[str, str | dict[str, str]] = {}
-    for p in sorted(Path(path).rglob("*")):
-        if p.is_file() and not p.is_symlink():
-            data = p.read_bytes()
-            try:
-                files[p.relative_to(path).as_posix()] = data.decode()
-            except UnicodeDecodeError:
-                files[p.relative_to(path).as_posix()] = {"base64": base64.b64encode(data).decode()}
-    return files
+    """Every file of a folder, by relative path, encoded."""
+    return {p.relative_to(path).as_posix(): encode(p.read_bytes()) for p in sorted(Path(path).rglob("*"))
+            if p.is_file() and not p.is_symlink()}
 
 
 def contents(files: Mapping[str, Any]) -> dict[str, bytes]:
@@ -120,15 +133,7 @@ def contents(files: Mapping[str, Any]) -> dict[str, bytes]:
     for rel, content in files.items():
         if not relative(rel) or any(part in ("", ".") for part in rel.split("/")):
             raise Invalid(f"a harness's file path is relative and inside it: {rel!r}")
-        if isinstance(content, str):
-            out[rel] = content.encode()
-        elif isinstance(content, Mapping) and set(content) == {"base64"} and isinstance(content["base64"], str):
-            try:
-                out[rel] = base64.b64decode(content["base64"], validate=True)
-            except binascii.Error:
-                raise Invalid(f"{rel}: not base64") from None
-        else:
-            raise Invalid(f"{rel}: a file's content is text or {{\"base64\": …}}")
+        out[rel] = decode(content, rel)
     return out
 
 

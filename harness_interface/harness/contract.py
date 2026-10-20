@@ -155,6 +155,13 @@ def number(value: Any, kind: type | tuple[type, ...] = (int, float)) -> bool:
     return isinstance(value, kind) and not isinstance(value, bool)
 
 
+def reported(folder: HarnessFolder, workspace: Workspace, prepared: Prepared) -> dict[str, bytes | None]:
+    """The reported artifacts the response has added, changed (path -> content) or deleted (None) so far."""
+    after = workspace.home_files(folder.report)
+    return {**{p: workspace.read_home(p) for p, digest in after.items() if prepared.home.get(p) != digest},
+            **{p: None for p in prepared.home if p not in after}}
+
+
 def collect(folder: HarnessFolder, workspace: Workspace, prepared: Prepared, *, outcome: Outcome,
             stop: str | None = None, steers_sent: int = 0) -> Result:
     """What the response gave back, once its process has ended."""
@@ -170,9 +177,7 @@ def collect(folder: HarnessFolder, workspace: Workspace, prepared: Prepared, *, 
     commit = workspace.snapshot("after the response")
     changed, deleted = workspace.changes(prepared.base, commit)
     changes = {**{p: workspace.read(p, commit) for p in changed}, **{p: None for p in deleted}}
-    after = workspace.home_files(folder.report)
-    home = {**{p: workspace.read_home(p) for p, digest in after.items() if prepared.home.get(p) != digest},
-            **{p: None for p in prepared.home if p not in after}}
+    home = reported(folder, workspace, prepared)
     return Result(status=status, answer=answer, resume=resume,
                   usage=MappingProxyType(out["usage"] if isinstance(out.get("usage"), dict) else {}),
                   cost_usd=cost if number(cost) else None, steers=steers if number(steers, int) else 0,

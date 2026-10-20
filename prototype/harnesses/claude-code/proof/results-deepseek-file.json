@@ -1,0 +1,154 @@
+{
+  "deepseek-file-oneshot": {
+    "session": "06371877ea69",
+    "harness": "claude-code",
+    "mode": "docker",
+    "status": "ok",
+    "answer": "2 + 2 = 4.\n\nPAPAYA",
+    "resume": "6cb108a0-eae8-4661-800c-4c66512a76c4",
+    "usage": {
+      "input_tokens": 10533,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 0,
+      "output_tokens": 41
+    },
+    "cost_usd": 0.042952,
+    "steers": 0,
+    "steers_sent": 0,
+    "stop": null,
+    "stop_to_exit_s": null,
+    "exit_code": 0,
+    "seconds": 4.16,
+    "stdout_lines": 33,
+    "files_changed": {
+      "added": [],
+      "deleted": [],
+      "modified": []
+    },
+    "workspace": "/tmp/claude-0/-home-user/37719b48-fc3a-58ba-bb72-5869c819d794/scratchpad/rebuild/foundation/work/ws-06371877ea69",
+    "tools": "/tmp/claude-0/-home-user/37719b48-fc3a-58ba-bb72-5869c819d794/scratchpad/rebuild/foundation/tools/claude-code-71fbfdf7ef14",
+    "logs": "/tmp/claude-0/-home-user/37719b48-fc3a-58ba-bb72-5869c819d794/scratchpad/rebuild/foundation/work/runs/06371877ea69",
+    "door_log": [
+      "door allow api.deepseek.com:443"
+    ],
+    "wall_s": 4.19,
+    "trigger": null,
+    "count_final": 0,
+    "done_txt": null,
+    "secret_mode": "file",
+    "token_in_workspace": null,
+    "key_in_workspace": [],
+    "event_counts": {
+      "system/init": 1,
+      "system/thinking_tokens": 28,
+      "user+replay": 1,
+      "assistant": 2,
+      "result/success": 1
+    }
+  },
+  "_checks": {
+    "deepseek-file one-shot": true,
+    "deepseek-file stop then continue": true
+  },
+  "deepseek-file-stop": {
+    "session": "063722f12dbd",
+    "harness": "claude-code",
+    "mode": "docker",
+    "status": "stopped",
+    "answer": "",
+    "resume": "d0f736cd-10c6-4465-9bb0-90dd12c7fd2a",
+    "usage": {
+      "input_tokens": 10810,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 21376,
+      "output_tokens": 508
+    },
+    "cost_usd": 0.057675,
+    "steers": 0,
+    "steers_sent": 0,
+    "stop": "requested",
+    "stop_to_exit_s": 0.19,
+    "exit_code": 0,
+    "seconds": 10.6,
+    "stdout_lines": 299,
+    "files_changed": {
+      "added": [
+        "count.txt"
+      ],
+      "deleted": [],
+      "modified": []
+    },
+    "workspace": "/tmp/claude-0/-home-user/37719b48-fc3a-58ba-bb72-5869c819d794/scratchpad/rebuild/foundation/work/ws-063722f12dbd",
+    "tools": "/tmp/claude-0/-home-user/37719b48-fc3a-58ba-bb72-5869c819d794/scratchpad/rebuild/foundation/tools/claude-code-71fbfdf7ef14",
+    "logs": "/tmp/claude-0/-home-user/37719b48-fc3a-58ba-bb72-5869c819d794/scratchpad/rebuild/foundation/work/runs/063722f12dbd",
+    "door_log": [
+      "door allow api.deepseek.com:443"
+    ],
+    "wall_s": 10.62,
+    "trigger": {
+      "count": 3,
+      "line": 295
+    },
+    "count_final": 3,
+    "done_txt": null,
+    "secret_mode": "file",
+    "token_in_workspace": null,
+    "key_in_workspace": [],
+    "event_counts": {
+      "system/init": 1,
+      "system/thinking_tokens": 283,
+      "user+replay": 1,
+      "assistant": 7,
+      "user": 4,
+      "hi.stop": 1,
+      "control_response": 1,
+      "result/error_during_execution": 1
+    }
+  },
+  "deepseek-file-continue": {
+    "session": "0637352a086f",
+    "harness": "claude-code",
+    "mode": "docker",
+    "status": "ok",
+    "answer": "I was appending the numbers 1\u201330 to count.txt one at a time with a one-second sleep after each, and had completed 1, 2, and 3 when you interrupted.",
+    "resume": "d0f736cd-10c6-4465-9bb0-90dd12c7fd2a",
+    "usage": {
+      "input_tokens": 163,
+      "cache_creation_input_tokens": 0,
+      "cache_read_input_tokens": 10880,
+      "output_tokens": 42
+    },
+    "cost_usd": 0.003668,
+    "steers": 0,
+    "steers_sent": 0,
+    "stop": null,
+    "stop_to_exit_s": null,
+    "exit_code": 0,
+    "seconds": 3.63,
+    "stdout_lines": 5,
+    "files_changed": {
+      "added": [],
+      "deleted": [],
+      "modified": []
+    },
+    "workspace": "/tmp/claude-0/-home-user/37719b48-fc3a-58ba-bb72-5869c819d794/scratchpad/rebuild/foundation/work/ws-063722f12dbd",
+    "tools": "/tmp/claude-0/-home-user/37719b48-fc3a-58ba-bb72-5869c819d794/scratchpad/rebuild/foundation/tools/claude-code-71fbfdf7ef14",
+    "logs": "/tmp/claude-0/-home-user/37719b48-fc3a-58ba-bb72-5869c819d794/scratchpad/rebuild/foundation/work/runs/0637352a086f",
+    "door_log": [
+      "door allow api.deepseek.com:443"
+    ],
+    "wall_s": 3.66,
+    "trigger": null,
+    "count_final": 3,
+    "done_txt": null,
+    "secret_mode": "file",
+    "token_in_workspace": null,
+    "key_in_workspace": [],
+    "event_counts": {
+      "system/init": 1,
+      "user+replay": 1,
+      "assistant": 2,
+      "result/success": 1
+    }
+  }
+}

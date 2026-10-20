@@ -1,0 +1,8 @@
+deepseek-oneshot: {"status": "ok", "answer": "2+2 = 4.\n\nPAPAYA", "resume": "8a8c2221-da00-4fae-a2d2-59bed6262f36", "steers": 0, "steers_sent": 0, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 4.67, "cost_usd": 0.042388, "trigger": null, "count_final": 0, "done_txt": null}
+PASS  deepseek one-shot {"door": ["gateway POST /anthropic/v1/messages -> 200"]}
+deepseek-resume1: {"status": "ok", "answer": "OK", "resume": "df21d11f-178f-4a46-9b57-dba042e150da", "steers": 0, "steers_sent": 0, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 10.92, "cost_usd": 0.065374, "trigger": null, "count_final": 0, "done_txt": null}
+deepseek-resume2: {"status": "ok", "answer": "ORCHID \u2014 I saved it to memory earlier this session.", "resume": "df21d11f-178f-4a46-9b57-dba042e150da", "steers": 0, "steers_sent": 0, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 3.41, "cost_usd": 0.003836, "trigger": null, "count_final": 0, "done_txt": null}
+PASS  deepseek resume {"answer": "ORCHID \u2014 I saved it to memory earlier this session."}
+hirun: steer sent: 'Stop counting now. Instead write the word DONE into done.txt and finish.'
+deepseek-steer: {"status": "ok", "answer": "Stopped counting at 4 and wrote `DONE` to `done.txt`.\n\n- `count.txt` contains 1, 2, 3, 4 (one per line)\n- `done.txt` contains `DONE`", "resume": "562a1944-0a0a-44f9-8362-469403de964b", "steers": 1, "steers_sent": 1, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 17.45, "cost_usd": 0.07458, "trigger": {"count": 3, "line": 460}, "count_final": 4, "done_txt": "DONE"}
+PASS  deepseek steer {"count_final": 4, "trigger": {"count": 3, "line": 460}}

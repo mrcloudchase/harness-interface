@@ -1,0 +1,13 @@
+install {'first': 'miss', 'first_s': 29.5, 'second': 'hit', 'second_s': 0.0, 'dir': 'claude-code-71fbfdf7ef14'}
+docker-gateway-oneshot: {"status": "ok", "answer": "4\n\nPAPAYA", "resume": "bf029f44-9e42-401c-b718-1da69c165215", "steers": 0, "steers_sent": 0, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 3.86, "cost_usd": 0.038095, "trigger": null, "count_final": 0, "done_txt": null}
+PASS  docker-gateway one-shot follows instructions 
+docker-gateway-resume1: {"status": "ok", "answer": "OK", "resume": "b4afe022-02aa-47ce-86cc-1ab344dc54e9", "steers": 0, "steers_sent": 0, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 3.57, "cost_usd": 0.037521, "trigger": null, "count_final": 0, "done_txt": null}
+docker-gateway-resume2: {"status": "ok", "answer": "ORCHID", "resume": "b4afe022-02aa-47ce-86cc-1ab344dc54e9", "steers": 0, "steers_sent": 0, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 3.31, "cost_usd": 0.006321, "trigger": null, "count_final": 0, "done_txt": null}
+PASS  docker-gateway resume {"answer": "ORCHID"}
+hirun: steer sent: 'Stop counting now. Instead write the word DONE into done.txt and finish.'
+docker-gateway-steer: {"status": "ok", "answer": "Done. count.txt has 1\u20134, and done.txt contains `DONE`.", "resume": "cfdf34b8-1afe-4b6a-acf5-89cf8ba11f38", "steers": 1, "steers_sent": 1, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 29.32, "cost_usd": 0.095333, "trigger": {"count": 3, "line": 19}, "count_final": 4, "done_txt": "DONE"}
+PASS  docker-gateway steer {"count_final": 4, "trigger": {"count": 3, "line": 19}}
+hirun: stop (requested): SIGINT
+docker-gateway-stop: {"status": "stopped", "answer": "", "resume": "bbbdd078-84f8-4409-9da4-4d91cc84b3ac", "steers": 0, "steers_sent": 0, "stop": "requested", "stop_to_exit_s": 0.3, "exit_code": 0, "seconds": 24.34, "cost_usd": 0.068583, "trigger": {"count": 3, "line": 19}, "count_final": 3, "done_txt": null}
+docker-gateway-continue: {"status": "ok", "answer": "I was writing numbers 1\u201330 to `count.txt` one at a time with `sleep 1` between each, and got through 3 before being interrupted.", "resume": "bbbdd078-84f8-4409-9da4-4d91cc84b3ac", "steers": 0, "steers_sent": 0, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 3.97, "cost_usd": 0.008018, "trigger": null, "count_final": 3, "done_txt": null}
+PASS  docker-gateway stop then continue {"stop_to_exit_s": 0.3, "count_at_stop": {"count": 3, "line": 19}, "count_after": 3, "answer": "I was writing numbers 1\u201330 to `count.txt` one at a time with `sleep 1` between each, and got through 3 before being interrupted."}

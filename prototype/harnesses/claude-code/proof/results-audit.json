@@ -1,0 +1,63 @@
+{
+  "audit": {
+    "anthropic": {
+      "base_image": false,
+      "tools_dirs": {
+        "claude-code-71fbfdf7ef14": [],
+        "claude-code-local-838356b1b0c7": []
+      },
+      "install_logs": [],
+      "workspaces_and_home": {},
+      "run_logs": {},
+      "proof_dir": [],
+      "host_cmdline": [],
+      "host_environ_beyond_machine_vars": [],
+      "machine_vars_holding_it": [
+        "EXT_ANTHROPIC_API_KEY"
+      ],
+      "hi_containers_left": [
+        "308bfa5fa92e",
+        "f481dd88de68"
+      ],
+      "shm_left": [
+        "/dev/shm/hi-063817b59889"
+      ]
+    },
+    "deepseek": {
+      "base_image": false,
+      "tools_dirs": {
+        "claude-code-71fbfdf7ef14": [],
+        "claude-code-local-838356b1b0c7": []
+      },
+      "install_logs": [],
+      "workspaces_and_home": {},
+      "run_logs": {},
+      "proof_dir": [],
+      "host_cmdline": [],
+      "host_environ_beyond_machine_vars": [],
+      "machine_vars_holding_it": [
+        "DEEPSEEK_API_KEY"
+      ],
+      "hi_containers_left": [
+        "33c4230921a3",
+        "30d08f3a083a",
+        "308bfa5fa92e",
+        "f481dd88de68"
+      ],
+      "shm_left": [
+        "/dev/shm/hi-0638410a8be3",
+        "/dev/shm/hi-06383926b80d",
+        "/dev/shm/hi-063817b59889"
+      ]
+    },
+    "checked": {
+      "tools_dirs": [
+        "claude-code-71fbfdf7ef14",
+        "claude-code-local-838356b1b0c7"
+      ],
+      "workspaces": 23,
+      "run_logs": 31,
+      "image": "hi-base:80d60e8c2bde"
+    }
+  }
+}

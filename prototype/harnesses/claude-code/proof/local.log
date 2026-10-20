@@ -1,0 +1,34 @@
+gateway POST /v1/messages -> 200
+local-oneshot: {"status": "ok", "answer": "4\n\nPAPAYA", "resume": "220dee67-6554-4ed4-bc57-dc3a3baa82e5", "steers": 0, "steers_sent": 0, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 3.39, "cost_usd": 0.038391, "trigger": null, "count_final": 0, "done_txt": null}
+PASS  local one-shot follows instructions 
+gateway POST /v1/messages -> 200
+local-resume1: {"status": "ok", "answer": "OK", "resume": "66fc0d18-2cf5-4d39-8438-759297e15636", "steers": 0, "steers_sent": 0, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 2.04, "cost_usd": 0.037817, "trigger": null, "count_final": 0, "done_txt": null}
+gateway POST /v1/messages -> 200
+local-resume2: {"status": "ok", "answer": "ORCHID", "resume": "66fc0d18-2cf5-4d39-8438-759297e15636", "steers": 0, "steers_sent": 0, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 1.69, "cost_usd": 0.006345, "trigger": null, "count_final": 0, "done_txt": null}
+PASS  local resume {"answer": "ORCHID"}
+gateway POST /v1/messages -> 200
+gateway POST /v1/messages -> 200
+gateway POST /v1/messages -> 200
+hirun: steer sent: 'Stop counting now. Instead write the word DONE into done.txt and finish.'
+gateway POST /v1/messages -> 200
+gateway POST /v1/messages -> 200
+gateway POST /v1/messages -> 200
+local-steer: {"status": "ok", "answer": "Stopped at 4. count.txt has numbers 1\u20134, and done.txt contains \"DONE\".", "resume": "beb46abc-aef3-419d-b44b-01d4aa02bca1", "steers": 1, "steers_sent": 1, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 29.35, "cost_usd": 0.095, "trigger": {"count": 3, "line": 18}, "count_final": 4, "done_txt": "DONE"}
+PASS  local steer {"count_final": 4, "trigger": {"count": 3, "line": 18}}
+gateway POST /v1/messages -> 200
+gateway POST /v1/messages -> 200
+gateway POST /v1/messages -> 200
+hirun: stop (requested): SIGINT
+local-stop: {"status": "stopped", "answer": "", "resume": "fc6c2442-ef32-440c-96a0-88910312716c", "steers": 0, "steers_sent": 0, "stop": "requested", "stop_to_exit_s": 0.09, "exit_code": 0, "seconds": 24.86, "cost_usd": 0.071132, "trigger": {"count": 3, "line": 20}, "count_final": 3, "done_txt": null}
+gateway POST /v1/messages -> 200
+local-continue: {"status": "ok", "answer": "I was writing numbers 1\u201330 to `count.txt` one per line with a 1-second sleep between each, and got through number 3 before being stopped.", "resume": "fc6c2442-ef32-440c-96a0-88910312716c", "steers": 0, "steers_sent": 0, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 2.51, "cost_usd": 0.008025, "trigger": null, "count_final": 3, "done_txt": null}
+PASS  local stop then continue {"stop_to_exit_s": 0.09, "count_at_stop": {"count": 3, "line": 20}, "count_after": 3, "answer": "I was writing numbers 1\u201330 to `count.txt` one per line with a 1-second sleep between each, and got through number 3 before being stopped."}
+gateway POST /v1/messages -> 200
+local-agents-only: {"status": "ok", "answer": "KIWI", "resume": "9f0be455-eba4-44e9-84a1-f5dc0693e600", "steers": 0, "steers_sent": 0, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 1.9, "cost_usd": 0.03841, "trigger": null, "count_final": 0, "done_txt": null}
+  agents-only: 'KIWI'
+gateway POST /v1/messages -> 200
+local-agents+home: {"status": "ok", "answer": "MANGO, KIWI", "resume": "06b5cafb-01d2-492b-9ce8-338f0d734507", "steers": 0, "steers_sent": 0, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 1.83, "cost_usd": 0.038785, "trigger": null, "count_final": 0, "done_txt": null}
+  agents+home: 'MANGO, KIWI'
+gateway POST /v1/messages -> 200
+local-agents+ws-claude+home: {"status": "ok", "answer": "MANGO, FIG", "resume": "5c2d95c6-4170-482d-94ce-2ff1e2ce515b", "steers": 0, "steers_sent": 0, "stop": null, "stop_to_exit_s": null, "exit_code": 0, "seconds": 1.96, "cost_usd": 0.038807, "trigger": null, "count_final": 0, "done_txt": null}
+  agents+ws-claude+home: 'MANGO, FIG'

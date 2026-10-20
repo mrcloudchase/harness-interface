@@ -1,0 +1,9 @@
+{
+  "name": "codex",
+  "description": "OpenAI Codex CLI 0.163.0 driven over `codex app-server` JSON-RPC; speaks the OpenAI Responses API only (base URL must include /v1); steered via turn/steer.",
+  "provider": {"url": "https://api.openai.com/v1", "api": "openai-responses"},
+  "apis": ["openai-responses"],
+  "install": {"egress": ["registry.npmjs.org"], "timeout_s": 600},
+  "files": {".home/.codex/AGENTS.md": "{instructions}"},
+  "run": {"interrupt": "steered", "stdout": "application/x-ndjson", "timeout_s": 900, "stop_timeout_s": 15}
+}

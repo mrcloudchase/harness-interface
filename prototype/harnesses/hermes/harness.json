@@ -1,0 +1,9 @@
+{
+  "name": "hermes",
+  "description": "Hermes Agent 0.19.0 (NousResearch) driven over ACP (`hermes acp`); steers with `/steer`, stops with session/cancel; Anthropic Messages.",
+  "provider": {"url": "https://api.anthropic.com", "api": "anthropic-messages"},
+  "apis": ["anthropic-messages"],
+  "install": {"egress": ["pypi.org", "files.pythonhosted.org"], "timeout_s": 600},
+  "files": {".home/.hermes/SOUL.md": "{instructions}"},
+  "run": {"interrupt": "steered", "stdout": "application/x-ndjson", "timeout_s": 1800, "stop_timeout_s": 20}
+}

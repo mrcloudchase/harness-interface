@@ -1,0 +1,19 @@
+# Copied to $HOME/.hermes/config.yaml (= $HERMES_HOME) before every response. Users may add
+# mcp_servers, skills.external_dirs, hooks, ... here. ${VAR}s are expanded by hermes.
+model:
+  provider: anthropic          # Anthropic Messages
+  base_url: ${ANTHROPIC_BASE_URL}   # set by run.sh; without it the ACP model list calls
+                               # api.anthropic.com/v1/models with the key, whatever the provider
+  default: ${HI_MODEL}         # the request's model (no session/set_model: it guesses providers)
+  context_length: 128000       # fixed: skips hermes's context-length probing of the URL (~6 s/start)
+security:
+  tirith_enabled: false        # else a 38 MB scanner download from github.com on every fresh home
+memory:
+  nudge_interval: 0            # no background "review" fork making extra model calls after a turn
+skills:
+  creation_nudge_interval: 0
+hooks:                         # delegate_task always runs in the background in 0.19.0: the turn ends
+  pre_tool_call:               # while a subagent works on, and ACP ignores agent.disabled_toolsets
+    - matcher: delegate_task
+      command: >-
+        echo '{"decision":"block","reason":"delegate_task is disabled here: do the work yourself, in this turn."}'

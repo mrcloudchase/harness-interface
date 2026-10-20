@@ -52,7 +52,11 @@ The rebuild exists for four reasons:
 5. **A provider can be chosen per request**, and every provider has an API shape: `anthropic-messages`,
    `openai-responses` or `openai-chat`. A harness declares the shapes it speaks; a request for a shape it can't speak is a
    400 before anything runs.
-6. **`home/` replaces the old `artifacts` file**: a folder tree copied into `$HOME` before every response.
+6. **The harness folder is where the contract lives.** It says how to install the CLI, which **config artifacts**
+   to bring (`home/`: instructions, skills, MCP config, hooks, settings, curated memory, in that CLI's own format),
+   which **work artifacts** to start a session with (`workspace/`), how to run and interrupt the CLI, and which of the
+   harness's own artifacts to **report back** (`report`). The server only copies files in, runs the folder, and returns
+   everything that comes out. `home/` replaces the old `artifacts` file.
 7. **Secrets go through a provider gateway in the egress door.** The real key reaches only the door; the harness gets a
    per-session token and a door URL. A read-only key file is the fallback for a CLI that can't use the gateway. The key's
    value is **never** passed as an environment variable.
@@ -165,6 +169,7 @@ A closed schema: an unknown or missing field is an error.
 | `run.timeout_s`, `run.stop_timeout_s` | the response's limit; the grace between SIGINT and the kill | all five (900–1800 s; 15–20 s) |
 | `run.credential` | `gateway` (default) or `file` (§7) | both proven in all five |
 | `run.egress` | extra hosts a session may reach beyond its provider; default none | none of the five needed one; kept for harnesses with web tools |
+| `report` | globs, relative to `$HOME`, of config and state artifacts the harness produces that come back in the response (e.g. `.claude/projects/*/memory/**`, `.hermes/memories/**`); default none | the owner: config artifacts must come back, not only work |
 
 Optional, in the folder rather than the JSON: `image.Dockerfile`, built `FROM` the base image, for operating-system
 packages (§6.4).
@@ -188,7 +193,8 @@ Cut from the draft because no harness used them: `sandbox` (replaced by `image.D
 | `HTTPS_PROXY`, `NO_PROXY` (and lowercase) | the door; `127.0.0.1,localhost,<door>` so local servers inside the run work |
 | stdin line 1 | `{"task", "resume"}` as one compact JSON line |
 | later stdin lines | one JSON string each (a steer), for `steered` harnesses |
-| `$HOME` contents | the folder's `home/` copied in, then `files` rendered |
+| `$HOME` contents | the folder's `home/` copied in, then `files` rendered, before every response |
+| workspace contents | the folder's `workspace/` copied in when the session starts; then the request's files, before every response |
 
 `HI_TOOLS` is given to `install.sh` only. Cut from the draft: `HI_TASK`, `HI_REQUEST`, the `HI_RESUME` and model
 duplicates on stdin, instructions on stdin (they reach the harness only through `files`), `metadata`, the key's value
@@ -207,7 +213,10 @@ as an environment variable.
   ```
   `status` ∈ `running | ok | fail | stopped`. Status comes from the CLI's events, never its exit code (the out-of-credit
   runs exited 0 with `fail`). Every key is optional; `usage` keys are the five above (others allowed); `cost_usd` is the
-  harness's advisory figure.
+  harness's advisory figure. **Any other key the harness writes comes back too**, untouched, so a harness can report
+  anything its CLI gives.
+- **reported config and state artifacts**: every file under `$HOME` matching `report` that the response added, changed
+  or deleted.
 
 ### 4.7 Definitions the prototype pinned down
 
@@ -252,9 +261,38 @@ as an environment variable.
                    exec python3 -u "$HI_HARNESS_DIR/adapter.py"
   adapter.py       drives the CLI: request in, steers in, SIGINT → the CLI's own stop; writes HI_OUTPUT
   hi_adapter.py    the shared plumbing, byte-identical in every folder
-  home/            optional; copied into $HOME before every response (settings, skills, MCP config, hooks)
+  home/            optional; config artifacts, copied into $HOME before every response
+  workspace/       optional; work artifacts, copied into the workspace when a session starts
   image.Dockerfile optional; FROM the base image, for OS packages (§6.4)
 ```
+
+### 5.1 Artifacts: what the folder controls, and where each kind lives
+
+| Kind | What | Defined by | Lives in | Persists |
+|---|---|---|---|---|
+| **Config artifacts** | instructions (`CLAUDE.md`, `AGENTS.md`, `SOUL.md`…), skills, MCP config, hooks, settings, curated memory | the folder's `home/` (static) and `files` (templated, e.g. `{instructions}`) | the session's `$HOME` (`.home/`) | re-applied before every response, so the folder always wins for what it ships |
+| **Work artifacts** | the project: source, data, project-level config | the folder's `workspace/` (seed, at session start) and the request's files (every response) | the session's workspace | for the session's life, across responses and fresh containers |
+| **Session state** | the CLI's transcripts, memory, caches | the CLI itself | `.home/`, outside what `home/` ships | for the session's life; resume continues it |
+| **Reported artifacts** | anything under `$HOME` the folder lists in `report` (e.g. memory the CLI wrote) | `report` | comes back in the response | returned per response |
+
+A session's sandbox is new on every response; its workspace and `.home/` live on the server and are mounted back at the
+same path (Claude Code files its state under the workspace's absolute path, so the path must never change). A new
+session is a clean project: it never sees another session's files. A different configuration is a different folder;
+porting a configuration to another CLI means writing the same intent in that folder's `home/`, in that CLI's format.
+The per-CLI locations are in `prototype/survey/<name>.md` ("Artifacts it loads") and, for the first wave, as below
+(**Prove** each path against the pinned version when porting the folder, and ship one example of each kind in its
+`home/` that the live suite checks is loaded):
+
+| Harness | Instructions | Skills | MCP | Hooks / settings | Memory |
+|---|---|---|---|---|---|
+| Claude Code | `.claude/CLAUDE.md` | `.claude/skills/<name>/SKILL.md` | `--mcp-config` file in `home/` | `.claude/settings.json` | `.claude/projects/<project>/memory/` |
+| Codex | `.codex/AGENTS.md` | `.codex/skills/` | `[mcp_servers]` in `.codex/config.toml` | `.codex/config.toml` | its rollouts under `.codex/sessions/` |
+| pi | `.pi/agent/AGENTS.md` | `.pi/agent/skills/` | `.pi/agent/mcp.json` | `.pi/agent/settings.json` | its session files |
+| OpenCode | `.config/opencode/AGENTS.md` | `.config/opencode/skills/` | `mcp` in `opencode.json` | `.config/opencode/opencode.json` | its session database |
+| Hermes | `.hermes/SOUL.md` | `.hermes/skills/` | `mcp_servers` in `.hermes/config.yaml` | `.hermes/config.yaml` | `.hermes/memories/` |
+
+Secrets never go in artifacts: an MCP server's credential is a separate concern, and its binaries go in `install.sh`
+and the hosts it reaches in `run.egress`.
 
 **`hi_adapter.py`** (stdlib, Python ≥ 3.9; 194 lines in the prototype) provides: `Output` (atomic, field- and
 status-checked), `read_request` (line 1), `provider_key()`, `child_env()` (loopback never proxied), and `Adapter`: one
@@ -386,7 +424,11 @@ Requests and sessions:
   `"claude-code@deepseek/deepseek-chat"`. A continued session stays on its harness and provider.
 - **A response** is the OpenAI shape plus a `harness` object carrying every artifact by default: `session`, `name`,
   `provider`, `exit_code`, `latency_s`, `usage`, `cost_usd`, `resume`, `stdout`, `stderr`, `diff`, `changes` (path →
-  new content, `null` if deleted), `files` (the whole tree after the response), `steers`, `stop`, `base`, `commit`.
+  new content, `null` if deleted), `files` (the whole tree after the response), `home` (the reported config and state
+  artifacts that changed: path → content, `null` if deleted), `output` (the harness's whole `HI_OUTPUT`, extra keys
+  included), `steers`, `stop`, `base`, `commit`. A binary file's content is `{"base64": "…"}`.
+- **Request files** (`input_file` items) are written into the workspace before the response; `file_data` is text, or a
+  `data:…;base64,` URL for binary files.
 - **A session**: `id`, `status` (`active` or `idle`), harness, provider, `interrupt`, `resume`, timestamps, the
   `interrupts` log, and its responses in order.
 - **Stream events**: `response.created`, `harness.stdout`, `harness.stderr`, `harness.steer`, `session.interrupted`,
@@ -510,7 +552,8 @@ scripts (Goose, Grok, J-Code, Kimi). Weakest, worth deciding on when their turn 
 - **The 23 old harness folders** under `harnesses/`; the first wave returns rebuilt, the rest one at a time.
 - **The `sandboxes` resource**, `routing.py` (one function in `Sessions`), the `artifacts` file convention, every
   `/responses/{id}/…` route, and `examples/build-loop/` (rewritten on the new API later).
-- `prototype/` stays until the first wave is ported and passing, then goes.
+- `prototype/` and `docs/plans/` stay until the first wave is ported and passing, then go: the docs then describe what
+  is built.
 
 ---
 

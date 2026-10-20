@@ -5,12 +5,16 @@ in `build-<tag>`. A run's "container" is its command, run here as a plain proces
 environment `-e` gives it, as Docker does; `kill` signals its process group, as tini does with
 TINI_KILL_PROCESS_GROUP=1. A door keeps what it read on stdin in `<name>.stdin`, says it listens,
 prints the lines of `door-log`, and waits to be removed. `image inspect -f` says an id and `amd64`.
-Knobs, as files in $DOCKER_CONFIG: `images` (tags already built), `arch`, `fail-build`, `door-dead`,
-`kill-fails` (`kill` reaches nothing), `slow-create` (containers take a while to appear),
-`leftovers` (what `ps` and `network ls` report)."""
+Every container `run` makes and network `network create` makes is listed, with its `--label`s, in
+`container-<name>.labels` or `network-<name>.labels` (a JSON list) until it is removed; `ps -aq` and
+`network ls -q` print the names of those that match the `--filter`s (every `label=K=V`, any `name=REGEX`), so a
+test may plant one. Knobs, as files in $DOCKER_CONFIG: `images` (tags already built), `arch`,
+`fail-build`, `door-dead`, `kill-fails` (`kill` reaches nothing), `slow-create` (containers take a
+while to appear)."""
 import hashlib
 import json
 import os
+import re
 import signal
 import sys
 import time
@@ -21,7 +25,7 @@ args = sys.argv[1:]
 with open(state / "calls", "a") as f:
     f.write(json.dumps(args) + "\n")
 VALUED = {"--name", "--network", "--network-alias", "-e", "-v", "-w", "--user", "--tmpfs", "--pids-limit", "--memory",
-          "--cap-drop", "--security-opt", "--signal"}
+          "--cap-drop", "--security-opt", "--signal", "--label", "--filter"}
 
 
 def knob(name: str) -> bool:
@@ -34,6 +38,32 @@ def images() -> list[str]:
 
 def value(flag: str) -> str:
     return args[args.index(flag) + 1]
+
+
+def values(flag: str, among: list[str] | None = None) -> list[str]:
+    among = args if among is None else among
+    return [among[i + 1] for i, a in enumerate(among) if a == flag]
+
+
+def make(kind: str, name: str, labels: list[str]) -> None:
+    (state / f"{kind}-{name}.labels").write_text(json.dumps(labels))
+
+
+def remove(kind: str, name: str) -> None:
+    (state / f"{kind}-{name}.labels").unlink(missing_ok=True)
+
+
+def listed(kind: str) -> list[str]:
+    """The names of the containers or networks that match the filters, as Docker matches them: every
+    label given, and any one of the names."""
+    labels_ = [f.removeprefix("label=") for f in values("--filter") if f.startswith("label=")]
+    names = [f.removeprefix("name=") for f in values("--filter") if f.startswith("name=")]
+    found = []
+    for p in sorted(state.glob(f"{kind}-*.labels")):
+        name, labels = p.name[len(kind) + 1:-len(".labels")], json.loads(p.read_text())
+        if all(label in labels for label in labels_) and (not names or any(re.search(n, name) for n in names)):
+            found.append(name)
+    return found
 
 
 def split_run() -> tuple[list[str], list[str]]:
@@ -73,6 +103,7 @@ if cmd == "build":                                   # build -t TAG -f - CONTEXT
 if cmd == "run":
     options, (image, *command) = split_run()
     name = options[options.index("--name") + 1]
+    make("container", name, values("--label", options))
     (state / f"{name}.client-env").write_text(json.dumps(dict(os.environ)))
     (state / f"{name}.client-pid").write_text(str(os.getpid()))
     if knob("slow-create"):
@@ -106,9 +137,18 @@ if cmd == "kill":                                    # kill [--signal INT] NAME
 if cmd == "rm":                                      # rm -f NAME...: running containers are killed
     for name in args[2:]:
         signal_container(name, signal.SIGKILL)
+        remove("container", name)
     sys.exit(0)
-if cmd in ("ps", "network") and args[-1].startswith("name=") or args[:2] == ["network", "ls"]:
-    if knob("leftovers"):
-        print("leftover-1\nleftover-2")
+if cmd == "ps":                                      # ps -aq --filter F...
+    print("\n".join(listed("container")))
     sys.exit(0)
+if args[:2] == ["network", "ls"]:                    # network ls -q --filter F...
+    print("\n".join(listed("network")))
+    sys.exit(0)
+if args[:2] == ["network", "create"]:                # network create --internal [--label L]... NAME
+    make("network", args[-1], values("--label"))
+if args[:2] == ["network", "rm"]:                    # network rm [-f] NAME...
+    for name in args[2:]:
+        if name != "-f":
+            remove("network", name)
 sys.exit(0)                                          # network create/connect/rm: succeed

@@ -12,7 +12,7 @@ import pytest
 
 from harness_interface.harness.install import BASE_DOCKERFILE, MARKER, InstallFailed, Installer
 from harness_interface.harness.placement import Placement
-from harness_interface.runtimes.docker import HARDENING, KEY_PATH, Images
+from harness_interface.runtimes.docker import HARDENING, KEY_PATH, LABEL, Images, owner_of
 from standin import OFFLINE_INSTALL, variant
 
 COUNT = 'echo x >> "$HI_HARNESS_DIR/../installs"\n'      # each install, counted beside the folder
@@ -115,6 +115,17 @@ def test_an_install_gets_no_provider_and_no_secret(tmp_path, monkeypatch):
 @pytest.fixture
 def docker_installer(fake_docker, tmp_path):
     return Installer(tmp_path / "tools", Placement(Images(tmp_path / "logs")))
+
+
+def test_a_placements_runtimes_and_its_recovery_are_its_owners_alone(fake_docker, tmp_path):
+    mine, theirs = owner_of(tmp_path / "mine"), owner_of(tmp_path / "theirs")
+    for owner in (mine, theirs):
+        (fake_docker / f"container-hi-run-{owner}.labels").write_text(json.dumps([f"{LABEL}={owner}"]))
+    placement = Placement(Images(tmp_path / "logs"), owner=mine)
+    assert placement.runtime("hi-x:0").owner == mine and Placement(owner=mine).runtime(None).owner == mine
+    asyncio.run(placement.recover())
+    assert [p.name for p in fake_docker.state.glob("container-*")] == [f"container-hi-run-{theirs}.labels"]
+    assert Placement().owner != Placement().owner                       # none given: shared with no other
 
 
 def test_under_docker_the_install_runs_hardened_behind_a_door_for_its_hosts_only(fake_docker, docker_installer,

@@ -8,7 +8,8 @@ It may have one provider, as the Docker runtime may. Under the gateway the run r
 from `key_path` and calls `provider_url`, a gateway on loopback that swaps the token for the key, so
 the key stays in this process; in file mode the run reads the key there and calls the provider
 itself. The URL and the path are the runtime's own, the same for every run of it, one run at a time;
-the gateway listens and the credential exists only while a run does.
+the gateway listens and the credential exists only while a run does. The credential is named for the
+runtime's owner, as the Docker runtime's are.
 """
 from __future__ import annotations
 
@@ -21,7 +22,7 @@ from pathlib import Path
 from urllib.parse import urlsplit
 
 from ..execution import Execution, NeverStarted, Spec
-from .docker import PREFIX, SECRETS, Provider, shred, whole
+from .docker import PREFIX, SECRETS, Provider, checked, new_owner, shred, whole
 from .door import Gateway
 from .process import ProcessExecution, host_env
 
@@ -34,9 +35,10 @@ def free_port() -> int:
 
 
 class LocalRuntime:
-    def __init__(self, provider: Provider | None = None, *, ca_file: Path | None = None):
+    def __init__(self, provider: Provider | None = None, *, ca_file: Path | None = None, owner: str | None = None):
         self.provider, self.ca_file = provider, ca_file
-        self._secrets = SECRETS / f"{PREFIX}{uuid.uuid4().hex[:12]}"
+        self.owner = checked(owner) if owner is not None else new_owner()
+        self._secrets = SECRETS / f"{PREFIX}{self.owner}-{uuid.uuid4().hex[:12]}"
         self._port = free_port() if provider and provider.credential == "gateway" else None
 
     @property

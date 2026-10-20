@@ -13,7 +13,7 @@ from harness_interface import Placement, Sessions
 from harness_interface.api.app import create_app
 from harness_interface.runtimes.docker import Images
 from test_api import Stream, idle, settled_install
-from test_docker_live import docker_ok, leftovers
+from test_docker_live import OWNER, docker_ok, leftovers
 from test_harness_live import CA
 from test_store import folder_map
 from standin import TEMPLATE
@@ -32,7 +32,7 @@ def server(tmp_path):
     up = Upstream(tmp_path, ip=bridge, bind=bridge)
     bundle = tmp_path / "ca.pem"                     # this machine's re-signing CA, for the install, and the stand-in's
     bundle.write_text((CA.read_text() if CA else "") + up.ca.read_text())
-    sessions = Sessions(tmp_path / "data", Placement(Images(tmp_path / "data" / "logs"), ca_file=bundle))
+    sessions = Sessions(tmp_path / "data", Placement(Images(tmp_path / "data" / "logs"), ca_file=bundle, owner=OWNER))
     with TestClient(create_app(sessions)) as c:
         yield c, up
     up.close()

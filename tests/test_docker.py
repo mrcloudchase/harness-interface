@@ -11,8 +11,9 @@ from pathlib import Path
 import pytest
 
 from harness_interface.execution import Outcome, Spec
-from harness_interface.runtimes.docker import (DOOR_IMAGE, HARDENING, KEY_PATH, LOCKDOWN, DockerRuntime, Images,
-                                               Provider, sweep)
+from harness_interface.errors import Invalid
+from harness_interface.runtimes.docker import (DOOR_IMAGE, HARDENING, KEY_PATH, LABEL, LOCKDOWN, DockerRuntime, Images,
+                                               Provider, owner_of, sweep)
 
 FAKES = Path(__file__).parent / "fakes"
 KEY = "sk-real-provider-key"
@@ -57,7 +58,8 @@ def test_every_run_is_hardened_with_its_paths_the_same_inside(fake_docker, tmp_p
     assert {f"{ws}:{ws}", f"{tools}:{tools}:ro", f"{rundir}:{rundir}"} <= set(values(the_run, "-v"))
     assert values(the_run, "-w") == [str(ws)] and the_run[-4:] == [IMAGE, "sh", "-c", "true"]
     network = values(the_run, "--network")[0]
-    assert ["network", "create", "--internal", network] in fake_docker.calls() and fake_docker.torn_down()
+    assert any(c[:3] == ["network", "create", "--internal"] and c[-1] == network for c in fake_docker.calls())
+    assert fake_docker.torn_down()
 
 
 def test_the_run_is_the_workspace_owners(fake_docker, monkeypatch):
@@ -297,23 +299,83 @@ def test_cancelled_while_writing_the_credential_leaves_no_credential(fake_docker
     assert not any(Path(fake_docker.state.parent / "shm").iterdir())
 
 
-def test_the_sweep_removes_only_what_runs_left(fake_docker, tmp_path):
-    (fake_docker / "leftovers").touch()
-    left = tmp_path / "shm" / "hi-0123456789ab"
-    left.mkdir()
-    (left / "key").write_text(KEY)
-    (tmp_path / "shm" / "someone-elses").mkdir()
-    go(sweep())
-    calls = fake_docker.calls()
-    assert ["ps", "-aq", "--filter", "name=^hi-run-", "--filter", "name=^hi-door-"] in calls
-    assert ["rm", "-f", "leftover-1", "leftover-2"] in calls and ["network", "rm", "leftover-1", "leftover-2"] in calls
-    assert not left.exists() and (tmp_path / "shm" / "someone-elses").exists()
+def test_everything_a_run_makes_carries_its_runtimes_owner(fake_docker, tmp_path):
+    owner = owner_of(tmp_path / "data")
+    seen = {}
+
+    async def go_():
+        e = await DockerRuntime(IMAGE, provider=ANTHROPIC, owner=owner).start(py(READY))
+        async for event in e.events():
+            seen["credentials"] = [p.name for p in (tmp_path / "shm").iterdir()]
+            e.kill()
+        return await e.wait()
+    go(go_())
+    network = next(c for c in fake_docker.calls() if c[:2] == ["network", "create"])
+    for call in (fake_docker.run(), fake_docker.door(), network):
+        assert f"{LABEL}={owner}" in values(call, "--label")
+    [credential] = seen["credentials"]
+    assert credential.startswith(f"hi-{owner}-")
+
+
+def test_an_owner_is_one_data_directory_and_a_runtime_without_one_shares_it_with_no_other(tmp_path):
+    assert owner_of(tmp_path / "data") == owner_of(tmp_path / "x" / ".." / "data") != owner_of(tmp_path / "other")
+    assert len(owner_of(tmp_path)) == 12 and DockerRuntime(IMAGE).owner != DockerRuntime(IMAGE).owner
+    for bad in ("", "*", "0123456789AB", "../../etc/x1"):
+        with pytest.raises(Invalid):
+            DockerRuntime(IMAGE, owner=bad)
+        with pytest.raises(Invalid):
+            go(sweep(bad))
+
+
+def plant(fake_docker, kind: str, name: str, *labels: str) -> None:
+    (fake_docker / f"{kind}-{name}.labels").write_text(json.dumps(list(labels)))
+
+
+def planted(fake_docker, kind: str) -> set[str]:
+    return {p.name[len(kind) + 1:-len(".labels")] for p in fake_docker.state.glob(f"{kind}-*.labels")}
+
+
+def test_a_sweep_removes_its_owners_leftovers_and_nothing_of_anyone_elses(fake_docker, tmp_path):
+    mine, theirs = owner_of(tmp_path / "mine"), owner_of(tmp_path / "theirs")
+    for kind, name, labels in [("container", "hi-run-000000000001", [f"{LABEL}={mine}"]),
+                               ("container", "hi-door-000000000001", [f"{LABEL}={mine}"]),
+                               ("container", "hi-run-000000000002", [f"{LABEL}={theirs}"]),
+                               ("container", "hi-door-000000000002", [f"{LABEL}={theirs}"]),
+                               ("container", "hi-run-000000000003", []),               # made before owners
+                               ("network", "hi-net-000000000001", [f"{LABEL}={mine}"]),
+                               ("network", "hi-net-000000000002", [f"{LABEL}={theirs}"])]:
+        plant(fake_docker, kind, name, *labels)
+    shm = tmp_path / "shm"
+    for name in (f"hi-{mine}-000000000001", f"hi-{theirs}-000000000002", "hi-000000000003", "someone-elses"):
+        (shm / name).mkdir()
+        (shm / name / "key").write_text(KEY)
+    go(sweep(mine))
+    assert planted(fake_docker, "container") == {"hi-run-000000000002", "hi-door-000000000002", "hi-run-000000000003"}
+    assert planted(fake_docker, "network") == {"hi-net-000000000002"}
+    assert {p.name for p in shm.iterdir()} == {f"hi-{theirs}-000000000002", "hi-000000000003", "someone-elses"}
+    assert (shm / f"hi-{theirs}-000000000002" / "key").read_text() == KEY
+
+
+def test_a_runtimes_recovery_leaves_another_owners_run_running(fake_docker, tmp_path):
+    async def go_():
+        e = await DockerRuntime(IMAGE, provider=ANTHROPIC, owner=owner_of(tmp_path / "b")).start(
+            py("import sys; print('ready', flush=True); sys.stdin.readline(); print('still here')", interactive=True))
+        out = b""
+        async for event in e.events():
+            out += event.data
+            if out == b"ready\n":
+                await DockerRuntime(IMAGE, owner=owner_of(tmp_path / "a")).recover()
+                assert len(list((tmp_path / "shm").iterdir())) == 1          # its credential is still there
+                await e.send(b"go on\n")
+        return out, await e.wait()
+    out, outcome = go(go_())
+    assert outcome.ok and out == b"ready\nstill here\n" and fake_docker.torn_down()
 
 
 def test_the_sweep_removes_a_key_docker_turned_into_a_directory(fake_docker, tmp_path):
-    left = tmp_path / "shm" / "hi-0123456789ab"
+    left = tmp_path / "shm" / f"hi-{owner_of(tmp_path)}-0123456789ab"
     (left / "key").mkdir(parents=True)               # docker creates a mount source that had gone, as a directory
-    go(sweep())
+    go(sweep(owner_of(tmp_path)))
     assert not left.exists()
 
 
@@ -322,7 +384,7 @@ def test_no_docker_is_a_clear_failure(tmp_path, monkeypatch):
     _, outcome = go(run(DockerRuntime(IMAGE), Spec(["true"])))
     assert outcome.kind == "failed" and "Docker is not installed" in outcome.reason
     with pytest.raises(RuntimeError, match="not installed"):
-        go(sweep())
+        go(sweep(owner_of(tmp_path)))
 
 
 # ── images ─────────────────────────────────────────────────────────────────────────────────────

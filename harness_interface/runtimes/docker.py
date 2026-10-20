@@ -13,7 +13,9 @@ Its guarantees, on every run, whatever the image holds:
 - the spec's environment and nothing of the host's, passed by name so no value is on a command line
   (but PATH, HOME and DOCKER_*, which the Docker client runs by, and no secret ever is); the client
   itself gets only the allowlisted host variables;
-- teardown of the container, the door, the network and the credential on every path, shielded.
+- teardown of the container, the door, the network and the credential on every path, shielded;
+- every container, network and credential it makes carries its owner, one data directory's id
+  (`owner_of`), or one of its own; a sweep removes one owner's leftovers, never another's.
 
 Paths are the same inside as outside: the workspace and every mount appear at their own paths, so
 nothing above this layer translates them. `Images` builds images from Dockerfiles, once each.
@@ -23,6 +25,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import os
+import re
 import shutil
 import tempfile
 import uuid
@@ -48,6 +51,7 @@ CA_VARS = ("SSL_CERT_FILE", "NODE_EXTRA_CA_CERTS", "REQUESTS_CA_BUNDLE", "CURL_C
 SECRETS = Path("/dev/shm") if Path("/dev/shm").is_dir() else Path(tempfile.gettempdir())   # memory, not disk
 UID = 1000                                           # the sandbox user, when the server is root
 PREFIX = "hi-"
+LABEL = "hi.owner"                                   # on every container and network: whose run it is
 # Every container, the door included: nothing to escalate with, nothing to write outside its mounts.
 LOCKDOWN = ("--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only")
 # The run's container, besides. /tmp allows exec, as a normal /tmp does: CLIs unpack native modules there.
@@ -142,26 +146,46 @@ class Images:
             return tag
 
 
+def owner_of(data: Path) -> str:
+    """The owner of the runs made for a data directory: the same for the same directory, however named."""
+    return hashlib.sha256(str(Path(data).resolve()).encode()).hexdigest()[:12]
+
+
+def new_owner() -> str:
+    """An owner no data directory and no other runtime has."""
+    return uuid.uuid4().hex[:12]
+
+
+def checked(owner: str) -> str:
+    if not isinstance(owner, str) or not re.fullmatch(r"[0-9a-f]{12}", owner):
+        raise Invalid(f"an owner is 12 lowercase hex digits, not {owner!r}")
+    return owner
+
+
 @dataclass(frozen=True)
 class Names:
-    """A run's container, door, network and credential, named after it so a crash can be swept by name."""
+    """A run's container, door, network and credential, named after it, the credential after its owner too,
+    so a crash's leftovers can be swept by owner."""
     run: str
     door: str
     network: str
     secrets: Path
 
     @classmethod
-    def new(cls) -> Names:
+    def new(cls, owner: str) -> Names:
         rid = uuid.uuid4().hex[:12]
-        return cls(f"{PREFIX}run-{rid}", f"{PREFIX}door-{rid}", f"{PREFIX}net-{rid}", SECRETS / f"{PREFIX}{rid}")
+        return cls(f"{PREFIX}run-{rid}", f"{PREFIX}door-{rid}", f"{PREFIX}net-{rid}",
+                   SECRETS / f"{PREFIX}{owner}-{rid}")
 
 
 class DockerRuntime:
     """Runs specs in fresh containers of one image, each reaching only its provider and `egress`."""
 
     def __init__(self, image: str, *, read_only: Sequence[Path] = (), writable: Sequence[Path] = (),
-                 egress: Sequence[str] = (), provider: Provider | None = None, ca_file: Path | None = None):
+                 egress: Sequence[str] = (), provider: Provider | None = None, ca_file: Path | None = None,
+                 owner: str | None = None):
         self.image, self.provider, self.ca_file = image, provider, ca_file
+        self.owner = checked(owner) if owner is not None else new_owner()
         self.read_only, self.writable = tuple(Path(p) for p in read_only), tuple(Path(p) for p in writable)
         tunnels = [*egress, *([provider.url] if provider and provider.credential == "file" else [])]
         self.allowed = sorted({normalize(h) for h in tunnels if h.strip()})
@@ -181,11 +205,11 @@ class DockerRuntime:
         return KEY_PATH if self.provider else None
 
     async def start(self, spec: Spec) -> Execution:
-        names, door = Names.new(), None
+        names, door = Names.new(self.owner), None
         try:
             run_bin = docker_bin()
             await whole(asyncio.to_thread(self._prepare, spec, names))   # a big workspace must not stall other runs
-            await self._step("network", "create", "--internal", names.network)
+            await self._step("network", "create", "--internal", *self.label, names.network)
             door = await self._spawn_door(names)
             await self._door_ready(door)
             await self._step("network", "connect", "bridge", names.door)
@@ -204,12 +228,16 @@ class DockerRuntime:
             return NeverStarted(str(e) or repr(e))
 
     async def recover(self) -> None:
-        await sweep()
+        await sweep(self.owner)
+
+    @property
+    def label(self) -> tuple[str, str]:
+        return "--label", f"{LABEL}={self.owner}"
 
     def run_argv(self, spec: Spec, names: Names, env: dict[str, str]) -> list[str]:
         user = f"{UID}:{UID}" if os.geteuid() == 0 else f"{os.getuid()}:{os.getgid()}"
         argv = ["run", "--rm", "-i", "--init", "-e", "TINI_KILL_PROCESS_GROUP=1", "--name", names.run,
-                "--network", names.network, *HARDENING, "--user", user]
+                *self.label, "--network", names.network, *HARDENING, "--user", user]
         if spec.workspace:
             argv += ["-v", f"{spec.workspace}:{spec.workspace}", "-w", str(spec.workspace)]
         for path in self.writable:
@@ -225,7 +253,7 @@ class DockerRuntime:
         return [*argv, self.image, *spec.command]
 
     def door_argv(self, names: Names) -> list[str]:
-        argv = ["run", "-i", "--rm", "--name", names.door, "--network", names.network,
+        argv = ["run", "-i", "--rm", "--name", names.door, *self.label, "--network", names.network,
                 "--network-alias", DOOR_HOST, "--network-alias", PROVIDER_HOST, *LOCKDOWN, *DOOR_LIMITS,
                 "--user", "65534:65534", "-v", f"{DOOR_SCRIPT}:/door/door.py:ro"]
         if self.ca_file:
@@ -307,7 +335,7 @@ def hand_over(path: Path) -> None:
 
 def shred(secrets: Path) -> None:
     """Overwrite a run's credential, then remove it. A `key` that is a directory holds no secret: Docker
-    made it, mounting a credential another server's sweep had already removed."""
+    made it, mounting a credential that had already been removed."""
     key = secrets / "key"
     if key.is_file():
         key.chmod(0o600)
@@ -338,16 +366,18 @@ async def teardown(names: Names, door: asyncio.subprocess.Process | None) -> Non
         await asyncio.to_thread(shred, names.secrets)
 
 
-async def sweep() -> None:
-    """Remove the containers, networks and credentials of runs a crash cut off. Also the first sign
-    of whether Docker is there at all."""
-    code, out = await docker("ps", "-aq", "--filter", f"name=^{PREFIX}run-", "--filter", f"name=^{PREFIX}door-")
+async def sweep(owner: str) -> None:
+    """Remove the containers, networks and credentials of the owner's runs a crash cut off, and
+    nothing of another owner's: another server's runs, or the library's beside it, go on. Also the
+    first sign of whether Docker is there at all."""
+    label = f"label={LABEL}={checked(owner)}"
+    code, out = await docker("ps", "-aq", "--filter", label)
     if code != 0:
         raise RuntimeError(f"Docker is not reachable: {out.strip()}")
     if ids := out.split():
         await docker("rm", "-f", *ids)
-    _, out = await docker("network", "ls", "-q", "--filter", f"name=^{PREFIX}net-")
+    _, out = await docker("network", "ls", "-q", "--filter", label)
     if ids := out.split():
         await docker("network", "rm", *ids)
-    for secrets in SECRETS.glob(f"{PREFIX}" + "[0-9a-f]" * 12):
+    for secrets in SECRETS.glob(f"{PREFIX}{owner}-" + "[0-9a-f]" * 12):
         await asyncio.to_thread(shred, secrets)

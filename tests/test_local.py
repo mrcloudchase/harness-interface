@@ -12,7 +12,7 @@ from urllib.parse import urlsplit
 import pytest
 
 from harness_interface.execution import Spec
-from harness_interface.runtimes.docker import Provider
+from harness_interface.runtimes.docker import Provider, owner_of
 from harness_interface.runtimes.local import LocalRuntime
 from upstream import FIRST, SECOND, Upstream
 
@@ -77,6 +77,13 @@ def test_under_the_gateway_the_run_holds_a_token_and_the_provider_gets_the_key(u
     sent = upstream.requests[0].decode("latin-1")
     assert sent.startswith("POST /anthropic/v1/messages ") and f"x-api-key: {KEY}" in sent and TOKEN not in sent
     assert not listening(rt.provider_url) and list(secrets.iterdir()) == []
+
+
+def test_a_credential_is_named_for_its_runtimes_owner(upstream, secrets, tmp_path):
+    owner = owner_of(tmp_path)
+    rt = LocalRuntime(Provider(upstream.url, "anthropic-messages", KEY, token=TOKEN), owner=owner)
+    assert rt.key_path.parent.parent == secrets and rt.key_path.parent.name.startswith(f"hi-{owner}-")
+    assert LocalRuntime().owner != LocalRuntime().owner
 
 
 def test_the_gateway_refuses_anything_but_the_token(upstream):

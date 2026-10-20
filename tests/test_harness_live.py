@@ -19,7 +19,7 @@ from harness_interface.harness.response import Response
 from harness_interface.runtimes.docker import Images, Provider
 from harness_interface.workspace import Workspace
 from standin import TEMPLATE, events, variant
-from test_docker_live import docker_ok, leftovers
+from test_docker_live import OWNER, docker_ok, leftovers
 from upstream import Upstream
 
 pytestmark = pytest.mark.docker
@@ -58,7 +58,7 @@ def needs_docker():
 
 @pytest.fixture(scope="module")
 def placement(tmp_path_factory):
-    return Placement(Images(tmp_path_factory.mktemp("logs")), ca_file=CA)
+    return Placement(Images(tmp_path_factory.mktemp("logs")), ca_file=CA, owner=OWNER)
 
 
 @pytest.fixture(scope="module")
@@ -133,8 +133,8 @@ def test_under_the_gateway_the_sandbox_reaches_its_provider_with_only_a_token(in
     provider = Provider(up.url + "/anthropic", "anthropic-messages", KEY, token=session_token("anthropic-messages"))
     ws = Workspace(tmp_path / "s" / "workspace")
     try:
-        seen, result = respond(installed, Placement(placement.images, ca_file=up.ca), ws, tmp_path / "run-1",
-                               Request("count to 1"), provider=provider)
+        here = Placement(placement.images, ca_file=up.ca, owner=OWNER)
+        seen, result = respond(installed, here, ws, tmp_path / "run-1", Request("count to 1"), provider=provider)
     finally:
         up.close()
     assert {"type": "provider", "status": 200} in seen and result.status == "ok"

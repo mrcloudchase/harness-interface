@@ -6,7 +6,7 @@ from .errors import Conflict, Invalid, NotFound
 from .execution import Event, Execution, NeverStarted, Outcome, Runtime, Spec
 from .harness import (HarnessFolder, InstallFailed, Installed, Installer, Placement, Request, Response, Result,
                       check_provider_url, session_token)
-from .runtimes import DockerRuntime, Images, LocalRuntime, Provider
+from .runtimes import DockerRuntime, Images, LocalRuntime, Provider, owner_of
 from .sessions import Artifacts, Ask, ResponseRecord, Session, SessionEvent, Sessions
 from .store import InstallState, JsonStore, ProviderEntry, Registry
 from .workspace import Workspace
@@ -15,4 +15,4 @@ __all__ = ["Artifacts", "Ask", "Conflict", "DockerRuntime", "Event", "Execution"
            "InstallFailed", "InstallState", "Installed", "Installer", "Invalid", "JsonStore", "LocalRuntime",
            "NeverStarted", "NotFound", "Outcome", "Placement", "Provider", "ProviderEntry", "Registry", "Request",
            "Response", "ResponseRecord", "Result", "Runtime", "Session", "SessionEvent", "Sessions", "Spec",
-           "Workspace", "check_provider_url", "session_token"]
+           "Workspace", "check_provider_url", "owner_of", "session_token"]

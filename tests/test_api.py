@@ -18,6 +18,7 @@ from fastapi.testclient import TestClient
 from harness_interface import Placement, Sessions
 from harness_interface.api.app import build, create_app
 from harness_interface.api.config import Settings
+from harness_interface.runtimes.docker import owner_of
 from harness_interface.sessions import ResponseRecord, Session
 from standin import TEMPLATE
 from test_sessions import DEAF
@@ -436,7 +437,7 @@ def test_settings_come_from_the_environment(tmp_path, monkeypatch):
     s = Settings.from_env()
     assert (s.host, s.port, s.data_dir, s.runtime, s.ca_file) == ("0.0.0.0", 9001, tmp_path / "d", "local",
                                                                   tmp_path / "ca.pem")
-    assert not build(s).placement.docker
+    assert not build(s).placement.docker and build(s).placement.owner == owner_of(tmp_path / "d")
     monkeypatch.setenv("HI_RUNTIME", "podman")
     with pytest.raises(ValueError):
         Settings.from_env()

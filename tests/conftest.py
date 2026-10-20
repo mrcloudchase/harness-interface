@@ -50,6 +50,6 @@ class FakeDocker:
         calls = self.calls()
         made = {self.name(c) for c in calls if c[0] == "run"}
         removed = {n for c in calls if c[:2] == ["rm", "-f"] for n in c[2:]}
-        networks = {c[3] for c in calls if c[:3] == ["network", "create", "--internal"]}
+        networks = {c[-1] for c in calls if c[:3] == ["network", "create", "--internal"]}
         gone = {n for c in calls if c[:3] == ["network", "rm", "-f"] for n in c[3:]}
         return made <= removed and networks <= gone

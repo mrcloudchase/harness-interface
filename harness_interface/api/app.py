@@ -15,7 +15,7 @@ from pydantic import BaseModel, ConfigDict
 
 from ..errors import Conflict, Invalid, NotFound
 from ..harness import HarnessFolder, Placement
-from ..runtimes import Images
+from ..runtimes import Images, owner_of
 from ..sessions import ResponseRecord, Sessions
 from ..store import ProviderEntry, folder_map
 from ..workspace import require_git
@@ -41,7 +41,7 @@ def build(settings: Settings) -> Sessions:
     """The service as the server runs it, from its settings."""
     data = settings.data_dir
     images = Images(data / "logs") if settings.runtime == "docker" else None
-    return Sessions(data, Placement(images, ca_file=settings.ca_file))
+    return Sessions(data, Placement(images, ca_file=settings.ca_file, owner=owner_of(data)))
 
 
 def create_app(sessions: Sessions) -> FastAPI:

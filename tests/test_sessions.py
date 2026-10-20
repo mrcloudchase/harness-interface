@@ -13,6 +13,7 @@ import time
 import pytest
 
 from harness_interface import Ask, Invalid, NotFound, Conflict, Placement, Sessions
+from harness_interface.runtimes.docker import owner_of
 from harness_interface.sessions import ResponseRecord, Session
 from harness_interface.store import ProviderEntry
 from standin import TEMPLATE, events
@@ -429,6 +430,10 @@ def test_every_artifact_is_there_while_it_runs_and_after(world):
 
 
 # recovery
+def test_with_no_placement_a_session_service_owns_the_runs_of_its_data_directory(tmp_path):
+    assert Sessions(tmp_path / "data").placement.owner == owner_of(tmp_path / "data")
+
+
 def test_a_restart_closes_what_was_in_flight_and_keeps_its_resume(world):
     sessions = world.sessions()
     ws = world.data / "workspaces" / "sess_00000000000000aa"

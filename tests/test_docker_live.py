@@ -14,13 +14,14 @@ from pathlib import Path
 import pytest
 
 from harness_interface.execution import Outcome, Spec
-from harness_interface.runtimes.docker import KEY_PATH, SECRETS, DockerRuntime, Images, Provider
+from harness_interface.runtimes.docker import KEY_PATH, LABEL, SECRETS, DockerRuntime, Images, Provider, new_owner
 from upstream import FIRST, SECOND, Upstream
 
 pytestmark = pytest.mark.docker
 
 DOCKERFILE = "FROM python:3.12-slim\nUSER 1000:1000\n"            # bash and python, and nothing of ours
 KEY, TOKEN = "sk-live-test-key-" + os.urandom(8).hex(), "sk-ant-api03-hi-" + os.urandom(8).hex()
+OWNER, OTHER = new_owner(), new_owner()              # these tests' runs, and nobody else's on this machine
 
 
 def docker_ok() -> bool:
@@ -75,12 +76,16 @@ def upstream(bridge, tmp_path):
     up.close()
 
 
+def ours(*args: str, owner: str = OWNER) -> list[str]:
+    """What `docker <args> --filter label=<owner>` lists: one owner's containers or networks."""
+    return subprocess.run(["docker", *args, "--filter", f"label={LABEL}={owner}"], capture_output=True,
+                          text=True).stdout.split()
+
+
 def leftovers() -> list[str]:
-    ps = subprocess.run(["docker", "ps", "-aq", "--filter", "name=^hi-run-", "--filter", "name=^hi-door-"],
-                        capture_output=True, text=True).stdout
-    nets = subprocess.run(["docker", "network", "ls", "-q", "--filter", "name=^hi-net-"],
-                          capture_output=True, text=True).stdout
-    return ps.split() + nets.split() + [str(p) for p in SECRETS.glob("hi-" + "[0-9a-f]" * 12)]
+    """What these tests' runs left: never another's, which may be running on this machine meanwhile."""
+    return [*(x for o in (OWNER, OTHER) for x in ours("ps", "-aq", owner=o) + ours("network", "ls", "-q", owner=o)),
+            *(str(p) for o in (OWNER, OTHER) for p in SECRETS.glob(f"hi-{o}-" + "[0-9a-f]" * 12))]
 
 
 def run(runtime, spec) -> tuple[str, Outcome]:
@@ -145,7 +150,7 @@ def test_inside_a_run_it_is_locked_down_and_reaches_only_what_it_is_given(image,
     ws, read_only, writable = tmp_path / "ws", tmp_path / "tools", tmp_path / "rundir"
     for d in (ws, read_only, writable):
         d.mkdir()
-    rt = DockerRuntime(image, read_only=[read_only], writable=[writable], egress=[echo])
+    rt = DockerRuntime(image, owner=OWNER, read_only=[read_only], writable=[writable], egress=[echo])
     env = {"READ_ONLY": str(read_only), "WRITABLE": str(writable), "ALLOWED": echo}
     out, outcome = run(rt, Spec(["python3", "-c", PROBE], env=env, workspace=ws, timeout_s=120))
     assert outcome.ok, out
@@ -159,7 +164,7 @@ def test_inside_a_run_it_is_locked_down_and_reaches_only_what_it_is_given(image,
 
 def test_in_file_mode_the_run_reads_the_key_and_reaches_its_provider(image, echo, tmp_path):
     provider = Provider(f"https://{echo}", "openai-chat", KEY, credential="file")
-    rt = DockerRuntime(image, provider=provider)
+    rt = DockerRuntime(image, owner=OWNER, provider=provider)
     env = {"READ_ONLY": "/usr", "WRITABLE": "/tmp", "ALLOWED": echo, "KEY_FILE": str(KEY_PATH)}
     out, outcome = run(rt, Spec(["python3", "-c", PROBE], env=env, workspace=tmp_path, timeout_s=120))
     seen = json.loads(out)
@@ -181,7 +186,8 @@ def test_a_stop_reaches_a_process_run_sh_started_through_tini(image, tmp_path):
     (tmp_path / "run.sh").write_text(RUN_SH)
 
     async def go():
-        e = await DockerRuntime(image).start(Spec(["bash", str(tmp_path / "run.sh")], workspace=tmp_path))
+        spec = Spec(["bash", str(tmp_path / "run.sh")], workspace=tmp_path)
+        e = await DockerRuntime(image, owner=OWNER).start(spec)
         events, out = e.events(), b""
         while b"ready" not in out:
             out += (await events.__anext__()).data
@@ -218,7 +224,7 @@ sys.stdin.readline()                                 # stay up while the host is
 
 def test_under_the_gateway_the_key_reaches_the_provider_and_nothing_else(image, upstream, tmp_path):
     provider = Provider(upstream.url, "anthropic-messages", KEY, token=TOKEN)
-    rt = DockerRuntime(image, provider=provider, ca_file=upstream.ca)
+    rt = DockerRuntime(image, owner=OWNER, provider=provider, ca_file=upstream.ca)
     env = {"PROVIDER_URL": rt.provider_url, "KEY_FILE": str(KEY_PATH)}
 
     async def go():
@@ -247,9 +253,8 @@ def next_stdout(event) -> bytes:
 
 def search_the_host() -> list[str]:
     """Everywhere the key must never be, on this host, while the run is up."""
-    names = subprocess.run(["docker", "ps", "-q", "--filter", "name=^hi-"], capture_output=True, text=True).stdout
     found = []
-    inspect = subprocess.run(["docker", "inspect", *names.split()], capture_output=True, text=True).stdout
+    inspect = subprocess.run(["docker", "inspect", *ours("ps", "-q")], capture_output=True, text=True).stdout
     if KEY in inspect:
         found.append("docker inspect")
     assert len(json.loads(inspect)) == 2             # the run and its door
@@ -269,7 +274,7 @@ def test_nothing_is_left_after_any_ending(image, tmp_path, ending):
 
     async def go():
         spec = Spec(["sleep", "60"], workspace=tmp_path, timeout_s=2 if ending == "timeout" else None)
-        e = await DockerRuntime(image, provider=provider).start(spec)
+        e = await DockerRuntime(image, owner=OWNER, provider=provider).start(spec)
         if ending == "stop":
             e.stop(10)
         elif ending == "kill":
@@ -282,11 +287,37 @@ def test_a_start_cancelled_during_setup_leaves_nothing(image, tmp_path):
     provider = Provider("https://api.example.com", "openai-chat", KEY, token=TOKEN)
 
     async def go():
-        task = asyncio.create_task(DockerRuntime(image, provider=provider).start(Spec(["sleep", "60"])))
-        while not subprocess.run(["docker", "ps", "-q", "--filter", "name=^hi-door-"], capture_output=True,
-                                 text=True).stdout.strip():
+        runtime = DockerRuntime(image, owner=OWNER, provider=provider)
+        task = asyncio.create_task(runtime.start(Spec(["sleep", "60"])))
+        while not ours("ps", "-q"):
             await asyncio.sleep(0.05)
         task.cancel()
         with pytest.raises(asyncio.CancelledError):
             await task
     asyncio.run(go())
+
+
+def test_a_sweep_removes_its_owners_runs_and_another_owners_run_goes_on(image, tmp_path):
+    """Two servers on one machine: one's startup sweep leaves the other's sessions running."""
+    provider = Provider("https://api.example.com", "openai-chat", KEY, token=TOKEN)
+    ready = "import sys; print('ready', flush=True); sys.stdin.readline(); print(open(sys.argv[1]).read())"
+
+    async def go():
+        theirs = await DockerRuntime(image, owner=OTHER, provider=provider).start(
+            Spec(["python3", "-c", ready, str(KEY_PATH)], interactive=True, timeout_s=120))
+        mine = await DockerRuntime(image, owner=OWNER).start(Spec(["sleep", "60"]))
+        events, out = theirs.events(), b""
+        while b"ready" not in out:
+            out += next_stdout(await anext(events))
+        assert len(ours("ps", "-q", owner=OTHER)) == 2
+        while len(ours("ps", "-q")) < 2:                       # mine is up, its door too
+            await asyncio.sleep(0.05)
+        await DockerRuntime(image, owner=OWNER).recover()
+        assert ours("ps", "-aq") == [] and ours("network", "ls", "-q") == []
+        assert len(ours("ps", "-q", owner=OTHER)) == 2 and len(ours("network", "ls", "-q", owner=OTHER)) == 1
+        await mine.wait()
+        await theirs.send(b"go on\n")
+        out += b"".join([e.data async for e in events if e.stream == "stdout"])
+        return out, await theirs.wait()
+    out, outcome = asyncio.run(go())
+    assert outcome.ok and TOKEN in out.decode()               # its credential, still there after the sweep

@@ -36,7 +36,7 @@ from typing import IO, Any, AsyncIterator, Mapping
 from .errors import Conflict, Invalid, NotFound
 from .harness import HarnessFolder, Installer, Placement, Request, Response, Result, session_token
 from .harness.contract import OUTPUT, read_output, reported
-from .runtimes import Provider
+from .runtimes import Provider, owner_of
 from .store import JsonStore, Registry, decode, encode
 from .workspace import Workspace
 
@@ -220,7 +220,7 @@ async def nothing() -> AsyncIterator[SessionEvent]:
 class Sessions:
     def __init__(self, data: Path, placement: Placement | None = None):
         self.data = Path(data).absolute()
-        self.placement = placement or Placement()
+        self.placement = placement or Placement(owner=owner_of(self.data))
         self.registry = Registry(self.data, Installer(self.data / "tools", self.placement))
         self.store: JsonStore[Session] = JsonStore(self.data / "sessions", lambda d: Session(**d), private=True)
         self.records: JsonStore[ResponseRecord] = JsonStore(self.data / "responses", lambda d: ResponseRecord(**d))

@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 """A stand-in for the Docker CLI, for tests. Every call is appended to $DOCKER_CONFIG/calls as a JSON
-list, and each `run` client's own environment is kept in `<name>.client-env`. A run's "container" is
-its command, run here as a plain process with only the environment `-e` gives it, as Docker does; `kill`
-signals its process group, as tini does with TINI_KILL_PROCESS_GROUP=1. A door keeps what it read on
-stdin in `<name>.stdin`, says it listens, prints the lines of `door-log`, and waits to be removed.
-Knobs, as files in $DOCKER_CONFIG: `images` (tags already built), `fail-build`, `door-dead`,
+list, each `run` client's own environment is kept in `<name>.client-env`, and each build's Dockerfile
+in `build-<tag>`. A run's "container" is its command, run here as a plain process with only the
+environment `-e` gives it, as Docker does; `kill` signals its process group, as tini does with
+TINI_KILL_PROCESS_GROUP=1. A door keeps what it read on stdin in `<name>.stdin`, says it listens,
+prints the lines of `door-log`, and waits to be removed. `image inspect -f` says an id and `amd64`.
+Knobs, as files in $DOCKER_CONFIG: `images` (tags already built), `arch`, `fail-build`, `door-dead`,
 `kill-fails` (`kill` reaches nothing), `slow-create` (containers take a while to appear),
 `leftovers` (what `ps` and `network ls` report)."""
+import hashlib
 import json
 import os
 import signal
@@ -52,10 +54,15 @@ def signal_container(name: str, sig: int) -> None:
 
 
 cmd = args[0]
-if cmd == "image":                                   # image inspect TAG
-    sys.exit(0 if args[-1] in images() else 1)
+if cmd == "image":                                   # image inspect [-f FORMAT] TAG: an id and an architecture
+    if args[-1] not in images():
+        sys.exit(1)
+    if "-f" in args:
+        arch = (state / "arch").read_text().strip() if knob("arch") else "amd64"
+        print(f"sha256:{hashlib.sha256(args[-1].encode()).hexdigest()} {arch}")
+    sys.exit(0)
 if cmd == "build":                                   # build -t TAG -f - CONTEXT
-    sys.stdin.read()
+    (state / f"build-{value('-t').replace(':', '-')}").write_text(sys.stdin.read())
     if knob("fail-build"):
         print("step 3/7: boom")
         sys.exit(1)

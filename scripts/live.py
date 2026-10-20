@@ -266,7 +266,7 @@ def live_audit(key: bytes, mode: str, before: set[str], docker: bool) -> list[st
         if key in docker_out("inspect", name):
             problems.append(f"docker inspect {name}")
         pid = docker_out("inspect", "-f", "{{.State.Pid}}", name).decode().strip()
-        pids |= {int(pid)} if pid.isdigit() else set()
+        pids |= {int(pid)} if pid.isdigit() and int(pid) > 0 else set()   # one just stopped: 0, every process's root
         if name.startswith("hi-run-"):
             inside = docker_out("exec", "-u", "1000", name, "sh", "-c", "cat /proc/[0-9]*/environ; env")
             if key in inside:

@@ -1,0 +1,107 @@
+#!/usr/bin/env python3
+"""A stand-in for the Docker CLI, for tests. Every call is appended to $DOCKER_CONFIG/calls as a JSON
+list, and each `run` client's own environment is kept in `<name>.client-env`. A run's "container" is
+its command, run here as a plain process with only the environment `-e` gives it, as Docker does; `kill`
+signals its process group, as tini does with TINI_KILL_PROCESS_GROUP=1. A door keeps what it read on
+stdin in `<name>.stdin`, says it listens, prints the lines of `door-log`, and waits to be removed.
+Knobs, as files in $DOCKER_CONFIG: `images` (tags already built), `fail-build`, `door-dead`,
+`kill-fails` (`kill` reaches nothing), `slow-create` (containers take a while to appear),
+`leftovers` (what `ps` and `network ls` report)."""
+import json
+import os
+import signal
+import sys
+import time
+from pathlib import Path
+
+state = Path(os.environ["DOCKER_CONFIG"])     # the one setting of ours an allowlisted client keeps
+args = sys.argv[1:]
+with open(state / "calls", "a") as f:
+    f.write(json.dumps(args) + "\n")
+VALUED = {"--name", "--network", "--network-alias", "-e", "-v", "-w", "--user", "--tmpfs", "--pids-limit", "--memory",
+          "--cap-drop", "--security-opt", "--signal"}
+
+
+def knob(name: str) -> bool:
+    return (state / name).exists()
+
+
+def images() -> list[str]:
+    return (state / "images").read_text().split() if knob("images") else []
+
+
+def value(flag: str) -> str:
+    return args[args.index(flag) + 1]
+
+
+def split_run() -> tuple[list[str], list[str]]:
+    """`run`'s options, and the image with its command."""
+    i = 1
+    while args[i].startswith("-"):
+        i += 2 if args[i] in VALUED else 1
+    return args[1:i], args[i:]
+
+
+def signal_container(name: str, sig: int) -> None:
+    pid = state / f"{name}.pid"
+    if pid.exists():
+        try:
+            os.killpg(int(pid.read_text()), sig)
+        except ProcessLookupError:
+            pass
+
+
+cmd = args[0]
+if cmd == "image":                                   # image inspect TAG
+    sys.exit(0 if args[-1] in images() else 1)
+if cmd == "build":                                   # build -t TAG -f - CONTEXT
+    sys.stdin.read()
+    if knob("fail-build"):
+        print("step 3/7: boom")
+        sys.exit(1)
+    with open(state / "images", "a") as f:
+        f.write(value("-t") + "\n")
+    print("built")
+    sys.exit(0)
+if cmd == "run":
+    options, (image, *command) = split_run()
+    name = options[options.index("--name") + 1]
+    (state / f"{name}.client-env").write_text(json.dumps(dict(os.environ)))
+    (state / f"{name}.client-pid").write_text(str(os.getpid()))
+    if knob("slow-create"):
+        time.sleep(0.5)                              # the container is still being created: kill finds nothing
+    (state / f"{name}.pid").write_text(str(os.getpid()))
+    if name.startswith("hi-door-"):
+        (state / f"{name}.stdin").write_text(sys.stdin.read())
+        if knob("door-dead"):
+            print("Error: the door's image is missing", flush=True)
+            sys.exit(125)
+        print("door listening", flush=True)
+        if knob("door-log"):
+            print((state / "door-log").read_text(), end="", flush=True)
+        while True:
+            time.sleep(1)
+    env = {}
+    for i, option in enumerate(options):
+        if option == "-e":
+            name_, _, given = options[i + 1].partition("=")
+            if given or "=" in options[i + 1]:
+                env[name_] = given
+            elif name_ in os.environ:
+                env[name_] = os.environ[name_]
+    os.execvpe(command[0], command, {"PATH": os.environ["PATH"], **env})
+if cmd == "kill":                                    # kill [--signal INT] NAME
+    if knob("kill-fails") or not (state / f"{args[-1]}.pid").exists():
+        print(f"Error response from daemon: cannot kill container: {args[-1]}: No such container")
+        sys.exit(1)
+    signal_container(args[-1], signal.SIGINT if "--signal" in args else signal.SIGKILL)
+    sys.exit(0)
+if cmd == "rm":                                      # rm -f NAME...: running containers are killed
+    for name in args[2:]:
+        signal_container(name, signal.SIGKILL)
+    sys.exit(0)
+if cmd in ("ps", "network") and args[-1].startswith("name=") or args[:2] == ["network", "ls"]:
+    if knob("leftovers"):
+        print("leftover-1\nleftover-2")
+    sys.exit(0)
+sys.exit(0)                                          # network create/connect/rm: succeed

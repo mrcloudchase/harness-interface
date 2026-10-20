@@ -4,5 +4,7 @@ The library's public API is layers 0 to 5, so Python callers need no server; the
 `harness_interface.api`) is built on it."""
 from .errors import Conflict, Invalid, NotFound
 from .execution import Event, Execution, NeverStarted, Outcome, Runtime, Spec
+from .runtimes import DockerRuntime, Images, LocalRuntime, Provider
 
-__all__ = ["Conflict", "Event", "Execution", "Invalid", "NeverStarted", "NotFound", "Outcome", "Runtime", "Spec"]
+__all__ = ["Conflict", "DockerRuntime", "Event", "Execution", "Images", "Invalid", "LocalRuntime", "NeverStarted",
+           "NotFound", "Outcome", "Provider", "Runtime", "Spec"]

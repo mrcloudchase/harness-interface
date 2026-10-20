@@ -175,6 +175,11 @@ class DockerRuntime:
             return self.provider.url
         return GATEWAY + urlsplit(self.provider.url).path.rstrip("/")
 
+    @property
+    def key_path(self) -> Path | None:
+        """Where the run reads its credential: the session's token, or the key in file mode."""
+        return KEY_PATH if self.provider else None
+
     async def start(self, spec: Spec) -> Execution:
         names, door = Names.new(), None
         try:

@@ -169,7 +169,8 @@ def test_the_door_is_locked_down_and_allows_exactly_its_hosts(fake_docker):
 
 def test_under_the_gateway_the_key_reaches_only_the_doors_stdin(fake_docker):
     rt = DockerRuntime(IMAGE, egress=["pypi.org"], provider=ANTHROPIC)
-    assert rt.provider_url == "http://hi-provider:8080/anthropic"
+    assert rt.provider_url == "http://hi-provider:8080/anthropic" and rt.key_path == KEY_PATH
+    assert DockerRuntime(IMAGE).provider_url is None and DockerRuntime(IMAGE).key_path is None
     holder = {}
 
     async def go_():

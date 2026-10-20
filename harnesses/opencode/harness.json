@@ -1,0 +1,11 @@
+{
+  "contract": 1,
+  "name": "opencode",
+  "description": "OpenCode 1.19.3 over its loopback HTTP server and SSE, steered mid-turn; Anthropic Messages, OpenAI Responses or OpenAI-compatible chat.",
+  "provider": {"url": "https://api.anthropic.com", "api": "anthropic-messages"},
+  "apis": ["anthropic-messages", "openai-responses", "openai-chat"],
+  "install": {"egress": ["registry.npmjs.org", "pypi.org", "files.pythonhosted.org"], "timeout_s": 900},
+  "files": {".home/.config/opencode/AGENTS.md": "{instructions}"},
+  "run": {"interrupt": "steered", "stdout": "application/x-ndjson", "timeout_s": 1800, "stop_timeout_s": 15,
+          "credential": "gateway", "egress": []}
+}

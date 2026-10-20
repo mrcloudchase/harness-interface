@@ -98,8 +98,16 @@ def connect(target):
     host, port = os.environ["HTTPS_PROXY"].removeprefix("http://").rsplit(":", 1)
     s = socket.create_connection((host, int(port)), timeout=10)
     s.sendall(f"CONNECT {target} HTTP/1.1\r\n\r\n".encode())
-    status = s.recv(64).split(b"\r\n")[0].decode()
-    return status + (" " + s.recv(64).decode() if status.endswith("200 Connection established") else "")
+    data = b""
+    while b"\r\n\r\n" not in data and (chunk := s.recv(64)):        # the reply and the tunnel's first bytes may share a read
+        data += chunk
+    head, _, body = data.partition(b"\r\n\r\n")
+    status = head.split(b"\r\n")[0].decode()
+    if not status.endswith("200 Connection established"):
+        return status
+    while len(body) < len(b"hello") and (chunk := s.recv(64)):
+        body += chunk
+    return status + " " + body.decode()
 def direct(target):
     host, port = target.rsplit(":", 1)
     try:

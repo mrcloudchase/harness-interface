@@ -1,11 +1,9 @@
-# Generated from keeper.toml's [tiers] by Keeper's Owners job. Edit keeper.toml, not this.
+# The owner reviews the direction, the workflows, and the execution layer: the sandbox and the contract.
 /VISION.md @mrcloudchase
 /AGENTS.md @mrcloudchase
-/keeper.toml @mrcloudchase
-/.keeper/engine/ @mrcloudchase
-/.keeper/tests/ @mrcloudchase
 /.github/ @mrcloudchase
-/scripts/live_matrix.py @mrcloudchase
 /harness_interface/execution.py @mrcloudchase
 /harness_interface/runtimes/ @mrcloudchase
 /harness_interface/harness/contract.py @mrcloudchase
+/harness_interface/harness/folder.py @mrcloudchase
+/harness_interface/harness/hi_adapter.py @mrcloudchase

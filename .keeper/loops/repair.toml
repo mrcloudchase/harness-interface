@@ -1,9 +1,0 @@
-name = "repair"
-goal = """A change was reverted because it broke the live run; the issue below has the change and the
-failure. Re-land what it was for, with the fix, so every check and the live run pass."""
-verifiers = [
-  { kind = "command", run = "checks" },
-  { kind = "rule", rules = ["tests_only_grow", "size_budget", "no_workflows"] },
-  { kind = "live" },
-]
-escalate = ["maker", "checker"]

@@ -1,16 +1,17 @@
-"""The architecture, enforced: every layer imports only from the layers below it, the library
-(layers 0-6) needs nothing beyond Python's standard library, and `hi` only talks to the API."""
+"""The architecture, enforced: every module belongs to a layer and says so first, every layer imports
+only from the layers below it, and the library (layers 0 to 5) needs nothing beyond Python's
+standard library."""
 import ast
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 PACKAGE = ROOT / "harness_interface"
-CLI = ROOT / "frontend" / "cli" / "hi_cli"
 
-LAYER = {"errors": 0, "execution": 0, "runtimes": 1, "workspace": 2, "harness": 3,
-         "resources": 4, "routing": 5, "platform": 6, "api": 7}
-PUBLIC_API = 6.5                                     # harness_interface/__init__.py: the library's front door
+LAYER = {"errors": 0, "execution": 0, "runtimes": 1, "workspace": 2, "harness": 3, "store": 4, "sessions": 5,
+         "api": 6}
+PUBLIC_API = 5.5                                     # harness_interface/__init__.py: the library's front door
+SHIPPED = {"harness_interface.harness.hi_adapter"}  # copied into harness folders and run there: no layer header
 
 
 def layer_of(module: str) -> float:
@@ -19,9 +20,8 @@ def layer_of(module: str) -> float:
     return LAYER[parts[1]] if len(parts) > 1 else PUBLIC_API
 
 
-def module_name(path: Path, root: Path, package: str) -> str:
-    rel = path.relative_to(root).with_suffix("")
-    parts = [package, *rel.parts]
+def module_name(path: Path) -> str:
+    parts = ["harness_interface", *path.relative_to(PACKAGE).with_suffix("").parts]
     return ".".join(parts[:-1] if parts[-1] == "__init__" else parts)
 
 
@@ -44,12 +44,20 @@ def imports(path: Path, module: str) -> set[str]:
 
 def library_modules():
     for path in sorted(PACKAGE.rglob("*.py")):
-        yield path, module_name(path, PACKAGE, "harness_interface")
+        yield path, module_name(path)
 
 
 def test_every_module_belongs_to_a_layer():
     for _, module in library_modules():
         layer_of(module)                             # a KeyError names the stray module
+
+
+def test_every_module_opens_by_naming_its_layer():
+    for path, module in library_modules():
+        if layer_of(module) == PUBLIC_API or module in SHIPPED:
+            continue
+        doc = ast.get_docstring(ast.parse(path.read_text())) or ""
+        assert doc.startswith(f"Layer {layer_of(module)}:"), f"{module} must open with 'Layer {layer_of(module)}: …'"
 
 
 def test_layers_import_only_downward():
@@ -72,9 +80,3 @@ def test_the_library_needs_only_the_standard_library():
 def test_the_public_api_is_the_library_only():
     names = imports(PACKAGE / "__init__.py", "harness_interface")
     assert not any(n.startswith("harness_interface.api") for n in names)
-
-
-def test_the_cli_only_talks_to_the_api():
-    for path in CLI.rglob("*.py"):
-        names = imports(path, module_name(path, CLI, "hi_cli"))
-        assert not any(n.split(".")[0] == "harness_interface" for n in names), path

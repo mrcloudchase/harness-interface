@@ -1,0 +1,26 @@
+# Copied to $HERMES_HOME/config.yaml before every response; hermes expands the ${VAR}s from run.sh.
+model:                             # run.sh sets these by the shape: anthropic or custom (OpenAI chat)
+  provider: ${HERMES_INFERENCE_PROVIDER}
+  api_mode: ${HERMES_API_MODE}
+  base_url: ${HERMES_BASE_URL}     # the provider, pinned: else the ACP model list calls api.anthropic.com
+  api_key: ${ANTHROPIC_API_KEY}    # set inside hermes's process only; a name hermes keeps from its shells
+  default: ${HERMES_INFERENCE_MODEL}
+  context_length: 128000           # fixed: no probing of the provider or openrouter.ai (~6 s a start)
+security:
+  tirith_enabled: false            # no scanner download from github.com
+memory:
+  nudge_interval: 0                # no background review fork making model calls after a turn
+skills:
+  creation_nudge_interval: 0
+mcp_servers:                       # an example MCP server: one tool, which returns a word
+  hi-live-mcp:
+    command: python3
+    args: ["${HERMES_HOME}/hi-live-mcp.py"]
+hooks:                             # shell hooks inherit hermes's environment: each drops the key first
+  on_session_start:                # an example hook, run as a session starts; hermes records each hook it
+    - command: env -u ANTHROPIC_API_KEY true hi-live-hook   # accepts in shell-hooks-allowlist.json
+  pre_tool_call:                   # delegate_task always runs in the background in 0.19.0, so the turn
+    - matcher: delegate_task       # would end while a subagent works on; ACP ignores disabled_toolsets
+      command: >-
+        env -u ANTHROPIC_API_KEY
+        echo '{"decision":"block","reason":"delegate_task is disabled here: do the work yourself, in this turn."}'

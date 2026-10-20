@@ -1,0 +1,6 @@
+{
+  "apiKeyHelper": "cat \"$HI_PROVIDER_KEY_FILE\"",
+  "hooks": {
+    "SessionStart": [{"hooks": [{"type": "command", "command": "echo hi-live-hook"}]}]
+  }
+}

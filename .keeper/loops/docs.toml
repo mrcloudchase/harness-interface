@@ -1,8 +1,0 @@
-name = "docs"
-goal = """Make the documentation true: every command, flag, endpoint, field and example it shows must
-match the code exactly. Fix the docs, not the code. If they already match, say so as no_op."""
-verifiers = [
-  { kind = "command", run = "checks" },
-  { kind = "rule", rules = ["tests_only_grow", "no_workflows"] },
-  { kind = "judge", roles = ["docs"] },
-]

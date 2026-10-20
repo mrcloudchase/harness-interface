@@ -1,16 +1,12 @@
 {
+  "contract": 1,
   "name": "claude-code",
-  "description": "Claude Code, headless. Shell, files, web fetch. Speaks the Anthropic Messages API, so its provider is Anthropic or any endpoint that serves that shape (DeepSeek, OpenRouter, ...).",
-  "provider": "anthropic",
-  "files": {
-    "AGENTS.md": "{instructions}"
-  },
-  "run": {
-    "env": {
-      "HOME": "{workspace}/.home",
-      "IS_SANDBOX": "1"
-    },
-    "stdout": "application/x-ndjson",
-    "timeout_s": 900
-  }
+  "description": "Claude Code 2.1.305, headless over stream-json and steered mid-turn; any Anthropic-shaped provider.",
+  "provider": {"url": "https://api.anthropic.com", "api": "anthropic-messages"},
+  "apis": ["anthropic-messages"],
+  "install": {"egress": ["registry.npmjs.org"], "timeout_s": 900},
+  "files": {".home/.claude/CLAUDE.md": "{instructions}"},
+  "run": {"interrupt": "steered", "stdout": "application/x-ndjson", "timeout_s": 1800, "stop_timeout_s": 20,
+          "credential": "gateway", "egress": []},
+  "report": [".claude/projects/*/memory/**"]
 }

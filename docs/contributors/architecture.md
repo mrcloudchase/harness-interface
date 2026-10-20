@@ -1,146 +1,116 @@
 # Architecture
 
-harness-interface is an execution layer. It runs a harness in a sandbox, gives it a workspace and
-a session, streams what it prints, and records what it did. Everything about a particular harness,
-such as its flags, where instructions go, how a session resumes and how its output becomes an
-answer, lives in that harness's folder, not in this code.
+harness-interface is an execution layer. It installs a harness once, runs it in a sandbox with its
+config and work artifacts in place, streams what it prints, takes interrupts and stops, and returns
+everything it produced. Everything about a particular CLI (its flags, where its config goes, how it
+resumes, steers and stops, how its output becomes an answer) lives in that harness's folder, not in
+this code.
 
 ## Layers
 
-The code is a stack of layers. Each one imports only from the layers below it, so a change to one
-layer can break only that layer and the layers above it.
+Each layer imports only from the layers below it, so a change to one can break only it and the
+layers above.
 
 | | Layer | Modules | Knows about |
 |---|---|---|---|
-| 0 | **Execution** | `errors.py`, `execution.py` | running something: a `Spec` in, `Event`s out, one `Outcome` |
-| 1 | **Runtimes** | `runtimes/` | where it runs: a local process, or a hardened container behind the egress door |
-| 2 | **Workspace** | `workspace.py` | a working directory as a git repository: snapshots, changes, diffs |
-| 3 | **Harness** | `harness/` | the harness contract, and one `Turn` of a harness on any runtime |
-| 4 | **Resources** | `resources/` | named providers, sandboxes and harnesses, stored as JSON |
-| 5 | **Routing** | `routing.py` | which harness serves a request |
-| 6 | **Platform** | `platform/` | turns in the background, records, conversations, cancelling, recovery |
-| 7 | **Front ends** | `api/` | the OpenAI Responses API over HTTP |
-| 8 | **Clients** | `frontend/cli/hi_cli/` | `hi`, which only calls the API |
+| 0 | **Execution** | `errors.py`, `execution.py` | running something: a `Spec` in, `Event`s out, input, a stop or a kill, one `Outcome` |
+| 1 | **Runtimes** | `runtimes/` | where it runs: a process here, or a hardened container behind its door and gateway |
+| 2 | **Workspace** | `workspace.py` | a working directory and its history: snapshots, changes, diffs, files |
+| 3 | **Harness** | `harness/` | contract 1: a folder, its cached install, `prepare` and `collect`, one `Response` |
+| 4 | **Store** | `store.py` | what is kept by name: providers, and harness folders with their install state |
+| 5 | **Sessions** | `sessions.py` | sessions and responses in the background: follow, interrupt, stop, artifacts, recovery |
+| 6 | **Server** | `api/` | the OpenAI Responses API and the session routes over HTTP |
 
 ```mermaid
 flowchart BT
   E["0 · execution"] --> R["1 · runtimes"] --> W["2 · workspace"] --> H["3 · harness"]
-  H --> S["4 · resources"] --> T["5 · routing"] --> P["6 · platform"] --> A["7 · api"]
-  A -. HTTP .-> C["8 · hi"]
-  H --> L(["harness_interface: the library's public API"])
+  H --> S["4 · store"] --> X["5 · sessions"] --> A["6 · api"]
+  X --> L(["harness_interface: the library's public API"])
 ```
 
-Three rules hold the layers in place. [tests/test_layers.py](../../tests/test_layers.py) enforces
-all three:
-- **Imports point down.** A module may import from its own layer or any layer below it, never
-  above.
-- **The library is the standard library.** Layers 0 to 6 import nothing outside Python's standard
-  library. FastAPI, pydantic and uvicorn appear only in `api/`, and come with the `[server]` extra.
-- **`hi` only talks to the API.** The CLI never imports `harness_interface`; everything it does is
-  an HTTP call, so any other client can do the same.
+[tests/test_layers.py](../../tests/test_layers.py) enforces three rules:
+- **Imports point down.** A module imports from its own layer or below, never above.
+- **The library is the standard library.** Layers 0 to 5 import nothing outside it. FastAPI, pydantic
+  and uvicorn appear only in `api/`, with the `[server]` extra.
+- **Every module says its layer first**, in its docstring.
 
-`harness_interface/__init__.py` is the library's front door: layers 0 to 3, and nothing from
-`api/`. Layers 4 to 6 are importable by their full path, for building another server or front end.
+`harness_interface/__init__.py` is the library's front door: layers 0 to 5, nothing from `api/`.
 
-## Every file, and what it is for
+## Every file
 
-| File | Purpose | Change it when |
-|---|---|---|
-| `errors.py` | `Invalid`, `NotFound`, `Conflict`: the three ways a caller can ask wrong | never, without a new kind of refusal |
-| `execution.py` | `Spec`, `Event`, `Outcome`, the `Execution` and `Runtime` protocols, `NeverStarted` | the meaning of "running something" changes. Rarely: every runtime implements it |
-| `runtimes/process.py` | `ProcessExecution`: the only code that spawns a process, pumps its output, feeds input, times out and kills | process handling has a bug |
-| `runtimes/local.py` | `LocalRuntime`: a process here, in the workspace | rarely |
-| `runtimes/docker.py` | `Sandbox`, `Docker` (builds each image once), `DockerRuntime` (one hardened container per run, its network and door, teardown) | the sandbox's guarantees change |
-| `runtimes/egress.py` | the egress door: a CONNECT-only allowlist proxy, run inside its own container | the door's rules change |
-| `workspace.py` | `Workspace`: init, write, snapshot, changes, diff, files, read; internal paths hidden | what a change or a file means changes |
-| `harness/template.py` | `{name}` placeholders, the one templating mechanism | rarely |
-| `harness/contract.py` | `harness.json` (`Harness`, `Run`), `Provider`, `Request`, `Result`, and `prepare`/`collect`: what a harness is given and what is read back | never to add to it: the contract is closed ([extending](extending.md#the-harness-contract-is-closed)) |
-| `harness/turn.py` | `Turn`: prepare, start, stream, cancel, collect, snapshot | how a turn is sequenced changes |
-| `resources/store.py` | `JsonStore`: one JSON file per item, written whole | storage changes |
-| `resources/registry.py` | `Registry`: the three kinds, the built-in `default` sandbox, `resolve` | a resource kind is added or changes |
-| `resources/default.Dockerfile` | the built-in sandbox: every shipped harness's CLI | a shipped harness needs a new tool or version |
-| `routing.py` | `Route`, the `Router` protocol, `ByName` | how a request picks its harness changes |
-| `platform/records.py` | `Record`: one turn, from start to end; `finish` and `fail` | the record gains or changes a field |
-| `platform/runs.py` | `Run`: a turn in flight and its followers | rarely |
-| `platform/placement.py` | where each run goes: `DockerPlacement`, `LocalPlacement` | a new place to run turns |
-| `platform/service.py` | `Service`: start, get, list, cancel, recover; drives each turn to its record | how turns are owned or conversations work |
-| `api/config.py` | `Settings`, from `HI_*` variables | a server setting is added |
-| `api/wire.py` | the Responses format: a request to an `Ask`, a `Record` to a response, a run to SSE | the wire format changes |
-| `api/app.py` | routes, error mapping, `build` and `main` | an endpoint is added or changes |
-| `frontend/cli/hi_cli/api.py` | one method per endpoint | an endpoint is added or changes |
-| `frontend/cli/hi_cli/main.py` | the commands, their flags and output | a command is added or changes |
-| `frontend/cli/hi_cli/daemon.py` | `hi server start/stop/status/logs` | rarely |
-| `frontend/cli/hi_cli/harness.py` | a harness folder as a PUT body; the shipped folders | rarely |
-| `harnesses/*/` | one folder per shipped harness: configuration, not platform code | that harness's CLI changes |
+| File | Purpose |
+|---|---|
+| `errors.py` | `Invalid`, `NotFound`, `Conflict`: the three ways a caller can ask wrong |
+| `execution.py` | `Spec`, `Event`, `Outcome` (exited, timed_out, stopped, killed, failed), the `Execution` and `Runtime` protocols, `NeverStarted` |
+| `runtimes/process.py` | the only code that spawns a process: pumps its output, feeds its input, stops, kills, times out; the allowlist of host variables a child may inherit |
+| `runtimes/local.py` | `LocalRuntime`: a process here, with a loopback gateway or a key file for its provider |
+| `runtimes/docker.py` | `DockerRuntime` (one hardened container per run, its network, door and credential, teardown, the owner's sweep) and `Images` (each Dockerfile built once) |
+| `runtimes/door.py` | the egress door and provider gateway, a stdlib script run in its own container |
+| `workspace.py` | `Workspace`: snapshots and their diffs, changes and files, with its git history kept outside it; internal paths hidden |
+| `harness/folder.py` | `HarnessFolder.load`: contract 1's closed `harness.json` and required files; `check_provider_url` |
+| `harness/hi_adapter.py` | the canonical adapter plumbing, copied byte-identical into every folder |
+| `harness/base.Dockerfile` | the base image every harness runs in: bash, Python, Node and npm, uv, git, CA certificates; no CLI, no secret |
+| `harness/install.py` | `Installer`: `install.sh` into a tools directory, once per version, locked, marker last |
+| `harness/placement.py` | `Placement`: Docker or this machine, the images, the owner; gives each install and response its runtime |
+| `harness/contract.py` | `prepare` (artifacts in, the `Spec`) and `collect` (HI_OUTPUT, changes, reported artifacts out): contract 1, written once |
+| `harness/response.py` | `Response`: one response on any runtime; its events, `steer`, `stop`, `result` |
+| `store.py` | `JsonStore`, `ProviderEntry`, `Registry` (providers, harness folders, installs in the background) |
+| `sessions.py` | `Ask`, `Session`, `ResponseRecord`, `Sessions`: start, follow, wait, interrupt, stop, artifacts, recover |
+| `api/wire.py` | the Responses format, and the only module that knows it: a request to an `Ask`, a record to a response object, events to SSE |
+| `api/app.py` | the routes, and `main`, the server's entry point |
+| `api/config.py` | the server's settings, from `HI_*` variables |
 
-Every module in the package opens with a docstring that names its layer and says what it is for
-and what it promises. Read that first; it is kept true.
-
-## The life of a turn
-
-### From the library
-
-```python
-turn = await Turn.start(runtime, harness, provider, Request("Fix the test"), workspace, scripts)
-```
-
-1. **Prepare** (in a thread, since it is file and git work). `Workspace.init` makes the workspace a
-   git repository if it isn't one. `prepare` writes the request's files, the harness's templated
-   `files` and `.hi/request.json`, removes any stale `.hi/output.json`, and returns the `Spec`:
-   the templated argv, `HI_*` variables and `run.env`, the request on stdin, the timeout. A
-   snapshot of the workspace is the turn's `base`.
-2. **Start.** `runtime.start(spec)` runs as a task, so `Turn.start` returns at once. On Docker it
-   builds the sandbox's image if needed, hands the workspace to uid 1000 if the server runs as
-   root, creates an internal network and the door, waits for the door, and spawns `docker run`.
-3. **Stream.** `turn.events()` yields the execution's events. Output is pumped into a queue as it
-   is written, whether or not anyone reads it.
-4. **Cancel**, from any thread. While the runtime is still starting, the start is cancelled, its
-   teardown runs, and the harness never starts. Once it is running, the process group or container
-   is killed.
-5. **Collect.** `turn.result()` waits for the `Outcome`, then `collect` reads `.hi/output.json`.
-   A timeout or cancel decides the status first, then the status the harness reported, then its
-   exit code. The changed and deleted files are read, and a second snapshot is the turn's
-   `commit`.
-
-### From the server
+## The life of a response
 
 ```
-POST /responses ─► wire.ResponseRequest.ask() ─► Service.start(ask)
-   ├─ the previous record, if it continues one: its workspace, session and harness
-   ├─ Router.route(model, its harness)  ─► Registry.resolve(harness) ─► provider, sandbox, scripts
-   ├─ a Record, status running; the conversation's workspace marked busy (else 409)
-   ├─ Turn.start(Placement.runtime(resolved), …)
-   └─ a background task, _drive: pump events to .out/.log files and to followers,
-      then Record.finish(result), or fail("internal_error") on a bug; always free the workspace
-◄─ the Record as a response, or wire.stream(run) as server-sent events
+POST /responses
+  wire.ResponseRequest.ask()                 the Responses format, to an Ask
+  Sessions.start(ask)
+    parse_model                              harness[@provider][/model]
+    previous response, if continuing         its session: harness, provider, workspace, resume; busy is a 409
+    _choose_provider                         the one named, or the one for the folder's default URL and shape
+    new Session or the same one, a ResponseRecord in_progress, the session active
+  in the background, Sessions._one:
+    Registry.ready(harness)                  waits for the install: Installer, once per version
+    Response.start
+      contract.prepare                       workspace/ on a new session; the request's files; home/ into .home;
+                                             files rendered; a snapshot; the Spec: bash run.sh, line 1 on stdin
+      Placement.runtime(image, mounts, egress, provider)
+      runtime.start(spec)                    Docker: network, door (and gateway, the key on its stdin), credential,
+                                             docker run --init, hardened, same paths inside and out
+    Sessions._pump                           stdout, stderr, door and steers to logs/, and to followers
+    Response.result → contract.collect       HI_OUTPUT, the status, changes, reported artifacts, a snapshot
+    the record finished; undelivered steers sent again as the next response if it ended ok
+  reply: the finished response, or SSE: response.created, harness.stdout/stderr per line, harness.steer,
+         session.interrupted, response.completed
 ```
 
-The turn belongs to the service, not to the request. A client that disconnects only stops
-following; the turn runs on and is recorded. At startup, `Service.recover` fails every record
-still `running` with `server_restarted`, and the placement removes the containers and networks
-the last process left behind.
+A response belongs to the server, not the request: a client that leaves only stops following. At
+startup `Sessions.recover` fails every response still in progress with `server_restarted` (its resume
+kept), marks every session idle, and sweeps this data directory's leftover containers, networks and
+credentials.
 
-## Decisions, and why
+## Interrupts and stops
 
-- **A harness is configuration.** The contract is environment variables in, one optional JSON
-  file out. No harness implements a protocol, so a CLI works the way it ships, and adding one
-  never changes this code. The price is that the platform has no common event schema across
-  harnesses: it streams their own output and records the same `Result` for all of them.
-- **A failure to start is an outcome.** `runtime.start` returns an execution whose outcome is
-  `failed(reason)` (`NeverStarted`) instead of raising, so callers handle one path. Only a
-  caller's mistake raises, and as `Invalid`.
-- **Output never waits on a reader.** Pumps read stdout and stderr into an unbounded queue, so a
-  harness never blocks on a full pipe and `wait()` never depends on anyone iterating events.
-- **The same paths inside and outside.** The workspace and the scripts are mounted at their own
-  paths, so `{workspace}`, `{harness_dir}` and every path in a record mean the same thing to the
-  harness, the server and the user.
-- **One way out.** A sandbox's only network is internal; the egress door is the one container on
-  it that is also on the bridge, and it tunnels only to allowed hosts. TLS stays end to end.
-- **The platform never puts a key on a command line.** `docker run -e NAME` passes names only;
-  values come from the environment of the `docker` process. The server never writes a key to a
-  record, a log or an API response. What a harness does with its key inside its sandbox is up to
-  the harness.
-- **One turn per conversation.** A conversation is one workspace and one harness session; two
-  turns at once in either would corrupt it, so a second gets 409.
-- **Records are written twice.** Once when the turn starts (so it can be listed and followed) and
-  once when it ends, whatever ended it.
+`Sessions.interrupt(id, text)` degrades by what is running and the folder's `run.interrupt` tier:
+- a `steered` response running: one JSON-string line on its stdin; the adapter hands it to the CLI. If
+  the line can't be delivered, the next step applies.
+- anything else running: the response is stopped (SIGINT, a kill after `stop_timeout_s`), and the
+  session continues with the text in a new response, `continued` or `responded`.
+- nothing running: the session continues with the text.
+
+A stop is SIGINT to the process group (through tini under Docker), which `hi_adapter` turns into the
+adapter's graceful `stop`; the end of stdin means the same. A response that ends while its status is
+still `running` and had a resume is `stopped`, so it can be continued.
+
+## Why it is built this way
+
+- **Contract, not protocol.** A harness gets environment variables, stdin and a result file. Any CLI in
+  any language fits behind a folder; the server never learns a CLI's flags or output.
+- **Install once, run fresh.** The CLI is installed into a tools directory per version and mounted
+  read-only; every response gets a new container from a small base image with no secrets.
+- **The key stays out.** The gateway holds the key; the run holds a token valid only at its gateway.
+- **Same paths inside and out.** The workspace, folder and tools mount at their own paths, so nothing
+  above layer 1 translates a path, and npm and uv installs work where they were made.
+- **History outside the workspace.** The server's git history of a workspace is kept beside it, so
+  what runs inside can't plant hooks or rewrite what the server reports.

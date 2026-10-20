@@ -1,0 +1,1 @@
+{"mcpServers": {"hi-live": {"command": "sh", "args": ["-c", "exec python3 \"$HOME/.claude/hi-live-mcp.py\""]}}}

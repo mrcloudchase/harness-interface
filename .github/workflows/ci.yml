@@ -1,6 +1,6 @@
-# Every pull request and every push to main: the whole suite on the oldest Python we support, the
-# one the installer uses and the newest, the live Docker tests against a real daemon, and a check
-# for unused code.
+# Every pull request and every push to main: the whole suite (no Docker, keys or network) on
+# the oldest Python we support, the one the installer uses and the newest; the Docker tests against a
+# real daemon; and a check for unused code.
 name: ci
 
 on:
@@ -24,6 +24,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
+      - run: docker pull -q python:3.12-alpine && docker pull -q python:3.12-slim   # the door's image and the tests'
       - run: uv run --extra dev pytest -m docker
 
   lint:

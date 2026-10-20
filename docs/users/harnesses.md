@@ -1,210 +1,123 @@
-# Use and write harnesses
+# Harness folders
 
-A harness is any program you can start from a shell and hand a task to. To harness-interface, a
-harness is a folder of a few files:
+A harness is a folder. The folder is where everything about a coding CLI lives: how to install it,
+which configuration it runs with, which files a session starts with, how to run it, how to steer and
+stop it, and what to report back. The server knows none of that. It copies the folder's files in,
+runs it in a sandbox, and returns everything that comes out.
 
-| File | |
-|---|---|
-| `harness.json` | its provider and sandbox, the files to write before each turn, and how to run it |
-| `run.sh` | the command: maps the request onto the CLI's own flags, and runs it |
-| `report.py` | reads what the CLI printed, and writes back the answer, session, usage and cost |
-| `artifacts` | optional: files from the folder to put under the CLI's home before each turn ([below](#configure-it-your-way)) |
+Five ship in [`harnesses/`](../../harnesses/README.md): Claude Code, Codex, pi, OpenCode and Hermes,
+plus `template`, a working starting point with a stand-in CLI. The reference for every field and
+variable is the [harness contract](harness-contract.md).
 
-Only `harness.json` is required. `run.sh` is what runs unless `harness.json` says otherwise, and
-`report.py` is how the shipped harnesses report; every other file in the folder is a script the
-run can use. That is all a harness is. The server has no code for any harness, and how a harness
-is configured is decided by whoever writes it.
+## What a folder holds
 
-## Use the shipped harnesses
+```
+<name>/
+  harness.json      what the server needs to know: provider, install hosts, interrupt tier, timeouts, …
+  install.sh        installs the pinned CLI into $HI_TOOLS, once per version
+  run.sh            maps HI_* onto the CLI's own settings, then runs the adapter
+  adapter.py        drives the CLI: the task in, steers in, a graceful stop, the result out
+  hi_adapter.py     shared plumbing, identical in every folder (copy it unchanged)
+  home/             config artifacts, copied into $HOME before every response
+  workspace/        work artifacts, copied into a new session's workspace
+  image.Dockerfile  optional: FROM hi-base, for operating-system packages install.sh can't add
+```
 
-Twenty-three ship with harness-interface, and the default sandbox has all their CLIs installed.
+## Artifacts: what the folder brings, and where each kind lives
+
+| Kind | Examples | Where it's defined | Where it lives | How long |
+|---|---|---|---|---|
+| **Config artifacts** | instructions (`CLAUDE.md`, `AGENTS.md`, `SOUL.md`), skills, MCP config, hooks, settings, curated memory | the folder's `home/`, in the CLI's own format; and `files` in `harness.json` for anything templated, such as the request's instructions | the session's `$HOME` (`.home/` in its workspace) | copied in before every response, so the folder always wins for what it ships |
+| **Work artifacts** | the project: source, data, project-level config | the folder's `workspace/` (when a session starts) and the request's files (every response) | the session's workspace | the whole session, across responses |
+| **Session state** | the CLI's transcripts, memory it writes, caches | the CLI itself | `.home/`, beside what `home/` ships | the whole session; resuming continues it |
+| **Reported artifacts** | memory or other files the CLI writes under `$HOME` that you want back | `report` in `harness.json`: globs under `$HOME` | returned with each response | per response |
+
+Each response runs in a new container, but a session's workspace and `.home/` live on the server and
+are mounted back at the same path every time, so work and the CLI's own memory carry on across
+responses. A new session is a clean project: it never sees another session's files.
+
+Where the first five read their config artifacts:
+
+| Harness | Instructions | Skills | MCP | Hooks / settings | Memory |
+|---|---|---|---|---|---|
+| Claude Code | `.claude/CLAUDE.md` | `.claude/skills/<name>/SKILL.md` | `.claude/mcp.json`, passed with `--mcp-config` | `.claude/settings.json` | `.claude/projects/<project>/memory/` |
+| Codex | `.codex/AGENTS.md` | `.codex/skills/<name>/SKILL.md` | `[mcp_servers]` in `.codex/config.toml` | `.codex/config.toml`, `.codex/hooks.json` | its sessions under `.codex/` |
+| pi | `.pi/agent/AGENTS.md` | `.pi/agent/skills/<name>/SKILL.md` | `.pi/agent/mcp.json` | `.pi/agent/extensions/` | its session files |
+| OpenCode | `.config/opencode/AGENTS.md` | `.config/opencode/skills/<name>/SKILL.md` | `mcp` in `.config/opencode/opencode.json` | `.config/opencode/plugins/` | its session database |
+| Hermes | `.hermes/SOUL.md` | `.hermes/skills/<category>/<name>/SKILL.md` | `mcp_servers` in `.hermes/config.yaml` | `.hermes/config.yaml` | `.hermes/memories/` |
+
+Each shipped folder carries one harmless example of each kind it loads, named `hi-live-…` (a skill,
+an MCP server, a hook). The live suite checks that each one is loaded. Replace them with your own.
+
+## Use a shipped harness
+
+Register the folder with the server (see [Getting started](getting-started.md#3-add-a-harness)),
+add a provider it speaks, and ask for it by name:
 
 ```bash
-hi harness add --builtin                     # all of them
-hi harness add --builtin claude-code codex   # or the ones you name
-hi harness ls
+curl -s localhost:8000/responses -H 'content-type: application/json' \
+  -d '{"model": "claude-code", "input": "What is 17 * 23?", "instructions": "Answer in one line."}'
 ```
 
-Each one names the provider it expects ([providers](providers.md)). To run one:
+`model` is `harness[@provider][/model]`: `claude-code`, `claude-code/claude-sonnet-4-6`,
+`claude-code@deepseek/deepseek-chat`. With no provider named, the server uses the one registered for
+the harness's default URL and shape.
+
+## Configure it your way
+
+A configuration is a folder. To run Claude Code with your skills, MCP servers and hooks, copy
+`harnesses/claude-code` to a new name, change `name` in `harness.json`, put the files in `home/`
+where Claude Code reads them, and register the folder. To bring the same setup to Codex or Hermes,
+write the same intent in their folders' `home/`, in their formats (the table above).
+
+- **Instructions from the request** reach the CLI through `files`:
+  `"files": {".home/.claude/CLAUDE.md": "{instructions}"}`. An empty render deletes the file, so a
+  response without instructions never keeps the last ones.
+- **Files every session should start with** go in `workspace/`.
+- **Memory you want back** goes in `report`, for example `[".claude/projects/*/memory/**"]`; each
+  response returns the reported files it added, changed or deleted.
+- **Secrets never go in artifacts.** The provider's key reaches a harness only through the
+  [credential mechanism](security.md#keys). What an MCP server needs to run goes in `install.sh`, and
+  any host it calls in `run.egress`.
+
+## Write one
+
+Copy the template and replace its parts:
 
 ```bash
-hi run claude-code "Fix the failing test" -f prices.py -f test_prices.py -i "Keep changes minimal"
-hi run claude-code/claude-opus-5-5 "…"       # pick the CLI's model
-hi run claude-code "Now add a test for it" -c
+cp -r harnesses/template harnesses/my-cli
 ```
 
-The flags:
-- `-f` puts a file in the workspace before the run.
-- `-i` passes instructions; each harness puts them where its CLI reads them, such as `AGENTS.md`.
-- `-c` continues the conversation.
+1. **`harness.json`.** Name it; give its default provider and the API shapes it speaks; list the hosts
+   its install may reach; choose its interrupt tier (`steered` if the CLI can take more text while it
+   works, `continued` if it can be stopped and resumed, else `responded`).
+2. **`install.sh`.** Install the CLI, pinned, into `$HI_TOOLS`, with executables in `$HI_TOOLS/bin`.
+   It runs once per version with no secrets, reaching only `install.egress`. Install anything the CLI
+   would otherwise fetch at run time here: a session can reach only its provider.
+3. **`run.sh`.** Map `HI_PROVIDER_URL`, `HI_PROVIDER_KEY_FILE` and `HI_MODEL` onto the CLI's own
+   settings, turn off its telemetry and update checks, then `exec python3 -u "$HI_HARNESS_DIR/adapter.py"`.
+4. **`adapter.py`.** Subclass `hi_adapter.Adapter`: `start` runs the CLI with the task (resuming
+   `request["resume"]` if set), `on_line` reads its output and reports the resume id, answer and usage,
+   `steer` hands it more text, and `stop` asks it to stop gracefully. `hi_adapter` handles stdin,
+   signals, the result file and the CLI's processes; `JsonRpc` speaks to app-server and ACP CLIs.
+5. **`home/` and `workspace/`.** The config and work artifacts above.
 
-The notes on each harness are in [harnesses/README.md](../../harnesses/README.md).
-
-## Write your own
-
-### The smallest harness
-
-Two files in a folder named `hello`:
-
-**`hello/harness.json`**
-
-```json
-{"name": "hello", "provider": "anthropic", "run": {"stdout": "text/plain"}}
-```
-
-**`hello/run.sh`**
+Develop it on this machine with `HI_RUNTIME=local` (no sandbox), then prove it sandboxed with the
+live suite:
 
 ```bash
-#!/usr/bin/env bash
-set -euo pipefail
-echo "asked: $HI_TASK"                                       # stdout streams back as the output
-echo "$HI_TASK" >> notes.txt                                 # a produced file, kept in the workspace
-printf '{"status":"ok","session_id":"notes","answer":"%s notes so far"}' \
-  "$(wc -l < notes.txt)" > "$HI_OUTPUT"                      # what the record reports
+uv run --extra dev python scripts/live.py harnesses/my-cli \
+  --url https://api.anthropic.com --api anthropic-messages --key-file ~/anthropic.key
 ```
 
-```bash
-hi harness add ./hello
-hi run hello "first"          # 1 notes so far
-hi run hello "second" -c      # 2 notes so far: same workspace, same session
-```
+It runs the folder from the library and from the API, under the gateway and with a key file, and
+checks the install cache, instructions, usage, config artifacts, resume, reported artifacts, a steer,
+a stop and continue, and that the key is found nowhere it shouldn't be.
 
-That is the whole idea:
-- the task arrives as `HI_TASK`;
-- whatever the harness prints streams back;
-- files it writes in the workspace are kept;
-- the JSON it writes to `HI_OUTPUT` becomes the record.
+## Steering is the CLI's
 
-The full list of inputs and outputs is in the [harness contract](harness-contract.md).
-
-### Wrap a real CLI
-
-A real harness does five things.
-
-**1. Map the provider onto the CLI's own settings.** The server gives every harness
-`HI_PROVIDER_URL` and `HI_PROVIDER_KEY`; each CLI wants them under its own names:
-
-```bash
-export ANTHROPIC_BASE_URL="${HI_PROVIDER_URL%/}" ANTHROPIC_API_KEY="$HI_PROVIDER_KEY"
-```
-
-**2. Run the CLI headless, in one shot.** Use its non-interactive mode, with permission prompts
-off. In Docker the sandbox is what limits it.
-
-```bash
-claude -p "$HI_TASK" --output-format stream-json --verbose --dangerously-skip-permissions \
-  ${HI_MODEL:+--model "$HI_MODEL"} ${HI_SESSION_ID:+--resume "$HI_SESSION_ID"} \
-  | python3 "$HI_HARNESS_DIR/report.py"
-```
-
-**3. Report back.** Pipe the CLI's output through a small script that passes every line through
-unchanged and picks out what the record needs. Then it writes that JSON to `HI_OUTPUT`:
-- `answer`;
-- `status`;
-- `session_id`;
-- `usage`;
-- `cost_usd`.
-
-Claude Code's reporter is twenty lines:
-
-```python
-import json, os, sys
-
-out = {}
-for line in sys.stdin:
-    sys.stdout.write(line)
-    sys.stdout.flush()
-    try:
-        ev = json.loads(line)
-    except ValueError:
-        continue
-    if ev.get("type") == "system" and ev.get("session_id"):
-        out["session_id"] = ev["session_id"]
-    if ev.get("type") == "result":
-        out["status"] = "fail" if ev.get("is_error") else "ok"
-        out["usage"] = ev.get("usage")
-        out["cost_usd"] = ev.get("total_cost_usd")
-        out["answer"] = ev.get("result") or ""
-json.dump(out, open(os.environ["HI_OUTPUT"], "w"))
-```
-
-A CLI with no JSON mode gets a reporter that picks the answer out of its text, and its
-`harness.json` declares `"stdout": "text/plain"`.
-
-**4. Resume.** The `session_id` you report comes back as `HI_SESSION_ID` on the next turn. The
-shipped harnesses use four patterns:
-
-| Pattern | Example | How |
-|---|---|---|
-| The CLI's own session id | Claude Code, OpenCode, Hermes | report the id the CLI prints, pass it back with its resume flag |
-| The latest session in `$HOME` | Codex, Aider | on a follow-up, resume the CLI's most recent session; the reported id only marks that there is one |
-| A resume protocol | Cline | drive the CLI's Agent Client Protocol mode, and load the saved session |
-| A transcript | harness-engineering | keep the conversation in `$HOME`, and hand the earlier turns back as context |
-
-Keep the CLI's own state in the workspace's `.home` directory: set `"HOME": "{workspace}/.home"`
-in `run.env`. It then survives between turns, and is never counted as a produced file.
-
-**5. Take the instructions.** A request's `instructions` are its role for the harness. Write them
-where the CLI reads them, with `files` in `harness.json`; they are written before every turn:
-
-```json
-"files": {"AGENTS.md": "{instructions}"}
-```
-
-Most CLIs read `AGENTS.md` from their working directory. Check the one you wrap, and check that
-its model follows it: some read a name of their own (`CLAUDE.md`, `QWEN.md`), some read another
-folder, some read it only once told to, and some read no file at all, or treat it as background
-only. For those, the run script hands the instructions over with a flag, or puts them ahead of
-the task. The shipped harnesses have an example of each
-([notes](../../harnesses/README.md#notes-worth-knowing)).
-
-### Configure it your way
-
-How a CLI behaves is the harness's to decide: its settings, permissions, tool allow and deny
-lists, MCP servers, skills, hooks, anything the CLI reads. harness-interface doesn't read any of
-it, ships no defaults for it, and has no opinion on it. It gives you three places to put it:
-- **Artifacts:** drop the files in the harness's folder, and list each one in its `artifacts`
-  file, with where it goes under the CLI's home. Every shipped folder has one, listing nothing:
-
-  ```
-  # file in this folder   where it goes under $HOME
-  review.md               .claude/skills/review/SKILL.md
-  settings.json           .claude/settings.json
-  ```
-
-  Every shipped `run.sh` puts them in place before each turn, as they are, so this works the same
-  for every harness; only where each CLI looks differs. Under the CLI's home, they are never listed,
-  diffed or served as the harness's work.
-- **`files` in `harness.json`:** any file, at any path in the workspace, written before every
-  turn, with [placeholders](harness-contract.md#templates) filled in. Use it for short config
-  that needs a value from the request; an artifact's text is never templated, so a `{name}` in it
-  stays as written.
-- **`run.sh`:** flags on the CLI's command line, or anything else the script does before it runs
-  the CLI.
-
-A different configuration is a different harness: copy the folder, give it a new name in
-`harness.json`, and add it. A request picks a configuration the way it picks a CLI, by name.
-
-A harness folder holds plain files only, not folders, and they must be text: a skill that is
-a folder of files becomes one line in `artifacts` per file.
-
-Two things a configuration can't do on its own:
-- **Bring what it calls on.** A CLI or an MCP server it starts must be installed in the sandbox
-  image, and any host it reaches must be in the sandbox's `egress` ([sandboxes](sandboxes.md)).
-  The sandbox, not the CLI's settings, is what limits every run.
-- **Keep a secret.** A harness's `files` and `run.env` are stored as plain configuration and
-  returned by `GET /harnesses`. Only a provider's key is kept secret.
-
-### Develop it
-
-- **Iterate locally.** Develop against the local runtime, `HI_RUNTIME=local hi server start`, so
-  the harness runs as a plain process you can watch. It needs the CLI installed on your machine.
-- **When a run fails,** `hi log <id>` shows the harness's stderr and `hi output <id>` its stdout.
-- **Then use Docker.** Switch to the Docker runtime for the real thing. If your CLI isn't in the
-  default image, add a sandbox that installs it ([sandboxes](sandboxes.md)), and name that sandbox
-  in `harness.json`.
-- **Re-add after changes.** After each change, `hi harness add ./your-harness` again. There's no
-  restart; the next run uses the new version.
-
-The 23 shipped harnesses in [harnesses/](../../harnesses/) are working examples of every pattern
-above.
+A steer lands at the CLI's next safe point, usually after its current tool call. A model that does all
+its work in one long command can't be steered until that command ends. Some CLIs take more text into
+the running turn natively; others are stopped and given the text as the next turn. The folder's
+`adapter.py` decides which, and the [survey of 23 harnesses](../../harnesses/README.md#more-harnesses)
+records how each CLI can do it.

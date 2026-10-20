@@ -1,22 +1,19 @@
 [project]
 name = "harness-interface"
 dynamic = ["version"]                # the newest section of CHANGELOG.md
-description = "Run any harness in a sandbox: an execution library, an OpenAI Responses-compatible server, and `hi`, its command line."
+description = "Run any coding harness in a locked-down sandbox: an execution library and an OpenAI Responses-compatible server."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
-dependencies = [
-  "httpx>=0.27",                     # hi, the command line
-]
+dependencies = []                    # the library is the standard library only
 
 [project.optional-dependencies]
 server = ["fastapi>=0.115", "uvicorn[standard]>=0.30", "pydantic>=2.7"]
-dev = ["harness-interface[server]", "pytest>=8", "openai>=1.40"]
+dev = ["harness-interface[server]", "pytest>=8", "openai>=1.40", "httpx>=0.27"]   # httpx: the API's test client
 
 [project.scripts]
 harness-interface = "harness_interface.api.app:main"   # the server
-hi = "hi_cli.main:main"                                # the command line, a client of the server
 
 [build-system]
 requires = ["hatchling"]
@@ -27,12 +24,9 @@ path = "CHANGELOG.md"
 pattern = '^## \[(?P<version>[^\]]+)\]'
 
 [tool.hatch.build.targets.wheel]
-packages = ["harness_interface", "frontend/cli/hi_cli"]
-
-[tool.hatch.build.targets.wheel.force-include]
-"harnesses" = "hi_cli/harnesses"                         # the shipped harnesses travel with the command line
+packages = ["harness_interface"]
 
 [tool.pytest.ini_options]
-testpaths = ["tests", ".keeper/tests"]
+testpaths = ["tests"]
 addopts = "-m 'not docker'"
 markers = ["docker: needs a running Docker daemon"]

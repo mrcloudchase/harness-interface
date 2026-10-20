@@ -1,146 +1,162 @@
-"""Layer 7: the HTTP front end. The three resources, and responses in the OpenAI Responses format.
-Each route validates, calls the platform and shapes the reply; nothing else. `main` is the server's
-entry point. (No `from __future__ import annotations` here: the resource routes are generated per
-kind, and FastAPI reads their body types at runtime.)"""
-import mimetypes
+"""Layer 6: the HTTP routes. Providers and harnesses as resources (PUT, GET one or all, DELETE); `POST
+/responses` as the OpenAI Responses API; sessions to read, follow, interrupt and stop. Each route
+validates, calls `Sessions` and shapes the reply with `wire`; nothing else. A refusal is 400 (can't be
+done), 404 (unknown) or 409 (busy), a malformed body 422, each `{"detail": …}`. At startup git must be
+there and what a restart cut off is closed; `main` is the server's entry point. (No `from __future__
+import annotations` here: FastAPI reads the route types at runtime.)"""
+import asyncio
 from contextlib import asynccontextmanager
-from dataclasses import asdict
 from importlib.metadata import version
-from typing import Any
+from typing import Any, Optional, Union
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse, StreamingResponse
-from fastapi.responses import Response as HTTPResponse
+from fastapi.responses import JSONResponse, StreamingResponse
+from pydantic import BaseModel, ConfigDict
 
 from ..errors import Conflict, Invalid, NotFound
-from ..platform import DockerPlacement, LocalPlacement, Service
-from ..resources import KINDS, Registry
+from ..harness import HarnessFolder, Placement
+from ..runtimes import Images, owner_of
+from ..sessions import ResponseRecord, Sessions
+from ..store import ProviderEntry, folder_map
 from ..workspace import require_git
+from . import wire
 from .config import Settings
-from .wire import ResponseRequest, response, stream
 
 STATUS = {Invalid: 400, NotFound: 404, Conflict: 409}
 
 
-def build(settings: Settings) -> Service:
-    """The platform as the server runs it, from its settings."""
+class ProviderBody(BaseModel):
+    name: Optional[str] = None
+    url: str
+    api: str
+    key: str
+
+
+class Base64(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    base64: str
+
+
+def build(settings: Settings) -> Sessions:
+    """The service as the server runs it, from its settings."""
     data = settings.data_dir
-    placement = DockerPlacement(data / "logs") if settings.runtime == "docker" else LocalPlacement()
-    return Service(data, Registry(data), placement)
+    images = Images(data / "logs") if settings.runtime == "docker" else None
+    return Sessions(data, Placement(images, ca_file=settings.ca_file, owner=owner_of(data)))
 
 
-def public(item: Any) -> dict[str, Any]:
-    """A resource as the API shows it: a provider's key never leaves the server."""
-    return {k: v for k, v in asdict(item).items() if k != "key"}
-
-
-def create_app(service: Service) -> FastAPI:
+def create_app(sessions: Sessions) -> FastAPI:
     @asynccontextmanager
     async def lifespan(_: FastAPI):
         require_git()
-        await service.recover()
+        await sessions.recover()
         yield
+        await sessions.close()
 
     app = FastAPI(title="harness-interface", version=version("harness-interface"), lifespan=lifespan)
-    app.state.service = service
 
     for error, code in STATUS.items():
         @app.exception_handler(error)
         async def refused(_: Request, e: Exception, code: int = code) -> JSONResponse:
             return JSONResponse({"detail": str(e)}, status_code=code)
 
-    for kind, body in KINDS.items():
-        resource_routes(app, service, kind, body)
-    response_routes(app, service)
+    resource_routes(app, sessions)
+    response_routes(app, sessions)
     return app
 
 
-def resource_routes(app: FastAPI, service: Service, kind: str, body: type) -> None:
-    """PUT, GET (one or all) and DELETE, the same for every kind."""
-    registry = service.registry
+def resource_routes(app: FastAPI, sessions: Sessions) -> None:
+    registry = sessions.registry
 
-    @app.put(f"/{kind}/{{name}}", name=f"put_{kind}")
-    def put(name: str, item: body) -> dict:
-        if item.name != name:
-            raise Invalid("name in path and body differ")
-        return public(registry.put(kind, item))
+    def harness(folder: HarnessFolder, with_files: bool = False) -> dict:
+        install = registry.install(folder.name)
+        out = {"name": folder.name, "description": folder.description, "apis": list(folder.apis),
+               "provider": {"url": folder.provider.url, "api": folder.provider.api}, "interrupt": folder.run.interrupt,
+               "install": {"state": install.state, "log": install.log, "error": install.error}}
+        return {**out, "files": folder_map(folder.path)} if with_files else out
 
-    @app.get(f"/{kind}", name=f"list_{kind}")
-    def list_all() -> list[dict]:
-        return [public(i) for i in registry.list(kind)]
+    @app.put("/providers/{name}")
+    def put_provider(name: str, body: ProviderBody) -> dict:
+        if body.name not in (None, name):
+            raise Invalid("the name in the path and the body differ")
+        return registry.put_provider(ProviderEntry(name, body.url, body.api, body.key)).public()
 
-    @app.get(f"/{kind}/{{name}}", name=f"get_{kind}")
-    def get(name: str) -> dict:
-        return public(registry.get(kind, name))
+    @app.get("/providers")
+    def providers() -> list:
+        return [p.public() for p in registry.providers()]
 
-    @app.delete(f"/{kind}/{{name}}", name=f"delete_{kind}")
-    def delete(name: str) -> dict:
-        return {"deleted": registry.delete(kind, name)}
+    @app.get("/providers/{name}")
+    def provider(name: str) -> dict:
+        return registry.provider(name).public()
+
+    @app.delete("/providers/{name}")
+    def delete_provider(name: str) -> dict:
+        registry.delete_provider(name)
+        return {"deleted": name}
+
+    @app.put("/harnesses/{name}")
+    async def put_harness(name: str, body: dict[str, Union[str, Base64]]) -> dict:
+        files = {k: v if isinstance(v, str) else v.model_dump() for k, v in body.items()}
+        return harness(await registry.put_harness(name, files))
+
+    @app.get("/harnesses")
+    async def harnesses() -> list:
+        return [harness(f) for f in registry.harnesses()]
+
+    @app.get("/harnesses/{name}")
+    async def get_harness(name: str) -> dict:
+        return harness(registry.harness(name), with_files=True)
+
+    @app.delete("/harnesses/{name}")
+    async def delete_harness(name: str) -> dict:
+        registry.delete_harness(name)
+        return {"deleted": name}
 
 
-def response_routes(app: FastAPI, service: Service) -> None:
+def response_routes(app: FastAPI, sessions: Sessions) -> None:
+    async def shape(record: ResponseRecord) -> dict:
+        return wire.response(record, await asyncio.to_thread(sessions.artifacts, record.id))
+
+    def streamed(ident: str, headers: dict) -> StreamingResponse:
+        return StreamingResponse(wire.stream(sessions.follow(ident), shape), media_type="text/event-stream",
+                                 headers=headers)
+
+    async def whole_session(sid: str) -> dict:
+        s = sessions.session(sid)
+        return wire.session(s, [await shape(sessions.response(rid)) for rid in s.responses])
+
     @app.post("/responses")
-    async def create(req: ResponseRequest):
-        run = await service.start(req.ask())
-        headers = {"X-Response-Id": run.record.id}
+    async def create(req: wire.ResponseRequest) -> Any:
+        s = await sessions.start(req.ask())
+        rid = s.responses[-1]
+        headers = {"X-Response-Id": rid, "X-Session-Id": s.id}
         if req.stream:
-            return StreamingResponse(stream(run), media_type="text/event-stream", headers=headers)
-        await run.done.wait()                        # the run belongs to the server: leaving does not stop it
-        return JSONResponse(response(run.record), headers=headers)
+            return streamed(rid, headers)
+        return JSONResponse(await shape(await sessions.wait(rid)), headers=headers)   # leaving doesn't stop it
 
-    @app.get("/responses")
-    def list_all() -> list[dict]:
-        return [response(r) for r in service.list()]
+    @app.get("/sessions")
+    def list_sessions() -> dict:
+        return {"object": "list", "data": [wire.session(s) for s in sessions.sessions()]}
 
-    @app.get("/responses/{rid}")
-    def get(rid: str) -> dict:
-        return response(service.get(rid))
+    @app.get("/sessions/{sid}")
+    async def get_session(sid: str, stream: bool = False) -> Any:
+        if stream:
+            return streamed(sid, {"X-Session-Id": sessions.session(sid).id})
+        return await whole_session(sid)
 
-    @app.post("/responses/{rid}/cancel")
-    def cancel(rid: str) -> dict:
-        return {"cancelled": service.cancel(rid)}
+    @app.post("/sessions/{sid}/interrupt")
+    async def interrupt(sid: str, req: wire.InterruptRequest) -> Any:
+        outcome, record = await sessions.interrupt(sid, req.task, req.instructions)
+        headers = {"X-Response-Id": record.id, "X-Session-Id": sid, "X-Interrupt-Outcome": outcome}
+        if req.stream:
+            return streamed(record.id, headers)
+        if outcome != "steered":
+            record = await sessions.wait(record.id)
+        return JSONResponse({"outcome": outcome, "response": await shape(record)}, headers=headers)
 
-    @app.get("/responses/{rid}/output")
-    def output(rid: str):
-        """The harness's stdout as it printed it, in the content type its harness declares."""
-        record = service.get(rid)
-        path = service.output_path(rid)
-        if not path.exists():
-            raise NotFound("no output")
-        try:
-            media = service.registry.get("harnesses", record.harness).run.stdout
-        except NotFound:
-            media = "application/octet-stream"
-        return FileResponse(path, media_type=media)
-
-    @app.get("/responses/{rid}/log")
-    def log(rid: str):
-        service.get(rid)
-        path = service.log_path(rid)
-        if not path.exists():
-            raise NotFound("no log")
-        return FileResponse(path, media_type="text/plain")
-
-    @app.get("/responses/{rid}/diff")
-    def diff(rid: str):
-        """What the turn changed: so far, while it runs; in full, after."""
-        record, ws = service.workspace(rid)
-        if not record.base:
-            raise NotFound("no diff for this response")
-        return PlainTextResponse(ws.diff(record.base, record.commit or None), media_type="text/x-diff")
-
-    @app.get("/responses/{rid}/files")
-    def files(rid: str) -> list[str]:
-        record, ws = service.workspace(rid)
-        return ws.files(record.commit or None)
-
-    @app.get("/responses/{rid}/files/{path:path}")
-    def file(rid: str, path: str):
-        record, ws = service.workspace(rid)
-        data = ws.read(path, record.commit or None)
-        if data is None:
-            raise NotFound(f"no file {path}")
-        return HTTPResponse(data, media_type=mimetypes.guess_type(path)[0] or "application/octet-stream")
+    @app.post("/sessions/{sid}/stop")
+    async def stop(sid: str, req: Optional[wire.StopRequest] = None) -> dict:
+        outcome = await sessions.stop(sid, req.timeout_s if req else None)
+        return {"outcome": outcome, "session": await whole_session(sid)}
 
 
 def main() -> None:

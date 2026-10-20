@@ -1,94 +1,51 @@
-# Extending harness-interface
+# Extending
 
-Each kind of change has one place to go. Find it here, change that layer, and nothing below it.
-If a change seems to need two layers to know something new, the lower one is probably missing a
-general idea. Add that, not the special case.
+Where each kind of change goes. If a change seems to need two layers to learn something new, the lower
+one is missing a general idea: add that, not a special case.
 
 | You want to | Change | Not |
 |---|---|---|
 | support a new CLI | a folder in `harnesses/` | any Python |
-| give a harness a tool or host | its sandbox (a Dockerfile, and `egress`) | the runtime |
-| add a tool to every shipped harness's sandbox | `resources/default.Dockerfile` | |
-| run things somewhere new (a VM, Kubernetes, a remote host) | a new `Runtime` in `runtimes/`, and a `Placement` | the harness contract or the platform |
-| choose harnesses another way | a new `Router` in `routing.py` | the platform or the API |
-| store resources or records somewhere else | a class with `JsonStore`'s four methods, built in `Registry` and `Service` | the registry's callers |
-| give a harness something it doesn't get | its folder: `run.sh`, `files`, `artifacts`; or its sandbox | the contract, or a harness-specific branch anywhere |
-| serve another wire format | a package beside `api/`, calling `Service`, given layer 7 in `tests/test_layers.py` | the platform |
-| add a command to `hi` | `frontend/cli/hi_cli/` | the server |
+| give a CLI a tool, a skill or a setting | its folder: `install.sh`, `home/`, `files` | the server |
+| give a CLI an operating-system package | its folder's `image.Dockerfile` (`FROM hi-base`) | the base image |
+| let a CLI reach another host | its folder's `run.egress` | the runtime |
+| change what every harness starts from | `harness/base.Dockerfile`, pinned | |
+| run somewhere new | a `Runtime` in `runtimes/`, and `Placement` | the contract or sessions |
+| serve another wire format | a package beside `api/`, calling `Sessions` | sessions |
+| change what a harness is given or gives back | a new contract version, with every folder | a harness-specific branch |
 
 ## Add a harness
 
-A harness is configuration, so adding one changes no platform code.
-[Harnesses](../users/harnesses.md#write-your-own) shows how to write one, and the
-[harness contract](../users/harness-contract.md) has every field and variable. To ship it with
-harness-interface:
+A harness is a folder; the steps are in [harness folders](../users/harnesses.md#write-one) and every
+field in the [contract](../users/harness-contract.md). To ship one in `harnesses/`:
 
-1. Add `harnesses/NAME/`: `harness.json`, `run.sh`, an `artifacts` file and, if its output
-   needs translating, `report.py`. Copy a shipped harness that is close to yours: its `run.sh`
-   opens with the lines that place artifacts, which every shipped harness shares word for word,
-   and its `artifacts` file lists nothing.
-2. Put the request's instructions where the CLI reads them, usually `AGENTS.md` through
-   `files`, or a flag. Resume with `HI_SESSION_ID`, and report the session the CLI gives back.
-3. If its CLI isn't in the default sandbox, add it to `resources/default.Dockerfile`, pinned to
-   a version wherever its publisher allows. That changes the image's tag, so every user rebuilds
-   once on upgrade.
-4. Add a row to the table in [harnesses/README.md](../../harnesses/README.md), and its name to
-   the list in the root README.
-5. `test_every_shipped_harness_loads_and_prepares` checks it loads and prepares, and
-   `test_every_shipped_harness_puts_dropped_artifacts_in_place` that it carries the shared
-   artifacts lines and an `artifacts` file. The shipped harnesses are counted in that first test
-   and in `test_pack_and_the_shipped_harnesses` in `test_cli.py`, so raise both counts. Run it
-   live, two turns with instructions, as in [Testing](testing.md#live-checks).
+1. Start from `harnesses/template`, and the CLI's page in the [survey](harness-survey/README.md).
+2. Pin the CLI's version in `install.sh`; install everything it fetches at run time there.
+3. Put one `hi-live-…` skill, MCP server and hook in `home/`, where the CLI reads them, so the live
+   suite can prove it loads its config.
+4. Pass the [live suite](testing.md#the-live-suite) in all four combinations.
+5. Add it to the table in `harnesses/README.md`, and to the list in `README.md`.
+
+`hi_adapter.py` is copied unchanged. A CLI that needs something it lacks gets it in its own
+`adapter.py`; a need every adapter shares goes in the canonical copy and every folder's, in one commit.
+
+## The contract is versioned
+
+Contract 1 is environment variables, stdin and one result file, with a closed `harness.json`. Nothing
+is added to it in place: a folder written for contract 1 must keep working. A harness that needs more
+builds it in its own folder from what it gets. A change that truly needs the contract to change is
+contract 2: `"contract": 2` in `harness.json`, every shipped folder moved, and a major version.
 
 ## Add a runtime
 
-A runtime implements `Runtime` from `execution.py`: `start(spec)` returns an `Execution`, and
-`recover()` removes what a crash left. To write one:
-- **Use `ProcessExecution` if anything runs as a local process,** even a client such as
-  `docker run` or `ssh`. Pass `kill` and `cleanup` for what killing and cleaning up mean there.
-- **Return `NeverStarted(reason)`** for anything that stops it starting. Raise only `Invalid`,
-  for a spec it can never run.
-- **Tear down on every path,** including a cancel while starting. Shield the teardown.
-- **State its guarantees** in its module docstring, and test each one, including what it leaves
-  behind after a cancel and a timeout.
-- **Keep paths the same.** If it runs elsewhere, the workspace must appear at the same path, or
-  everything above it would have to translate paths.
-
-Then add a `Placement` in `platform/placement.py` that builds it for a resolved harness, and a
-value for `HI_RUNTIME` in `api/config.py` and `app.build`.
-
-## Add a router
-
-A router implements `Router.route(model, conversation)` and returns a `Route`: the harness, and
-the model to pass through. It decides only; it never runs, stores or resolves anything. Raise
-`Invalid` for a request it can't route. Keep the rule that a continued conversation stays on its
-harness: its workspace and session belong to that harness. Pass it to `Service(router=...)`; the
-server builds its `Service` in `build` in `api/app.py`.
-
-## The harness contract is closed
-
-The execution layer doesn't care that it runs a harness. It gives a program its inputs and
-returns its outputs, and that is all it can count on from any harness, now or in the future. So
-the contract in `harness/contract.py` is fixed:
-- **Nothing is added:** no new variable, placeholder, `harness.json` field or reported key.
-- **Nothing is removed or repurposed:** shipped and third-party harnesses depend on all of it.
-
-What a harness needs beyond that, it builds in its own folder from what it already gets: `run.sh`
-maps the inputs onto its CLI, and `report.py` maps the CLI's output onto the report. A change that
-seems to need the contract to know more about harnesses belongs in a harness folder or a sandbox.
-
-## Add an endpoint
-
-1. The behaviour goes in `Service` (or the registry), tested in `test_platform.py`.
-2. The route goes in `api/app.py`: validate, call, shape the reply, nothing else. Refusals are
-   `Invalid`, `NotFound` or `Conflict`, which become 400, 404 and 409.
-3. Test it in `test_api.py`, and document it in [the API reference](../users/api.md).
-4. For `hi`, add the call to `hi_cli/api.py` and the command to `hi_cli/main.py`, tested in
-   `test_cli.py` and documented in [the CLI reference](../users/cli.md).
+A runtime implements `execution.Runtime`: `start(spec)` returns an `Execution` that yields events, takes
+input, stops, kills, and ends in one `Outcome`; a failure to start is a `NeverStarted`, not an
+exception. Spawn processes through `runtimes/process.py`. Say in the module docstring what it
+guarantees, prove each guarantee in its own suite, and give `Placement` a way to choose it. Nothing
+above layer 1 should change.
 
 ## Add a front end
 
-A front end translates. It turns its wire format into an `Ask`, calls `Service.start`, and
-shapes the `Record` and the `Run`'s events back into its format. `api/wire.py` is the model:
-the Responses format is known there and nowhere else. A front end owns no state; the service owns
-the turns, and any number of front ends can share one service.
+A front end turns its wire format into `Ask`s and calls `Sessions`; it shapes records, artifacts and
+events back. `api/wire.py` is the only module that knows the Responses format. Another format is a
+package beside `api/`, with its own wire module.

@@ -1,9 +1,10 @@
 """Layer 0: what running something means, whatever runs and wherever it runs.
 
-A Runtime starts a Spec and returns an Execution. While it runs, the Execution yields Events,
-bytes on named streams as they arrive; it takes more input if the Spec kept its input open; it can
-be cancelled from any thread; and it ends in exactly one Outcome. Nothing here knows about
-harnesses, models, files, containers or HTTP. A new place to run things is a new Runtime.
+A Runtime starts a Spec and returns an Execution. While it runs, the Execution yields Events, bytes
+on named streams as they arrive; it takes more input if the Spec kept its input open; it can be
+asked to stop (a signal now, a kill if it hasn't ended in time) or killed, from any thread; and it
+ends in exactly one Outcome. Nothing here knows about harnesses, models, files, containers or HTTP.
+A new place to run things is a new Runtime.
 """
 from __future__ import annotations
 
@@ -20,9 +21,9 @@ class Spec:
     """What to run. The runtime interprets `command`: for a process, it is the argv."""
     command: tuple[str, ...]
     input: bytes = b""                               # written first
-    env: Mapping[str, str] = field(default_factory=dict)
+    env: Mapping[str, str] = field(default_factory=dict)   # all it is given: nothing else of the host's
     workspace: Path | None = None                    # where it works, if it works on files
-    timeout_s: float | None = None
+    timeout_s: float | None = None                   # then it is killed
     interactive: bool = False                        # keep input open for send(); otherwise it closes after `input`
 
     def __post_init__(self) -> None:
@@ -31,7 +32,8 @@ class Spec:
             raise Invalid("command must be a non-empty list of strings, starting with what to run")
         if not isinstance(self.input, bytes):
             raise Invalid("input must be bytes")
-        if not all(isinstance(k, str) and k and isinstance(v, str) for k, v in env.items()):
+        if not all(isinstance(k, str) and k and "=" not in k and "\0" not in k and isinstance(v, str) and "\0" not in v
+                   for k, v in env.items()):
             raise Invalid("env must map names to strings")
         if self.timeout_s is not None and not self.timeout_s > 0:
             raise Invalid("timeout_s must be positive")
@@ -51,21 +53,24 @@ class Event:
         assert self.stream and isinstance(self.data, bytes) and self.data, "an event is some bytes on a named stream"
 
 
-Kind = Literal["exited", "timed_out", "cancelled", "failed"]
+Kind = Literal["exited", "timed_out", "stopped", "killed", "failed"]
+KINDS = ("exited", "timed_out", "stopped", "killed", "failed")
 
 
 @dataclass(frozen=True)
 class Outcome:
-    """How an execution ended. Exactly one of: it exited with a code, it ran past its timeout, it
-    was cancelled, or it failed to run at all (with the reason)."""
+    """How an execution ended. Exactly one of: it exited by itself, with a code; it ran past its
+    timeout and was killed; it was asked to stop and exited, with a code; it was killed; or it
+    failed to start at all, with the reason."""
     kind: Kind
     code: int | None = None
     reason: str = ""
 
     def __post_init__(self) -> None:
-        assert self.kind in ("exited", "timed_out", "cancelled", "failed"), self.kind
-        assert (self.kind == "exited") == isinstance(self.code, int), "only an exit has a code"
-        assert (self.kind == "failed") == bool(self.reason), "only a failure has a reason"
+        assert self.kind in KINDS, self.kind
+        has_code = isinstance(self.code, int) and not isinstance(self.code, bool)
+        assert (self.kind in ("exited", "stopped")) == has_code, "an exit, and only an exit, has a code"
+        assert (self.kind == "failed") == bool(self.reason), "a failure, and only a failure, has a reason"
 
     @property
     def ok(self) -> bool:
@@ -80,8 +85,12 @@ class Outcome:
         return cls("timed_out")
 
     @classmethod
-    def cancelled(cls) -> Outcome:
-        return cls("cancelled")
+    def stopped(cls, code: int) -> Outcome:
+        return cls("stopped", code)
+
+    @classmethod
+    def killed(cls) -> Outcome:
+        return cls("killed")
 
     @classmethod
     def failed(cls, reason: str) -> Outcome:
@@ -96,15 +105,22 @@ class Execution(Protocol):
         ...
 
     async def send(self, data: bytes) -> None:
-        """More input. Only while it runs, and only if its Spec was interactive."""
+        """More input, delivered or refused: it raises Invalid unless its Spec was interactive, it is
+        still running, it has not been asked to stop, and the bytes were written."""
         ...
 
     async def end_input(self) -> None:
         """No more input: what it reads next is the end."""
         ...
 
-    def cancel(self) -> None:
-        """Stop it. Safe from any thread; nothing once it has ended."""
+    def stop(self, timeout_s: float) -> None:
+        """Ask it to stop: signal it now, and kill it if it hasn't ended `timeout_s` later. A later
+        stop only brings the kill closer; it never signals twice. Safe from any thread; nothing once
+        it has ended."""
+        ...
+
+    def kill(self) -> None:
+        """End it now. Safe from any thread; nothing once it has ended."""
         ...
 
     async def wait(self) -> Outcome:
@@ -126,7 +142,7 @@ class Runtime(Protocol):
 
 
 class NeverStarted:
-    """The Execution of something that could not start: no output, and a `failed` Outcome."""
+    """The Execution of something that could not start: no output, no input, and a `failed` Outcome."""
 
     def __init__(self, reason: str):
         self._outcome = Outcome.failed(reason)
@@ -141,7 +157,10 @@ class NeverStarted:
     async def end_input(self) -> None:
         raise Invalid("it never started")
 
-    def cancel(self) -> None:
+    def stop(self, timeout_s: float) -> None:
+        pass
+
+    def kill(self) -> None:
         pass
 
     async def wait(self) -> Outcome:

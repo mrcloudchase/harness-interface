@@ -1,57 +1,55 @@
-"""Shared fixtures for the front end and the CLI: a server on the local runtime in a throwaway data
-directory, an echo harness registered on it, and the same app on a real port."""
-import socket
-import threading
-import time
+"""Fixtures every test may use: a fake `docker` on PATH (tests/fakes/docker), with its state and calls."""
+import json
+import os
 from pathlib import Path
 
-import httpx
 import pytest
-import uvicorn
-from fastapi.testclient import TestClient
 
-from harness_interface.api.app import build, create_app
-from harness_interface.api.config import Settings
-from harness_interface.harness import Harness
-
-ECHO = Harness.from_folder(Path(__file__).parent / "echo")
+FAKES = Path(__file__).parent / "fakes"
 
 
 @pytest.fixture
-def service(tmp_path):
-    return build(Settings(data_dir=tmp_path / "data", runtime="local"))
+def fake_docker(tmp_path, monkeypatch):
+    state = tmp_path / "docker"
+    state.mkdir()
+    monkeypatch.setenv("PATH", f"{FAKES}{os.pathsep}{os.environ['PATH']}")
+    monkeypatch.setenv("DOCKER_CONFIG", str(state))                       # the fake keeps its state there
+    monkeypatch.setenv("EXT_ANTHROPIC_API_KEY", "sk-from-the-host")        # as on this machine: never passed on
+    monkeypatch.setattr("harness_interface.runtimes.docker.SECRETS", tmp_path / "shm")
+    (tmp_path / "shm").mkdir()
+    (FAKES / "docker").chmod(0o755)
+    return FakeDocker(state)
 
 
-@pytest.fixture
-def client(service):
-    with TestClient(create_app(service)) as c:      # one event loop for the test, so background turns live on
-        yield c
+class FakeDocker:
+    """The fake's state directory, and every call it was given."""
 
+    def __init__(self, state: Path):
+        self.state = state
 
-@pytest.fixture
-def echo(client):
-    """The echo harness, and the provider it names, registered."""
-    assert client.put("/providers/none", json={"name": "none", "url": "https://example.invalid/v1", "key": "k"}).status_code == 200
-    assert client.put("/harnesses/echo", json=ECHO.to_dict()).status_code == 200
-    return ECHO
+    def __truediv__(self, name: str) -> Path:
+        return self.state / name
 
+    def calls(self) -> list[list[str]]:
+        p = self.state / "calls"
+        return [json.loads(line) for line in p.read_text().splitlines()] if p.exists() else []
 
-def free_port() -> int:
-    with socket.socket() as s:
-        s.bind(("127.0.0.1", 0))
-        return s.getsockname()[1]
+    def run(self) -> list[str]:
+        return next(c for c in self.calls() if c[0] == "run" and "hi-run-" in c[c.index("--name") + 1])
 
+    def door(self) -> list[str]:
+        return next(c for c in self.calls() if c[0] == "run" and "hi-door-" in c[c.index("--name") + 1])
 
-@pytest.fixture
-def live(service, echo):
-    """The app on a real server, for what a test client can't show: streams still running, clients
-    that leave, requests at the same time."""
-    server = uvicorn.Server(uvicorn.Config(create_app(service), host="127.0.0.1", port=free_port(), log_level="warning"))
-    thread = threading.Thread(target=server.run, daemon=True)
-    thread.start()
-    while not server.started:
-        time.sleep(0.01)
-    with httpx.Client(base_url=f"http://127.0.0.1:{server.config.port}", timeout=30) as c:
-        yield c
-    server.should_exit = True
-    thread.join(10)
+    def name(self, call: list[str]) -> str:
+        return call[call.index("--name") + 1]
+
+    def client_env(self, call: list[str]) -> dict:
+        return json.loads((self.state / f"{self.name(call)}.client-env").read_text())
+
+    def torn_down(self) -> bool:
+        calls = self.calls()
+        made = {self.name(c) for c in calls if c[0] == "run"}
+        removed = {n for c in calls if c[:2] == ["rm", "-f"] for n in c[2:]}
+        networks = {c[-1] for c in calls if c[:3] == ["network", "create", "--internal"]}
+        gone = {n for c in calls if c[:3] == ["network", "rm", "-f"] for n in c[3:]}
+        return made <= removed and networks <= gone

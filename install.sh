@@ -1,6 +1,5 @@
 #!/bin/sh
-# Install harness-interface: the server (`harness-interface`), its command line (`hi`), and the
-# Python library they are built on.
+# Install harness-interface: the server (`harness-interface`) and the Python library it is built on.
 #
 #   curl -fsSL https://raw.githubusercontent.com/mrcloudchase/harness-interface/main/install.sh | sh
 #
@@ -34,20 +33,17 @@ uv tool install --force --python 3.13 "harness-interface[server] @ $REPO/archive
 uv tool update-shell >/dev/null 2>&1 || true
 
 if command -v docker >/dev/null 2>&1 && docker info >/dev/null 2>&1; then
-  sandbox="Docker is running: every run gets its own sandbox."
+  sandbox="Docker is running: every response gets its own sandbox."
 else
-  sandbox="Docker is not running. Start it for sandboxed runs, or run harnesses on this machine
-directly with: HI_RUNTIME=local hi server start"
+  sandbox="Docker is not running. Start it for sandboxed sessions, or run harnesses on this machine
+directly, with no sandbox: HI_RUNTIME=local harness-interface"
 fi
 
 say "
-Installed: hi (the command line) and harness-interface (the server).
+Installed: harness-interface, the server.
 $sandbox
 
-Next:
-  hi server start
-  hi provider add anthropic --url https://api.anthropic.com --key-env ANTHROPIC_API_KEY
-  hi harness add --builtin claude-code
-  hi run claude-code \"What is 17 * 23?\"
+Next: run \`harness-interface\`, then follow
+  https://github.com/mrcloudchase/harness-interface/blob/main/docs/users/getting-started.md
 
-If \`hi\` is not found, open a new terminal: uv put it in $(uv tool dir --bin 2>/dev/null || echo ~/.local/bin)."
+If \`harness-interface\` is not found, open a new terminal: uv put it in $(uv tool dir --bin 2>/dev/null || echo ~/.local/bin)."

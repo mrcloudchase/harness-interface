@@ -1,9 +1,0 @@
-name = "simplify"
-goal = """Make the code smaller and plainer without changing what it does: remove duplication, dead
-code and needless indirection. Every check must still pass, and no public interface may change."""
-verifiers = [
-  { kind = "command", run = "checks" },
-  { kind = "rule", rules = ["size_decreased", "tests_only_grow", "no_workflows"] },
-  { kind = "judge", roles = ["simplicity", "principles"] },
-]
-needs = "rigor.size_budget"

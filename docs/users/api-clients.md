@@ -1,150 +1,102 @@
 # Call the API from code
 
-Everything `hi` does is an HTTP call, so any language can drive harness-interface. The request
-and response follow the OpenAI Responses wire format, which means the OpenAI SDK works as a
-client too. The server listens on `http://127.0.0.1:8000` by default.
+The request and response follow the OpenAI Responses wire format, so the OpenAI SDK works as a client,
+and anything that speaks HTTP works too. Sessions (follow, interrupt, stop) are plain HTTP routes. The
+server listens on `http://127.0.0.1:8000` by default; every field is in the [API reference](api.md).
 
 ## curl
 
-Run a harness and wait for the finished record:
-
 ```bash
+# a new session, the whole response when it ends
 curl -s localhost:8000/responses -H 'content-type: application/json' \
-  -d '{"model": "claude-code", "input": "Write a haiku about a hermit crab."}'
-```
+  -d '{"model": "claude-code", "input": "Write hello.py that prints hello."}'
 
-Stream it instead, as server-sent events:
-
-```bash
+# the same, streamed as server-sent events
 curl -N localhost:8000/responses -H 'content-type: application/json' \
-  -d '{"model": "claude-code", "input": "Write a haiku about a hermit crab.", "stream": true}'
-```
+  -d '{"model": "claude-code", "input": "Write hello.py that prints hello.", "stream": true}'
 
-Continue the conversation by naming the response to continue from:
-
-```bash
+# continue that session
 curl -s localhost:8000/responses -H 'content-type: application/json' \
-  -d '{"model": "claude-code", "input": "Now give it a title.", "previous_response_id": "resp_…"}'
+  -d '{"model": "claude-code", "input": "Now make it print goodbye too.", "previous_response_id": "resp_…"}'
 ```
 
 ## The OpenAI SDK
 
-Point the SDK at the server. The `model` is the harness's name, and the key is unused, since the
-server holds the provider keys.
-
 ```python
 from openai import OpenAI
 
-client = OpenAI(base_url="http://127.0.0.1:8000", api_key="unused")
+client = OpenAI(base_url="http://127.0.0.1:8000", api_key="unused")   # the server holds the provider keys
 
-first = client.responses.create(model="claude-code", input="Write a haiku about a hermit crab.")
-print(first.output_text)
-
-second = client.responses.create(model="claude-code", input="Now give it a title.",
+first = client.responses.create(model="claude-code", input="Remember the word ORCHID. Reply OK.")
+second = client.responses.create(model="claude-code", input="Which word did I ask you to remember?",
                                  previous_response_id=first.id)
-print(second.output_text)
+print(second.output_text)                       # ORCHID
 
-for event in client.responses.create(model="claude-code", input="Count to five.", stream=True):
-    print(event.type)        # response.created, harness.output …, response.completed
+for event in client.responses.create(model="codex", input="Count to five.", stream=True):
+    print(event.type)                           # response.created, harness.stdout …, response.completed
 ```
 
-`responses.retrieve(id)` works as well.
+Everything the Responses shape has no field for is under `harness` on each response: the harness's own
+stdout and stderr, the diff, the changed files' contents, the file list, the reported artifacts and its
+resume handle. With the SDK it's on `response.model_extra["harness"]`.
 
-### An agent on a harness
+## Drive a session like an interactive CLI
 
-A coding harness already does the hard part of an agent: the tool loop, running commands,
-editing files, managing its context, resuming its sessions. So an agent can be just a role and a
-conversation, with a harness doing the work. `instructions` gives the harness the role, and
-`previous_response_id` keeps the conversation:
-
-```python
-class Pip:
-    """A bakery's assistant. The harness behind it is one name: swap it for any other."""
-    harness = "claude-code"
-    role = "You are Pip, a bakery's assistant. Answer in French, in one sentence, and sign with -- Pip."
-
-    def __init__(self):
-        self.last = None                                  # the conversation so far
-
-    def ask(self, text: str) -> str:
-        reply = client.responses.create(model=self.harness, instructions=self.role, input=text,
-                                        previous_response_id=self.last)
-        self.last = reply.id
-        return reply.output_text
-
-
-pip = Pip()
-pip.ask("Which bread keeps longest, and why?")   # "Le pain de seigle se conserve le plus longtemps … -- Pip"
-pip.ask("And which one did you just name?")      # "Je viens de nommer le pain de seigle. -- Pip"
-```
-
-- **Swap the harness, keep the agent.** Set `harness = "codex"`, or any shipped harness, or one
-  you wrote, and nothing else changes. Every shipped harness hands the role to its CLI on every
-  turn ([how each one does](../../harnesses/README.md#notes-worth-knowing)).
-- **It works in a sandbox.** Whatever the harness does for your agent, it does in a container
-  that can reach only its provider.
-- **Its work is on the record.** Every turn's answer, changed files, diff, cost and output can be
-  read back. To cancel, or to read a run's output, log and files, call those endpoints directly,
-  as shown below.
-
-## Python, without an SDK
-
-With [httpx](https://www.python-httpx.org/), streaming and reading the events yourself:
+Start the work streamed, put more text into it while it runs, and stop it, with
+[httpx](https://www.python-httpx.org/):
 
 ```python
-import json
-import httpx
+import json, threading, httpx
 
-with httpx.stream("POST", "http://127.0.0.1:8000/responses", timeout=None,
-                  json={"model": "claude-code", "input": "Write a haiku.", "stream": True}) as r:
-    r.raise_for_status()
-    event = None
-    for line in r.iter_lines():
+api = httpx.Client(base_url="http://127.0.0.1:8000", timeout=None)
+
+def events(response):
+    name = None
+    for line in response.iter_lines():
         if line.startswith("event: "):
-            event = line[7:]
+            name = line[7:]
         elif line.startswith("data: "):
-            data = json.loads(line[6:])
-            if event == "harness.output":
-                print(data["line"])                          # the harness's own output, line by line
-            elif event == "response.completed":
-                record = data["response"]
-                print(record["status"], record["harness"]["session_id"])
+            yield name, json.loads(line[6:])
+
+with api.stream("POST", "/responses", json={
+        "model": "pi", "stream": True,
+        "input": "Write the numbers 1 to 30 to count.txt, one shell command per number, each followed by sleep 1. No loops."}) as r:
+    session = r.headers["x-session-id"]
+    threading.Timer(8, lambda: api.post(f"/sessions/{session}/interrupt",
+                                         json={"input": "Stop counting; write DONE to done.txt instead."})).start()
+    for name, data in events(r):
+        if name == "harness.stdout":
+            print(data["line"])                 # the CLI's own events, as it prints them
+        elif name == "harness.steer":
+            print(">>", data["input"])          # where the steer landed among them
+        elif name == "response.completed":
+            print(data["response"]["status"], data["response"]["harness"]["changes"])
 ```
 
-## The stream
+- **Interrupt** (`POST /sessions/{id}/interrupt`) replies with its outcome: `steered` (the text went
+  into the running work), or `continued` / `responded` (the session continued with it in a new response).
+- **Stop** (`POST /sessions/{id}/stop`) stops gracefully, kills after the timeout, and says which.
+- **Follow** (`GET /sessions/{id}?stream=true`) lets any number of clients watch a session, each from the
+  start of what it is running; leaving never stops it.
 
-A streamed response is four kinds of event:
+## Agents and loops
 
-| Event | Data |
-|---|---|
-| `response.created` | `{"type": …, "response": <the record, in_progress>}`, sent at once |
-| `harness.output` | `{"type": …, "line": "<one line the harness printed on stdout>"}`, as each line arrives |
-| `harness.log` | `{"type": …, "line": "<one line on stderr>"}`, the same way |
-| `response.completed` | `{"type": …, "response": <the finished record>}` |
-
-The `X-Response-Id` header carries the response id from the start. A client that disconnects
-only stops following: the run finishes and is recorded, and `GET /responses/{id}` has the result.
-
-## After the run
-
-| | |
-|---|---|
-| `GET /responses/{id}` | the record: status, answer, usage, cost, produced files, session |
-| `GET /responses/{id}/output` | the harness's stdout, byte for byte |
-| `GET /responses/{id}/log` | its stderr |
-| `GET /responses/{id}/diff` | what the run changed, as a diff; live while it runs |
-| `GET /responses/{id}/files` | every file in the workspace, as the run left them; while it runs, as they are now |
-| `GET /responses/{id}/files/{path}` | one file, as the run left it |
-| `POST /responses/{id}/cancel` | stop it: `{"cancelled": true}` if it was running |
+- **An agent without memory** sends each request as a new session: its role in `instructions`, its
+  inputs as files.
+- **An agent with memory** keeps the last response id per conversation and continues it with
+  `previous_response_id`; the CLI's own memory grows in that session.
+- **A loop** sends a task, checks the work with something the harness can't argue with (tests, a
+  build), and sends back what failed, continuing the session, or starting a fresh one each round with
+  the files it wants. Each response's `harness.changes` is the work to apply; `harness.usage` and
+  `harness.cost_usd` give a budget; `stop` gives a deadline.
 
 ## Errors to handle
 
 | Status | Means | Do |
 |---|---|---|
-| 400 | the request can't run: an unknown harness, a missing provider, a follow-up on another harness | fix the request; `detail` says what |
-| 404 | no response with that id, or nothing of that kind for it | check the id |
-| 409 | that conversation already has a run in progress | wait for it, or cancel it, then send again |
-| 422 | the body isn't a valid request, e.g. no input text | fix the body |
+| 400 | it can't be done: an unknown harness, no provider for it, a shape it doesn't speak, a failed install | fix the request; `detail` says what |
+| 404 | no such session, response, harness or provider | check the id |
+| 409 | that session already has a response running | interrupt it, or wait |
+| 422 | the body isn't valid | fix the body |
 
-A run that fails is not an HTTP error: the request was fine. The record ends `failed`, with an
-`error.code` saying why. Every field is in the [HTTP API reference](api.md).
+A harness that fails is not an HTTP error: the response ends `failed`, with `error.code` and its output.

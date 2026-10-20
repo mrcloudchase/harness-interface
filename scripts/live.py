@@ -150,8 +150,8 @@ class Api:
     async def open(cls, data: Path, local: bool, ca_file: Path | None) -> Api:
         with socket.create_server(("127.0.0.1", 0)) as s:
             port = s.getsockname()[1]
-        env = {**host_env(), "HI_DATA_DIR": str(data), "HI_PORT": str(port), "HI_RUNTIME": "local" if local else "docker",
-               **({"HI_CA_FILE": str(ca_file)} if ca_file else {})}
+        env = {**host_env(), "HI_DATA_DIR": str(data), "HI_PORT": str(port),
+               "HI_RUNTIME": "local" if local else "docker", **({"HI_CA_FILE": str(ca_file)} if ca_file else {})}
         log = open(data / "server.log", "ab")
         proc = subprocess.Popen([str(Path(sys.executable).with_name("harness-interface"))], env=env, stdout=log,
                                 stderr=subprocess.STDOUT)
@@ -334,7 +334,8 @@ class Suite:
                                         return_exceptions=True)
             for names, got in zip(jobs, done):
                 for name in names:
-                    out[name] = got.get(name, (None, "")) if isinstance(got, dict) else (False, f"{type(got).__name__}: {got}")
+                    out[name] = (got.get(name, (None, "")) if isinstance(got, dict)
+                                 else (False, f"{type(got).__name__}: {got}"))
         finally:
             await d.close()
         problems = self.audits + ([] if self.audited else ["no live audit: no session was steered"])
@@ -441,7 +442,8 @@ class Suite:
 
 
 def main() -> None:
-    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0], formatter_class=argparse.RawDescriptionHelpFormatter)
+    p = argparse.ArgumentParser(description=__doc__.split("\n\n")[0],
+                                formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("folder", help="the harness folder")
     p.add_argument("--url", required=True, help="the provider's base URL, as the shape's official SDK takes it")
     p.add_argument("--api", required=True, help="anthropic-messages, openai-responses or openai-chat")
@@ -449,7 +451,8 @@ def main() -> None:
     p.add_argument("--model", default="", help="the model to ask for; the harness's own by default")
     p.add_argument("--via", default="library,api", help="library, api, or both (the default)")
     p.add_argument("--credential", default="gateway,file", help="gateway, file, or both (the default)")
-    p.add_argument("--ca-file", default=os.environ.get("HI_CA_FILE"), help="a CA bundle, where the network re-signs TLS")
+    p.add_argument("--ca-file", default=os.environ.get("HI_CA_FILE"),
+                   help="a CA bundle, where the network re-signs TLS")
     p.add_argument("--data", help="the data directory (default: a new one, so the first install is a miss)")
     p.add_argument("--local", action="store_true", help="run on this machine, unsandboxed (developing a folder)")
     p.add_argument("--timeout", type=float, default=900, help="seconds each session may take")

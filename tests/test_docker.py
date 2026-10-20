@@ -310,6 +310,13 @@ def test_the_sweep_removes_only_what_runs_left(fake_docker, tmp_path):
     assert not left.exists() and (tmp_path / "shm" / "someone-elses").exists()
 
 
+def test_the_sweep_removes_the_directory_docker_made_where_a_key_was_gone(fake_docker, tmp_path):
+    left = tmp_path / "shm" / "hi-0123456789ab"
+    (left / "key").mkdir(parents=True, mode=0o600)       # `docker run -v` creates a missing source as a directory
+    go(sweep())
+    assert not left.exists()
+
+
 def test_no_docker_is_a_clear_failure(tmp_path, monkeypatch):
     monkeypatch.setenv("PATH", str(tmp_path))                          # nowhere to find docker
     _, outcome = go(run(DockerRuntime(IMAGE), Spec(["true"])))

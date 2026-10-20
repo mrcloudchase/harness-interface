@@ -306,9 +306,10 @@ def hand_over(path: Path) -> None:
 
 
 def shred(secrets: Path) -> None:
-    """Overwrite a run's credential, then remove it."""
+    """Overwrite a run's credential, then remove it. Where `docker run -v` found no key (it was shredded
+    first) it made an empty directory in its place, which goes with the rest."""
     key = secrets / "key"
-    if key.exists():
+    if key.is_file():
         key.chmod(0o600)
         with open(key, "r+b") as f:
             f.write(b"\0" * max(key.stat().st_size, 64))

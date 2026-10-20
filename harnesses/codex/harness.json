@@ -1,0 +1,12 @@
+{
+  "contract": 1,
+  "name": "codex",
+  "description": "OpenAI Codex CLI 0.163.0 over codex app-server JSON-RPC, steered mid-turn; any Responses-shaped provider.",
+  "provider": {"url": "https://api.openai.com/v1", "api": "openai-responses"},
+  "apis": ["openai-responses"],
+  "install": {"egress": ["registry.npmjs.org"], "timeout_s": 900},
+  "files": {".home/.codex/AGENTS.md": "{instructions}"},
+  "run": {"interrupt": "steered", "stdout": "application/x-ndjson", "timeout_s": 1800, "stop_timeout_s": 20,
+          "credential": "gateway", "egress": []},
+  "report": [".codex/sessions/**"]
+}

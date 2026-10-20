@@ -56,3 +56,13 @@ of your own, written early (`status: running` with `resume`, as soon as it is kn
 `status` is `running`, `ok`, `fail` or `stopped`, from the CLI's events, never its exit code;
 `steers` counts the steer lines the CLI took; `usage` uses `input_tokens`, `output_tokens`,
 `cache_read_tokens`, `cache_write_tokens` and `reasoning_tokens`.
+
+## Proving it: the live suite
+
+`scripts/live.py <folder> --url … --api … --key-file … [--model …]` runs the folder against a real
+provider, sandboxed, from the library and from the HTTP API, under the gateway and with a key file
+(its docstring lists every check). Ship one example of each kind of config artifact your CLI loads
+(a skill, an MCP server, a hook, …) in `home/`, harmless, and name each one `hi-live-<kind>`: the
+suite expects every `hi-live-*` name found in `home/` to show in a response's stdout or reported
+artifacts, which only an artifact the CLI loaded can do (for instance a skill listed in the CLI's
+start-up event, an MCP tool among its tools, a hook's output among its events).

@@ -52,9 +52,14 @@ def test_the_templates_hi_adapter_is_the_one_the_server_ships():
     assert (TEMPLATE / "hi_adapter.py").read_bytes() == CANONICAL_ADAPTER.read_bytes()
 
 
-def test_every_folder_in_the_repository_loads():
-    for path in (ROOT / "harnesses").glob("*/harness.json"):
-        HarnessFolder.load(path.parent)
+def test_every_folder_in_the_repository_loads_by_its_name_with_the_one_hi_adapter():
+    folders = sorted(p for p in (ROOT / "harnesses").iterdir() if p.is_dir())
+    assert {"template", "claude-code"} <= {p.name for p in folders}
+    for path in folders:
+        f = HarnessFolder.load(path)
+        assert f.name == path.name
+        assert (path / "hi_adapter.py").read_bytes() == CANONICAL_ADAPTER.read_bytes(), path.name
+        assert all(target.startswith(".home/") for target in f.files), f"{path.name}: files belong under .home/"
 
 
 def test_optional_fields_take_their_defaults(tmp_path):

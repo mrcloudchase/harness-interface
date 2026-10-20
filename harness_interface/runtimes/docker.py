@@ -306,9 +306,10 @@ def hand_over(path: Path) -> None:
 
 
 def shred(secrets: Path) -> None:
-    """Overwrite a run's credential, then remove it."""
+    """Overwrite a run's credential, then remove it (and whatever else is there: docker makes a bind-mount
+    source that is missing a directory)."""
     key = secrets / "key"
-    if key.exists():
+    if key.is_file() and not key.is_symlink():
         key.chmod(0o600)
         with open(key, "r+b") as f:
             f.write(b"\0" * max(key.stat().st_size, 64))

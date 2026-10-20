@@ -58,6 +58,10 @@ def provider_config(model: str) -> tuple[str, dict]:
     return pid, config
 
 
+class Refused(Exception):
+    """The server answered a request with an error."""
+
+
 def sse(response):
     """The data lines of an event stream."""
     for raw in response:
@@ -100,11 +104,15 @@ class OpenCodeAdapter(Adapter):
                                  stdin=subprocess.DEVNULL, env=env)
 
     def call(self, method: str, path: str, body=None):
+        """One request to the server; a refusal raises with what the server said."""
         req = urllib.request.Request(self.base + path + self.query, method=method,
                                      headers={"content-type": "application/json", **self.auth},
                                      data=None if body is None else json.dumps(body).encode())
-        with self.http.open(req, timeout=30) as r:
-            text = r.read().decode()
+        try:
+            with self.http.open(req, timeout=30) as r:
+                text = r.read().decode()
+        except urllib.error.HTTPError as e:
+            raise Refused(f"{method} {path}: HTTP {e.code} {e.read().decode(errors='replace')[:500]}") from None
         return json.loads(text) if text.strip() else None
 
     def prompt(self, text: str) -> None:
@@ -119,8 +127,8 @@ class OpenCodeAdapter(Adapter):
         if self.sid:
             try:
                 self.call("GET", f"/session/{self.sid}")
-            except urllib.error.HTTPError as e:
-                return self.finish("fail", answer=f"cannot resume {self.sid}: HTTP {e.code}")
+            except Refused as e:
+                return self.finish("fail", answer=f"cannot resume {self.sid}: {e}")
         else:
             self.sid = self.call("POST", "/session", {"title": "hi"})["id"]
         self.out.write(resume=self.sid)

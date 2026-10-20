@@ -24,8 +24,7 @@ from upstream import Upstream
 
 pytestmark = pytest.mark.docker
 
-MACHINE_CA = Path("/root/.ccr/ca-bundle.crt")         # where this machine's network re-signs TLS
-CA = MACHINE_CA if MACHINE_CA.is_file() else None
+CA = Path(os.environ["HI_CA_FILE"]) if os.environ.get("HI_CA_FILE") else None   # a network that re-signs TLS
 KEY = "sk-live-harness-key-" + os.urandom(8).hex()
 
 # Asks the door for two tunnels and tries DNS, then installs as the template does.

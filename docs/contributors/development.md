@@ -39,7 +39,8 @@ uv run --extra dev pytest -m docker                         # against a real Doc
 uvx ruff check --select F,E9 --target-version py311 .       # CI's lint: unused code and syntax
 ```
 
-CI runs the suite on Python 3.11, 3.13 and 3.14, the Docker tests, and the lint, on every pull request.
+Behind a proxy that re-signs TLS, give the Docker tests its CA bundle with `HI_CA_FILE`. CI runs the
+suite on Python 3.11, 3.13 and 3.14, the Docker tests, and the lint, on every pull request.
 
 ## Develop a harness folder
 

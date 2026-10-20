@@ -1,0 +1,12 @@
+{
+  "contract": 1,
+  "name": "hermes",
+  "description": "Hermes Agent 0.19.0 over ACP (`hermes acp`), steered with /steer and stopped with session/cancel.",
+  "provider": {"url": "https://api.anthropic.com", "api": "anthropic-messages"},
+  "apis": ["anthropic-messages", "openai-chat"],
+  "install": {"egress": ["pypi.org", "files.pythonhosted.org"], "timeout_s": 600},
+  "files": {".home/.hermes/SOUL.md": "{instructions}"},
+  "run": {"interrupt": "steered", "stdout": "application/x-ndjson", "timeout_s": 1800, "stop_timeout_s": 20,
+          "credential": "gateway", "egress": []},
+  "report": [".hermes/memories/**", ".hermes/.skills_prompt_snapshot.json", ".hermes/shell-hooks-allowlist.json"]
+}

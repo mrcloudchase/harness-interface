@@ -81,31 +81,37 @@ Everything it writes to stdout is the response's first message, stderr the secon
 the status: 0 is `completed`, anything else `failed`. Nothing is parsed. Choose the CLI's output
 mode in the script: JSON lines for a program to read, prose for a person.
 
-### Example: Claude Code
+### Verified harnesses
 
-```bash
-#!/usr/bin/env bash
-set -euo pipefail
-prompt=$(cat)
-export IS_SANDBOX=1 CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1
-export ANTHROPIC_DEFAULT_HAIKU_MODEL="$HI_MODEL" ANTHROPIC_SMALL_FAST_MODEL="$HI_MODEL"
-args=(-p "$prompt" --output-format stream-json --verbose --dangerously-skip-permissions --model "$HI_MODEL")
-[ -n "${HI_INSTRUCTIONS:-}" ] && args+=(--append-system-prompt "$HI_INSTRUCTIONS")
-[ "$HI_TURN" -gt 1 ] && args+=(--continue)
-steer=""
-trap 'steer=$(cat "$HI_DIR/interrupt" 2>/dev/null || true)' USR1
-claude "${args[@]}" &
-wait $! || true
-if [ -n "$steer" ]; then
-  claude -p "$steer" --output-format stream-json --verbose --dangerously-skip-permissions --model "$HI_MODEL" --continue
-fi
-```
+Each page below is a complete folder, proven with `scripts/live.py` against a running server on the
+sandbox and provider named, with the checks it passed: **make** a file and say done, **recall** it on the
+next turn of the same session, **archive** holds the file, **stream** a turn's output, a **steer** is
+accepted mid-turn and answered, a running turn **cancels**, the **trace** records all of it, and a
+`store: false` request leaves nothing behind (**stateless**). Copy the folder, change the version pin or
+the seeds, upload it under your own name.
 
-`ANTHROPIC_API_KEY` and `ANTHROPIC_BASE_URL` come from `provider_env`. Claude keeps its own
-conversation under `$HOME/.claude`, so `--continue` on turn 2 resumes it; the member's home is
-where that lives. The trap turns a steer into the next message once the current turn ends; a CLI
-that reads stdin mid-turn could forward it at once instead. `seeds/org/.claude/CLAUDE.md` is where
-the org's standing instructions go.
+<!-- harness-table -->
+| Harness | Sandbox | Provider | Checks | Note |
+|---|---|---|---|---|
+| [pi](harnesses/add-pi.md) | `node22` | `deepseek` (Anthropic Messages) | 0/9 |  |
+| [Hermes Agent](harnesses/add-hermes.md) | `full` | `deepseek` (Anthropic Messages) | 0/9 |  |
+| [Codex](harnesses/add-codex.md) | `node22` | `openai-responses` (OpenAI Responses) | 0/9 |  |
+
+Not on the list, and why:
+
+- **Gemini CLI**: speaks only Google's Gemini API; neither OpenAI nor DeepSeek serves it.
+- **Qoder CLI**: runs on Qoder's cloud and needs a Qoder account; the provider is not yours to choose.
+- **SystemOne**: needs a TypeSafe decision-model provider beside the coding model.
+- **Agent Zero**: has no command line; the reference drives it in-process with a Python driver, which is a harness of its own.
+<!-- /harness-table -->
+
+Every `request.sh` on those pages shares one skeleton: the prompt from stdin, `cd "$HI_WORKSPACE"`,
+`set -m` so each turn runs in its own process group (the steer signal then reaches the script, not the
+CLI, whose own handler for it might start a debugger or exit), a `run_wait` that runs the turn and
+waits through signals, passing a stop on to it, and a USR1 trap that reads `$HI_DIR/interrupt`. The
+CLI-specific part is a `turn` function; the tail runs the prompt and then, if a steer arrived, the
+steer as the next turn of the same conversation. A steer is therefore delivered after the running
+turn ends; a CLI that reads stdin mid-turn could be handed it at once instead.
 
 ### Example: a script harness
 

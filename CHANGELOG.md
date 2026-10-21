@@ -4,6 +4,36 @@ Every release is a section here, newest first, and the newest section's heading 
 A merge to `main` that adds a section releases it: the release workflow tags that version and
 publishes the section as its notes.
 
+## [3.0.0]
+
+A rebuild, from scratch, as a multi-tenant harness server. The repository ships no harness folders;
+orgs bring providers, sandboxes and harnesses, and members drive them through the OpenAI Responses
+API. Nothing of 2.0 carries over on the wire or on disk.
+
+- **Tenancy.** Orgs, members (`owner`, `member`) and API keys. A hosted platform creates orgs with
+  `HI_ADMIN_KEY`; a self-hosted box with `harness-interface init`. Every record and path lives under
+  its org; another org's thing is a 404. `max_runs` turns at once per org.
+- **Three registries.** `PUT /v1/providers/{name}` (url, api shape, key; `none` for a keyless
+  endpoint), `PUT /v1/sandboxes/{name}` (image or Dockerfile, egress, memory, pids),
+  `PUT /v1/harnesses/{name}` (a tar of the folder, stored by digest; a session keeps its version).
+- **Contract 3.** A folder is `harness.json`, `install.sh`, `request.sh` and `seeds/{org,user,project}`.
+  `request.sh` gets the prompt on stdin and `HI_*` variables; its stdout and stderr are the response,
+  its exit code the status. No adapter, no output file, no protocol helper: the server parses nothing.
+- **Seeds, not config.** `seeds/org` is copied into `$HOME` every turn, `seeds/user` on a member's
+  first use, `seeds/project` into a new workspace; the server reads none of them.
+- **One member, one home per harness.** `$HOME` persists across a member's sessions, so the CLI's
+  own memory and settings behave as on a laptop.
+- **The standard wire.** `model` is the harness; `metadata.sandbox`, `.provider`, `.model` override
+  the folder's defaults; `store: false` keeps only the response and trace; `background: true` returns
+  at once. `output` is two messages, stdout then stderr; streaming is the standard events.
+- **Steer, cancel, trace, archive.** `POST /v1/sessions/{id}/interrupt` writes `$HI_DIR/interrupt`
+  and sends the folder's signal; `POST /v1/responses/{id}/cancel` is SIGTERM then SIGKILL;
+  `GET /v1/sessions/{id}/trace` is every request and response body; `/archive` is the workspace.
+- **Keys sealed at rest.** AES-256-GCM under `HI_MASTER_KEY`, opened only to start a run's door.
+  The sandbox holds a session token; the gateway swaps it for the key.
+- **Removed:** shipped harness folders, the local runtime, workspace git history, `hi_adapter.py`,
+  `HI_OUTPUT`, the `harness` object on responses, `install.sh` (install with `uv tool install`).
+
 ## [2.0.0]
 
 A rebuild. harness-interface is now sessions you can steer and stop, harnesses are self-contained

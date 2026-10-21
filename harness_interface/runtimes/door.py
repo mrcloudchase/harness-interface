@@ -5,7 +5,7 @@ its own on the sandbox's network:
   stays end to end, so it sees nothing; it resolves names itself, so the sandbox needs no DNS.
 - the provider gateway is a plain-HTTP reverse proxy to one upstream. A request must present the
   session's token, and only it, as its credential; the gateway swaps it for the real key in the
-  header the API shape uses and forwards over TLS. The real key never enters the sandbox. Once an
+  header the API shape uses (none, for a `none` upstream that adds its own) and forwards over TLS. The real key never enters the sandbox. Once an
   answer has begun, an upstream failure only closes the connection.
 
 It logs one line per decision (host, method and path; never a query, token or key) on stderr. It runs
@@ -24,6 +24,7 @@ from urllib.parse import urlsplit
 READY = "door listening"
 DOOR_PORT, GATEWAY_PORT = 3128, 8080
 APIS = ("anthropic-messages", "openai-responses", "openai-chat")
+KEYLESS = "none"                                     # the upstream adds its own credential
 END = b"\r\n\r\n"
 REFUSED = b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
 UNAUTHORIZED = b"HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
@@ -92,12 +93,13 @@ class Gateway:
         u = urlsplit(upstream)
         if u.scheme != "https" or not u.hostname:
             raise ValueError(f"the upstream must be https://host: {upstream!r}")
-        if api not in APIS:
+        if api not in (*APIS, KEYLESS):
             raise ValueError(f"unknown API shape {api!r}")
         self.host, self.port = u.hostname, u.port or 443
         self.authority = self.host if self.port == 443 else f"{self.host}:{self.port}"
         self._token = token
-        self._auth = f"x-api-key: {key}" if api == "anthropic-messages" else f"Authorization: Bearer {key}"
+        self._auth = ("" if api == KEYLESS else f"x-api-key: {key}" if api == "anthropic-messages"
+                      else f"Authorization: Bearer {key}")
         self._tls = tls or ssl.create_default_context()
 
     def admits(self, headers: list[tuple[str, str]]) -> bool:
@@ -122,7 +124,7 @@ class Gateway:
                 self.host, self.port, ssl=self._tls, server_hostname=self.host), timeout=15)
             kept = [f"{k}: {v}" for k, v in headers if k.lower() not in AUTH_HEADERS | HOP_HEADERS]
             up_w.write("\r\n".join([f"{method} {target} HTTP/1.1", f"Host: {self.authority}", "Connection: close",
-                                    self._auth, *kept, "", ""]).encode("latin-1"))
+                                    *([self._auth] if self._auth else []), *kept, "", ""]).encode("latin-1"))
             await up_w.drain()
             body = asyncio.ensure_future(pipe(reader, up_w))
             body.add_done_callback(lambda t: t.cancelled() or t.exception())   # its failure is the answer's
@@ -161,7 +163,7 @@ def main(argv: list[str]) -> None:
         gateway_listen, upstream, api = argv[i + 1:i + 4]
         argv = argv[:i]
         token, key = sys.stdin.readline().strip(), sys.stdin.readline().strip()
-        if not (token and key):
+        if not token or (not key and api != KEYLESS):
             raise SystemExit("door: the gateway needs a token and a key, one line each, on stdin")
         gateway = Gateway(upstream, api, token, key)
     asyncio.run(serve(argv[0], argv[1:], gateway, gateway_listen))

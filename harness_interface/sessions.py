@@ -1,169 +1,149 @@
-"""Layer 5: sessions. A session is one harness, one provider, one workspace, the CLI's own conversation
-(`resume`) and every response in it, one at a time. Every front end drives harnesses through
-`Sessions`, and Python callers need nothing else:
+"""Layer 5: sessions and turns. A turn runs one harness's `request.sh` once in one sandbox against
+one provider: the prompt on stdin, stdout and stderr back, the exit code its status. A session is
+the directory a stateful turn leaves behind and the next turn continues in.
 
-- `start(ask)` checks the request and returns at once. With no `previous` it makes a session; with one
-  it continues that response's session, which stays on its harness and provider; while a response
-  runs, a second is a Conflict. `model` is `harness[@provider][/model]`; with no provider, the one
-  registered for the harness's default URL and shape. The response runs in the background, owned by
-  the service: it runs to its end and is recorded whether or not anyone follows it.
-- `follow(id)` yields every event of a session (or of one of its responses) from the first, as it
-  comes, until the session is idle, across continuations; a finished response is replayed.
-- `interrupt(id, text)` degrades as the contract says: an idle session is continued with the text;
-  a running `steered` response is steered, if the line is delivered; otherwise the response is
-  stopped and the session continued with the text (`continued`, or `responded` for a harness that
-  promises nothing more). `stop(id)` stops gracefully, kills after the timeout, and says which.
-- Steers a response didn't take are sent again, joined, as a response that continues the session
-  when it ends `ok`, and reported undelivered when it doesn't. No steer is sent after a stop.
-- `artifacts(id)` is everything a response produced, so far while it runs: stdout and stderr byte
-  for byte, the diff, the changed files, the file list, the reported home artifacts, HI_OUTPUT.
-- `recover()` at startup: a response a restart cut off is failed (`server_restarted`), its resume
-  kept; every session is idle; what runs left behind is swept.
+    <data>/sessions/<org>/<member>/<harness>/home/            the member's $HOME for that harness
+    <data>/sessions/<org>/<member>/<harness>/<sid>/session.json
+    <data>/sessions/<org>/<member>/<harness>/<sid>/workspace/  where request.sh runs
+    <data>/sessions/<org>/<member>/<harness>/<sid>/run/        $HI_DIR: the interrupt file, scratch
+    <data>/sessions/<org>/<member>/<harness>/<sid>/responses/<rid>.json
+    <data>/sessions/<org>/<member>/<harness>/<sid>/trace.jsonl  every request and response body, as sent
 
-Everything lives under the data directory: `providers/`, `harnesses/`, `tools/`, `sessions/`,
-`responses/`, `logs/`, `runs/` (each response's HI_OUTPUT, outside the workspace) and `workspaces/`.
+Seeds are copied, never read: `seeds/project` into the workspace when the session starts (a file
+already there wins), `seeds/user` into the member's home on its first use, `seeds/org` into the home
+on every turn (it wins). A turn's variables are HI_WORKSPACE, HOME, HI_DIR, HI_SESSION, HI_RESPONSE,
+HI_TURN, HI_MODEL, HI_INSTRUCTIONS, HI_HARNESS_DIR, HI_TOOLS, PATH, HI_PROVIDER_URL,
+HI_PROVIDER_KEY_FILE, and the names harness.json's provider_env asks for, set to the gateway's URL
+and the session's token. The provider's key is opened only to start the run's door.
+
+A steer writes `$HI_DIR/interrupt` and sends the harness's signal; a cancel sends SIGTERM, then a
+kill. One turn at a time per session; `max_runs` at a time per org. A turn with `store: false`
+leaves its response and trace and nothing else.
 """
 from __future__ import annotations
 
 import asyncio
-import copy
+import codecs
+import io
+import json
+import posixpath
+import secrets
+import shutil
+import tarfile
 import time
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import asdict, dataclass, field, replace
 from pathlib import Path
-from typing import IO, Any, AsyncIterator, Mapping
+from typing import Any, AsyncIterator, Mapping
 
+from . import harness as contract
 from .errors import Conflict, Invalid, NotFound
-from .harness import HarnessFolder, Installer, Placement, Request, Response, Result, session_token
-from .harness.contract import OUTPUT, read_output, reported
-from .runtimes import Provider, owner_of
-from .store import JsonStore, Registry, decode, encode
-from .workspace import Workspace
+from .execution import Execution, Outcome, Spec
+from .runtimes.docker import ContainerExecution, Provider, signal, sweep
+from .sandboxes import Runtimes, path_with
+from .store import JsonStore, Member, Store
 
-TIERS = ("steered", "continued", "responded")
-
-
-def new_id(prefix: str) -> str:
-    return f"{prefix}_{uuid.uuid4().hex[:16]}"
+STREAMS = ("stdout", "stderr")
+STATUSES = ("in_progress", "completed", "failed", "cancelled", "incomplete")
 
 
-def parse_model(model: Any) -> tuple[str, str | None, str]:
-    """`harness[@provider][/model]` -> (harness, provider or None, model or "")."""
-    if not isinstance(model, str):
-        raise Invalid("model is harness[@provider][/model]")
-    head, _, name = model.partition("/")
-    harness, at, provider = head.partition("@")
-    if not harness or (at and not provider):
-        raise Invalid(f"model is harness[@provider][/model], not {model!r}")
-    return harness, provider or None, name
+def session_token(api: str) -> str:
+    """A session's stand-in for its key under the gateway, shaped like a real one for CLIs that check."""
+    return ("sk-ant-api03-hi-" if api == "anthropic-messages" else "sk-hi-") + secrets.token_hex(24)
 
 
 @dataclass(frozen=True)
 class Ask:
-    """A request, as any front end puts it."""
-    model: str                                       # harness[@provider][/model]
-    task: str
+    """One turn, as asked."""
+    org: str
+    member: str
+    harness: str
+    prompt: str
     instructions: str = ""
-    files: Mapping[str, str | bytes] = field(default_factory=dict)
-    previous: str | None = None                      # the response this one continues
-    metadata: Mapping[str, Any] = field(default_factory=dict)
-    input: Any = None                                # the front end's own copy of what was asked, kept as given
+    files: Mapping[str, bytes] = field(default_factory=dict)   # workspace path -> content
+    sandbox: str = ""                                # overrides of the harness's defaults
+    provider: str = ""
+    model: str = ""
+    previous: str | None = None                      # the response to continue after
+    store: bool = True
+    metadata: Mapping[str, str] = field(default_factory=dict)
+    body: Mapping[str, Any] = field(default_factory=dict)      # the request as sent, for the trace
 
     def __post_init__(self) -> None:
-        if not isinstance(self.task, str) or not self.task.strip():
-            raise Invalid("a task is some text")
-        if not isinstance(self.instructions, str):
-            raise Invalid("instructions are text")
+        for rel in self.files:
+            n = posixpath.normpath(rel)
+            if not rel or n.startswith(("/", "../")) or n == "..":
+                raise Invalid(f"a file's path is relative and inside the workspace: {rel!r}")
 
 
 @dataclass
-class Session:
-    id: str
-    harness: str
-    provider: str
-    model: str                                       # the model it asks for, or "" for the harness's own
-    interrupt: str                                   # the harness's tier: what an interrupt will do
-    workspace: str
-    token: str = field(repr=False)                   # its stand-in for the key, under the gateway
-    resume: str | None = None                        # the CLI's conversation, as it last reported it
-    status: str = "idle"                             # active | idle
-    created_at: float = field(default_factory=time.time)
-    updated_at: float = field(default_factory=time.time)
-    interrupts: list[dict[str, Any]] = field(default_factory=list)
-    responses: list[str] = field(default_factory=list)
-
-
-@dataclass
-class ResponseRecord:
+class Record:
+    """A response, as kept."""
     id: str
     session: str
-    model: str                                       # as asked
+    org: str
+    member: str
     harness: str
+    version: str
+    sandbox: str
     provider: str
-    request: dict[str, Any]                          # input, instructions and metadata, as asked
-    previous: str | None = None
-    created_at: float = field(default_factory=time.time)
-    status: str = "in_progress"                      # in_progress | completed | failed | incomplete | cancelled
-    answer: str = ""
-    usage: dict[str, Any] = field(default_factory=dict)
-    cost_usd: float | None = None
-    resume: str | None = None
+    model: str
+    turn: int
+    created: float
+    previous: str | None
+    store: bool
+    metadata: dict[str, str]
+    status: str = "in_progress"
+    stdout: str = ""
+    stderr: str = ""
     exit_code: int | None = None
-    latency_s: float | None = None
-    steers: list[dict[str, Any]] = field(default_factory=list)   # {at, input}, as sent
-    undelivered: list[str] = field(default_factory=list)          # the steers it didn't take
-    stop: str | None = None                          # stopped | killed, when it was asked to stop
-    base: str | None = None                          # the workspace's snapshot before it
-    commit: str | None = None                        # and after it
-    error: dict[str, str] | None = None              # {code, message}
-    output: dict[str, Any] = field(default_factory=dict)          # all of HI_OUTPUT
-    home: dict[str, Any] = field(default_factory=dict)            # reported artifacts, encoded; None if deleted
+    error: str = ""
+    ended: float | None = None
 
 
-@dataclass(frozen=True)
-class SessionEvent:
-    kind: str                                        # created | stdout | stderr | steer | interrupted | completed
-    response: str
-    data: bytes = b""                                # output; a steer's or an interrupt's text
-    record: ResponseRecord | None = None             # created, completed: the response as it was then
-    outcome: str = ""                                # interrupted: continued | responded
-    source: str | None = None                        # interrupted: the response it continues
-    at: float = field(default_factory=time.time)
+@dataclass
+class SessionRecord:
+    id: str
+    org: str
+    member: str
+    harness: str
+    version: str
+    created: float
+    stored: bool = True
+    responses: list[str] = field(default_factory=list)
 
-
-@dataclass(frozen=True)
-class Artifacts:
-    stdout: bytes
-    stderr: bytes
-    diff: str
-    changes: dict[str, bytes | None]                 # path -> new content, None if deleted
-    files: list[str]                                 # the whole tree
-    home: dict[str, bytes | None]                    # reported artifacts under $HOME
-    output: dict[str, Any]                           # HI_OUTPUT
+    @property
+    def turn(self) -> int:
+        return len(self.responses)
 
 
 class Feed:
-    """A session's events while it is active, for any number of followers, each from where it starts."""
+    """A running response's output, for any number of followers, each from the start."""
 
     def __init__(self) -> None:
-        self.events: list[SessionEvent] = []
+        self.events: list[tuple[str, str]] = []
         self.closed = False
         self._wake = asyncio.Event()
+        self._decoders = {s: codecs.getincrementaldecoder("utf-8")(errors="replace") for s in STREAMS}
 
-    def publish(self, event: SessionEvent) -> None:
-        self.events.append(event)
-        self._wake.set()
-        self._wake = asyncio.Event()
+    def publish(self, stream: str, data: bytes) -> None:
+        if text := self._decoders[stream].decode(data):
+            self.events.append((stream, text))
+            self._wake.set()
+            self._wake = asyncio.Event()
 
     def close(self) -> None:
+        for stream, decoder in self._decoders.items():
+            if text := decoder.decode(b"", final=True):
+                self.events.append((stream, text))
         self.closed = True
         self._wake.set()
 
-    def start_of(self, rid: str) -> int | None:
-        return next((i for i, e in enumerate(self.events) if e.response == rid), None)
+    def text(self, stream: str) -> str:
+        return "".join(t for s, t in self.events if s == stream)
 
-    async def follow(self, start: int = 0) -> AsyncIterator[SessionEvent]:
-        i = start
+    async def follow(self) -> AsyncIterator[tuple[str, str]]:
+        i = 0
         while True:
             while i < len(self.events):
                 yield self.events[i]
@@ -175,442 +155,294 @@ class Feed:
 
 @dataclass(eq=False)
 class Live:
-    """The response a session is running."""
-    record: ResponseRecord
-    request: Request
-    new_session: bool
-    response: Response | None = None
-    startup: asyncio.Future | None = None
+    record: Record
+    config: contract.Config
+    feed: Feed = field(default_factory=Feed)
+    execution: Execution | None = None
+    task: asyncio.Task | None = None
     stop_asked: bool = False
-    stop_timeout: float | None = None
-    done: asyncio.Event = field(default_factory=asyncio.Event)
-    started: asyncio.Event = field(default_factory=asyncio.Event)
-
-    def stop(self, timeout_s: float | None) -> None:
-        if self.response:
-            self.response.stop(timeout_s)
-            return
-        self.stop_asked, self.stop_timeout = True, timeout_s
-        if self.startup:
-            self.startup.cancel()
-
-
-@dataclass(eq=False)
-class Pending:
-    """An interrupt waiting for the response it stopped to end, to continue the session with its text."""
-    outcome: str
-    instructions: str | None
-    texts: list[str] = field(default_factory=list)
-    future: asyncio.Future = field(default_factory=lambda: asyncio.get_running_loop().create_future())
-
-
-def status_of(result: Result) -> str:
-    if result.status == "ok":
-        return "completed"
-    if result.stop == "timeout":
-        return "incomplete"
-    return "cancelled" if result.stop else "failed"
-
-
-async def nothing() -> AsyncIterator[SessionEvent]:
-    return
-    yield
 
 
 class Sessions:
-    def __init__(self, data: Path, placement: Placement | None = None):
-        self.data = Path(data).absolute()
-        self.placement = placement or Placement(owner=owner_of(self.data))
-        self.registry = Registry(self.data, Installer(self.data / "tools", self.placement))
-        self.store: JsonStore[Session] = JsonStore(self.data / "sessions", lambda d: Session(**d), private=True)
-        self.records: JsonStore[ResponseRecord] = JsonStore(self.data / "responses", lambda d: ResponseRecord(**d))
-        self.logs, self.runs, self.workspaces = self.data / "logs", self.data / "runs", self.data / "workspaces"
-        self._active: dict[str, Session] = {}        # by id: the one copy of an active session
-        self._tasks: dict[str, asyncio.Task] = {}    # its responses, one after another
-        self._live: dict[str, Live] = {}
-        self._feeds: dict[str, Feed] = {}
-        self._pending: dict[str, Pending] = {}
-        self._halted: set[str] = set()               # asked to stop: nothing more starts
+    def __init__(self, store: Store, runtimes: Runtimes):
+        self.store, self.runtimes = store, runtimes
+        self._live: dict[str, Live] = {}             # by response id
+        self._slots: dict[str, asyncio.Semaphore] = {}
+        self._index = JsonStore(store.root / "index", dict)
 
-    # reading
-    def session(self, sid: str) -> Session:
-        found = self.store.get(sid) if isinstance(sid, str) and sid.startswith("sess_") and "/" not in sid else None
-        if found is None:
-            raise NotFound(f"no session {sid!r}")
-        return found
+    # paths and records
+    def _dir(self, s: SessionRecord) -> Path:
+        return self.store.sessions_root / s.org / s.member / s.harness / s.id
 
-    def sessions(self) -> list[Session]:
-        return sorted(self.store.list(), key=lambda s: s.created_at)
+    def _home(self, org: str, member: str, harness: str) -> Path:
+        return self.store.sessions_root / org / member / harness / "home"
 
-    def response(self, rid: str) -> ResponseRecord:
-        found = self.records.get(rid) if isinstance(rid, str) and rid.startswith("resp_") and "/" not in rid else None
-        if found is None:
-            raise NotFound(f"no response {rid!r}")
-        return found
+    def _save_session(self, s: SessionRecord) -> None:
+        JsonStore(self._dir(s), lambda d: SessionRecord(**d)).put("session", s)
 
-    async def wait(self, rid: str) -> ResponseRecord:
-        """The response, once it has ended."""
-        record = self.response(rid)
-        live = self._live.get(record.session)
-        if live and live.record.id == rid:
-            await live.done.wait()
-        return self.response(rid)
+    def _save_record(self, s: SessionRecord, r: Record) -> None:
+        JsonStore(self._dir(s) / "responses", lambda d: Record(**d)).put(r.id, r)
 
-    def follow(self, ident: str) -> AsyncIterator[SessionEvent]:
-        """Every event of a session, or from one of its responses on, until the session is idle."""
-        if isinstance(ident, str) and ident.startswith("resp_"):
-            record = self.response(ident)
-            feed = self._feeds.get(record.session)
-            start = feed.start_of(ident) if feed else None
-            return feed.follow(start) if start is not None else self._replay(record)
-        self.session(ident)
-        feed = self._feeds.get(ident)
-        return feed.follow() if feed else nothing()
+    def _trace(self, s: SessionRecord, kind: str, rid: str, body: Any) -> None:
+        with open(self._dir(s) / "trace.jsonl", "a") as f:
+            f.write(json.dumps({"at": time.time(), "kind": kind, "response": rid, "body": body}) + "\n")
 
-    def artifacts(self, rid: str) -> Artifacts:
-        """Everything the response produced: so far, while it runs."""
-        record = self.response(rid)
-        ws = Workspace(Path(self.session(record.session).workspace))
-        live = self._live.get(record.session)
-        response = live.response if live and live.record.id == rid and record.status == "in_progress" else None
-        head = record.commit
-        if record.base:
-            changed, deleted = ws.changes(record.base, head)
-            diff, changes = ws.diff(record.base, head), {**{p: ws.read(p, head) for p in changed},
-                                                         **{p: None for p in deleted}}
-        else:
-            diff, changes = "", {}
-        files = ws.files(head) if (ws.history / "HEAD").exists() else []
-        if response:
-            home = reported(response.folder, ws, response.prepared)
-            output = read_output(response.prepared.output)
-        else:
-            home = {p: None if c is None else decode(c) for p, c in record.home.items()}
-            output = record.output
-        return Artifacts(self._log(rid, "stdout"), self._log(rid, "stderr"), diff, changes, files, home, output)
+    def _session_by_id(self, sid: str) -> SessionRecord:
+        entry = self._index.get(sid) if sid.startswith("sess_") and sid[5:].isalnum() else None
+        s = JsonStore(self.store.sessions_root / entry["path"], lambda d: SessionRecord(**d)).get("session") if entry else None
+        if s is None:
+            raise NotFound(f"no session {sid}")
+        return s
 
-    # driving
-    async def start(self, ask: Ask) -> Session:
-        """Check the request and start its response; return its session at once."""
+    def _record_by_id(self, rid: str) -> tuple[SessionRecord, Record]:
+        entry = self._index.get(rid) if rid.startswith("resp_") and rid[5:].isalnum() else None
+        if not entry:
+            raise NotFound(f"no response {rid}")
+        s = self._session_by_id(entry["session"])
+        r = JsonStore(self._dir(s) / "responses", lambda d: Record(**d)).get(rid)
+        if r is None:
+            raise NotFound(f"no response {rid}")
+        return s, r
+
+    @staticmethod
+    def _reachable(who: Member, s: SessionRecord) -> bool:
+        return s.org == who.org and (who.owner or s.member == who.name)
+
+    def session(self, who: Member, sid: str) -> SessionRecord:
+        s = self._session_by_id(sid)
+        if not self._reachable(who, s):
+            raise NotFound(f"no session {sid}")
+        return s
+
+    def sessions(self, who: Member) -> list[SessionRecord]:
+        base = self.store.sessions_root / who.org
+        found = [JsonStore(p.parent, lambda d: SessionRecord(**d)).get("session")
+                 for p in base.glob("*/*/sess_*/session.json")] if base.is_dir() else []
+        return sorted((s for s in found if s and self._reachable(who, s)), key=lambda s: s.created)
+
+    def response(self, who: Member, rid: str) -> Record:
+        s, r = self._record_by_id(rid)
+        if not self._reachable(who, s):
+            raise NotFound(f"no response {rid}")
+        return r
+
+    def records(self, who: Member, sid: str) -> list[Record]:
+        s = self.session(who, sid)
+        return [self._record_by_id(rid)[1] for rid in s.responses]
+
+    def trace(self, who: Member, sid: str) -> list[dict[str, Any]]:
+        p = self._dir(self.session(who, sid)) / "trace.jsonl"
+        return [json.loads(line) for line in p.read_text().splitlines() if line.strip()] if p.is_file() else []
+
+    # the turn
+    async def create(self, ask: Ask) -> Record:
+        """Start a turn; it runs on after this returns. Conflict while the session is busy."""
+        who = self.store.member(ask.org, ask.member)
         if ask.previous:
-            previous = self.response(ask.previous)
-            session = self._current(previous.session)
-            harness, provider, model = parse_model(ask.model)
-            if harness != session.harness or (provider and provider != session.provider):
-                raise Invalid(f"a continued session stays on its harness and provider: "
-                              f"{session.harness}@{session.provider}, not {ask.model}")
-            if session.id in self._tasks:
-                raise Conflict(f"session {session.id} has a response in progress: interrupt it instead")
-            self._folder(harness)
-            self._provider_entry(session.provider)
-            session.model = model or session.model
-            request = Request(ask.task, session.resume, ask.instructions, session.model, ask.files)
+            s, prev = self._record_by_id(ask.previous)
+            if not self._reachable(who, s):
+                raise NotFound(f"no response {ask.previous}")
+            if not s.stored:
+                raise Invalid(f"{ask.previous} was not stored, so it cannot be continued")
+            if any(live.record.session == s.id for live in self._live.values()):
+                raise Conflict(f"session {s.id} is running a response")
+            h = self.store.harness(ask.org, s.harness, s.version)
         else:
-            harness, name, model = parse_model(ask.model)
-            folder = self._folder(harness)
-            entry = self._choose_provider(folder, name)
-            request = Request(ask.task, None, ask.instructions, model, ask.files)
-            sid = new_id("sess")
-            session = Session(id=sid, harness=folder.name, provider=entry.name, model=model,
-                              interrupt=folder.run.interrupt, workspace=str(self.workspaces / sid),
-                              token=session_token(entry.api))
-        install = self.registry.install(harness)
-        if install.state == "failed":
-            raise Invalid(f"harness {harness!r} failed to install; PUT it again to retry. {install.error}")
-        self._activate(session)
-        live = self._new_response(session, ask.model, ask, request, ask.previous)
-        self._tasks[session.id] = asyncio.ensure_future(self._run(session, live))
-        return copy.deepcopy(session)
+            h = self.store.harness(ask.org, ask.harness)
+            s = SessionRecord(f"sess_{uuid.uuid4().hex}", ask.org, ask.member, h.name, h.digest, time.time(), ask.store)
+        config = self.store.config(h)
+        names = {"sandbox": ask.sandbox or config.sandbox, "provider": ask.provider or config.provider}
+        for kind, name in names.items():
+            if not name:
+                raise Invalid(f"no {kind}: name one in the request's metadata or in harness.json's defaults")
+        sandbox, provider = self.store.sandbox(ask.org, names["sandbox"]), self.store.provider(ask.org, names["provider"])
+        folder, home, workspace, rundir = self.store.folder(h), self._home(ask.org, ask.member, h.name), *self._paths(s)
+        await asyncio.to_thread(self._prepare, s, folder, home, workspace, rundir, ask.files, new=not ask.previous)
+        record = Record(f"resp_{uuid.uuid4().hex}", s.id, s.org, s.member, s.harness, s.version, sandbox.name,
+                        provider.name, ask.model or config.model, s.turn + 1, time.time(), ask.previous, ask.store,
+                        dict(ask.metadata))
+        s.responses.append(record.id)
+        self._save_session(s)
+        self._save_record(s, record)
+        self._index.put(s.id, {"path": str(self._dir(s).relative_to(self.store.sessions_root))})
+        self._index.put(record.id, {"session": s.id})
+        self._trace(s, "request", record.id, dict(ask.body))
+        live = Live(record, config)
+        self._live[record.id] = live
+        live.task = asyncio.create_task(self._run(live, s, h, folder, home, workspace, rundir, sandbox, provider, ask))
+        return record
 
-    async def interrupt(self, sid: str, text: str, instructions: str | None = None) -> tuple[str, ResponseRecord]:
-        """Put `text` into the session: `steered`, `continued` or `responded`, and the response that took it."""
-        session = self.session(sid)
-        if not isinstance(text, str) or not text.strip():
-            raise Invalid("an interrupt is some text")
-        while True:
-            if sid not in self._tasks:
-                last = self.response(session.responses[-1])
-                started = await self.start(Ask(last.model, text, instructions=last.request.get("instructions", "")
-                                               if instructions is None else instructions, previous=last.id))
-                record = self.response(started.responses[-1])
-                self._log_interrupt(sid, input=text, outcome="continued", response=record.id)
-                return "continued", record
-            if sid in self._halted:
-                raise Conflict(f"session {sid} is stopping")
-            live = self._live[sid]
-            if self._active[sid].interrupt != "steered" or sid in self._pending or live.stop_asked:
-                break
-            await live.started.wait()
-            if self._live.get(sid) is not live:
-                continue                             # it ended, or a continuation took its place
-            try:
-                if live.response is None:
-                    raise Invalid("it never started")
-                await live.response.steer(text)
-            except Invalid:
-                if self._live.get(sid) is not live or sid not in self._tasks:
-                    continue
-                break
-            self._log_interrupt(sid, input=text, outcome="steered", response=live.record.id)
-            return "steered", self.response(live.record.id)
-        tier = self._active[sid].interrupt
-        outcome = "responded" if tier == "responded" else "continued"
-        pending = self._pending.setdefault(sid, Pending(outcome, instructions))
-        pending.texts.append(text)
-        self._live[sid].stop(None)
-        record = await asyncio.shield(pending.future)
-        return outcome, copy.deepcopy(record)
+    def _paths(self, s: SessionRecord) -> tuple[Path, Path]:
+        d = self._dir(s)
+        return d / "workspace", d / "run"
 
-    async def stop(self, sid: str, timeout_s: float | None = None) -> str:
-        """Stop what the session is running: `stopped`, `killed` (it didn't stop in time) or `idle`."""
-        self.session(sid)
-        task = self._tasks.get(sid)
-        if task is None:
-            return "idle"
-        self._halted.add(sid)
-        self._drop_pending(sid)
-        live = self._live[sid]
-        live.stop(timeout_s)
-        await asyncio.wait([task])
-        outcome = "killed" if self.response(live.record.id).stop == "killed" else "stopped"
-        self._log_interrupt(sid, outcome=outcome, response=live.record.id)
-        return outcome
+    def _prepare(self, s: SessionRecord, folder: Path, home: Path, workspace: Path, rundir: Path,
+                 files: Mapping[str, bytes], new: bool) -> None:
+        """The session's directories, seeded, and the request's files in the workspace."""
+        for p in (workspace, rundir, home):
+            p.mkdir(parents=True, exist_ok=True)
+        (rundir / "interrupt").unlink(missing_ok=True)
+        if new and (project := contract.seed(folder, "project")):
+            contract.copy_seed(project, workspace, overwrite=False)
+        if not (home / ".hi-seeded").exists():
+            if user := contract.seed(folder, "user"):
+                contract.copy_seed(user, home, overwrite=False)
+            (home / ".hi-seeded").write_text(s.harness)
+        if org := contract.seed(folder, "org"):
+            contract.copy_seed(org, home, overwrite=True)
+        for rel, data in files.items():
+            dest = workspace / posixpath.normpath(rel)
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            dest.write_bytes(data)
 
+    async def _run(self, live: Live, s: SessionRecord, h, folder: Path, home: Path, workspace: Path, rundir: Path,
+                   sandbox, provider, ask: Ask) -> None:
+        record, config = live.record, live.config
+        outcome: Outcome | None = None
+        try:
+            async with self._slot(s.org):
+                image = await self.runtimes.image_for(sandbox)
+                tools = await self.runtimes.tools_for(folder, config, self.store.tools_root(h), sandbox, image)
+                token = session_token(provider.api)
+                prov = Provider(provider.url, provider.api, self.store.open_key(provider), "gateway", token)
+                runtime = self.runtimes.runtime(image, sandbox, read_only=(folder, tools), writable=(home, rundir),
+                                                provider=prov)
+                env = {"HI_WORKSPACE": str(workspace), "HOME": str(home), "HI_DIR": str(rundir), "HI_SESSION": s.id,
+                       "HI_RESPONSE": record.id, "HI_TURN": str(record.turn), "HI_MODEL": record.model,
+                       "HI_INSTRUCTIONS": ask.instructions, "HI_HARNESS_DIR": str(folder), "HI_TOOLS": str(tools),
+                       "PATH": path_with(tools), "HI_PROVIDER_URL": runtime.provider_url or "",
+                       "HI_PROVIDER_KEY_FILE": str(runtime.key_path or "")}
+                for name, value in ((config.key_env, token), (config.url_env, runtime.provider_url or "")):
+                    if name:
+                        env[name] = value
+                spec = Spec(("bash", str(folder / "request.sh")), input=ask.prompt.encode(), env=env,
+                            workspace=workspace, timeout_s=config.timeout_s)
+                live.execution = await runtime.start(spec)
+                if live.stop_asked:
+                    live.execution.stop(config.stop_timeout_s)
+                with open(self._dir(s) / "door.log", "ab") as door_log:
+                    async for event in live.execution.events():
+                        if event.stream in STREAMS:
+                            live.feed.publish(event.stream, event.data)
+                        else:
+                            door_log.write(event.data)
+                outcome = await live.execution.wait()
+        except asyncio.CancelledError:
+            outcome = Outcome.killed()
+        except Exception as e:                       # the run could not be set up: that is the response
+            outcome = Outcome.failed(str(e) or repr(e))
+        finally:
+            live.feed.close()
+            self._finish(live, s, workspace, rundir, outcome or Outcome.killed())
+            self._live.pop(record.id, None)
+
+    def _finish(self, live: Live, s: SessionRecord, workspace: Path, rundir: Path, outcome: Outcome) -> None:
+        r = live.record
+        r.stdout, r.stderr, r.ended = live.feed.text("stdout"), live.feed.text("stderr"), time.time()
+        if outcome.kind == "failed":
+            r.status, r.error = "failed", outcome.reason
+        elif outcome.kind == "timed_out":
+            r.status, r.error = "incomplete", f"request.sh ran past {live.config.timeout_s:g} seconds"
+        elif outcome.kind in ("stopped", "killed"):
+            r.status, r.exit_code = "cancelled", outcome.code
+        else:
+            r.exit_code = outcome.code
+            r.status = "completed" if outcome.code == 0 else "failed"
+            r.error = "" if outcome.code == 0 else f"request.sh exited {outcome.code}"
+        self._save_record(s, r)
+        self._trace(s, "response", r.id, asdict(r))
+        if not r.store:
+            shutil.rmtree(workspace, ignore_errors=True)
+            shutil.rmtree(rundir, ignore_errors=True)
+            s.stored = False
+            self._save_session(s)
+
+    def _slot(self, org: str) -> asyncio.Semaphore:
+        if org not in self._slots:
+            self._slots[org] = asyncio.Semaphore(self.store.org(org).max_runs)
+        return self._slots[org]
+
+    async def wait(self, rid: str) -> Record:
+        """The response once it has ended."""
+        if live := self._live.get(rid):
+            await asyncio.shield(live.task)
+        return self._record_by_id(rid)[1]
+
+    def follow(self, who: Member, rid: str) -> AsyncIterator[tuple[str, str]]:
+        """Its output as it arrives, or whole if it has ended."""
+        r = self.response(who, rid)
+        if live := self._live.get(rid):
+            return live.feed.follow()
+
+        async def replay() -> AsyncIterator[tuple[str, str]]:
+            for stream in STREAMS:
+                if text := getattr(r, stream):
+                    yield stream, text
+        return replay()
+
+    async def cancel(self, who: Member, rid: str) -> Record:
+        """Stop it: the signal now, a kill after the harness's grace; nothing if it has ended."""
+        self.response(who, rid)
+        if live := self._live.get(rid):
+            live.stop_asked = True
+            self._trace(self._session_by_id(live.record.session), "cancel", rid, {})
+            if live.execution:
+                live.execution.stop(live.config.stop_timeout_s)
+            elif live.task:
+                live.task.cancel()
+            await asyncio.shield(live.task)
+        return self._record_by_id(rid)[1]
+
+    async def interrupt(self, who: Member, sid: str, text: str) -> Record:
+        """Steer the session's running turn: the text in $HI_DIR/interrupt, then the harness's signal."""
+        s = self.session(who, sid)
+        live = next((l for l in self._live.values() if l.record.session == sid), None)
+        if live is None or not isinstance(live.execution, ContainerExecution) or not live.execution.container:
+            raise Conflict(f"session {sid} is not running a response")
+        (self._paths(s)[1] / "interrupt").write_text(text)
+        self._trace(s, "interrupt", live.record.id, {"input": text})
+        if not await signal(live.execution.container, live.config.interrupt):
+            raise Conflict("the response ended before the interrupt reached it")
+        return live.record
+
+    # the session's files
+    async def archive(self, who: Member, sid: str) -> bytes:
+        """The workspace, as a gzipped tar."""
+        s = self.session(who, sid)
+        workspace = self._paths(s)[0]
+        if not s.stored or not workspace.is_dir():
+            raise NotFound(f"session {sid} kept no workspace")
+
+        def pack() -> bytes:
+            buf = io.BytesIO()
+            with tarfile.open(fileobj=buf, mode="w:gz") as tar:
+                tar.add(workspace, arcname=".")
+            return buf.getvalue()
+        return await asyncio.to_thread(pack)
+
+    async def delete(self, who: Member, sid: str) -> None:
+        s = self.session(who, sid)
+        if any(live.record.session == sid for live in self._live.values()):
+            raise Conflict(f"session {sid} is running a response")
+        await asyncio.to_thread(shutil.rmtree, self._dir(s), True)
+        for rid in s.responses:
+            self._index.delete(rid)
+        self._index.delete(sid)
+
+    # the server's life
     async def recover(self) -> None:
-        """At startup: close what a restart cut off, keeping its resume, and sweep what it left behind."""
-        for record in self.records.list():
-            if record.status != "in_progress":
-                continue
-            out = read_output(self.runs / record.id / OUTPUT)
-            resume = out.get("resume") if isinstance(out.get("resume"), str) and out.get("resume") else None
-            session = self.store.get(record.session)
-            if record.base and session:
-                record.commit = Workspace(Path(session.workspace)).snapshot("after a restart")
-            record.status, record.resume, record.output = "failed", resume, out
-            record.error = {"code": "server_restarted", "message": "the server restarted while this response ran"}
-            self.records.put(record.id, record)
-            if session and resume:
-                session.resume = resume
-                self.store.put(session.id, session)
-        for session in self.store.list():
-            if session.status != "idle":
-                session.status = "idle"
-                self.store.put(session.id, session)
-        await self.placement.recover()
-        for folder in self.registry.harnesses():
-            self.registry.install(folder.name)
+        """Close what a restart cut off, and remove what its runs left behind."""
+        await sweep(self.runtimes.owner)
+        for p in self.store.sessions_root.glob("*/*/*/sess_*/responses/resp_*.json"):
+            store = JsonStore(p.parent, lambda d: Record(**d))
+            r = store.get(p.stem)
+            if r and r.status == "in_progress":
+                store.put(r.id, replace(r, status="failed", error="the server restarted while it ran", ended=time.time()))
 
     async def close(self) -> None:
-        """Stop everything running, now, and every install."""
-        for sid in list(self._tasks):
-            self._halted.add(sid)
-            self._drop_pending(sid)
-            self._live[sid].stop(0)
-        if self._tasks:
-            await asyncio.wait(list(self._tasks.values()))
-        await self.registry.close()
-
-    # the work
-    def _current(self, sid: str) -> Session:
-        return self._active.get(sid) or self.session(sid)
-
-    def _folder(self, name: str) -> HarnessFolder:
-        try:
-            return self.registry.harness(name)
-        except NotFound:
-            raise Invalid(f"no harness {name!r}") from None
-
-    def _provider_entry(self, name: str):
-        try:
-            return self.registry.provider(name)
-        except NotFound:
-            raise Invalid(f"no provider {name!r}") from None
-
-    def _choose_provider(self, folder: HarnessFolder, name: str | None):
-        """The provider named, or the one registered for the harness's default URL and shape."""
-        if name:
-            entry = self._provider_entry(name)
-        else:
-            want = (folder.provider.url.rstrip("/"), folder.provider.api)
-            entry = next((p for p in self.registry.providers() if (p.url.rstrip("/"), p.api) == want), None)
-            if entry is None:
-                raise Invalid(f"no provider for {folder.name}: register one for {want[0]} ({want[1]}), "
-                              f"or name one: {folder.name}@<provider>")
-        if entry.api not in folder.apis:
-            raise Invalid(f"{folder.name} speaks {', '.join(folder.apis)}, not {entry.api} ({entry.name})")
-        return entry
-
-    def _activate(self, session: Session) -> None:
-        session.status, session.updated_at = "active", time.time()
-        self._active[session.id] = session
-        self._feeds[session.id] = Feed()
-        self.store.put(session.id, session)
-
-    def _new_response(self, session: Session, model: str, ask: Ask, request: Request, previous: str | None,
-                      interrupted: str = "") -> Live:
-        rid = new_id("resp")
-        record = ResponseRecord(id=rid, session=session.id, model=model, harness=session.harness,
-                                provider=session.provider, previous=previous,
-                                request={"input": ask.task if ask.input is None else ask.input,
-                                         "instructions": ask.instructions, "metadata": dict(ask.metadata)})
-        self.records.put(rid, record)
-        session.responses.append(rid)
-        session.updated_at = time.time()
-        self.store.put(session.id, session)
-        live = self._live[session.id] = Live(record, request, new_session=not previous)
-        feed = self._feeds[session.id]
-        if interrupted:
-            feed.publish(SessionEvent("interrupted", rid, ask.task.encode(), outcome=interrupted, source=previous))
-        feed.publish(SessionEvent("created", rid, record=copy.deepcopy(record)))
-        return live
-
-    async def _run(self, session: Session, live: Live) -> None:
-        """Run the session's responses, one after another, until nothing continues it; then it is idle."""
-        sid = session.id
-        try:
-            while live:
-                try:
-                    result = await self._one(session, live)
-                finally:
-                    live.done.set()
-                live = self._next(session, live.record, result)
-        finally:
-            self._drop_pending(sid)
-            session.status, session.updated_at = "idle", time.time()
-            self.store.put(sid, session)
-            self._feeds.pop(sid).close()
-            for held in (self._active, self._tasks, self._live):
-                held.pop(sid, None)
-            self._halted.discard(sid)
-
-    async def _one(self, session: Session, live: Live) -> Result | None:
-        """One response, start to end; its record is finished whatever happens."""
-        record = live.record
-        try:
-            if live.stop_asked:
-                return self._unstarted(session, record, "cancelled", stop="stopped")
-            live.startup = asyncio.ensure_future(self._begin(session, live))
-            try:
-                live.response = await live.startup
-            except asyncio.CancelledError:
-                if not live.stop_asked:
-                    raise
-                return self._unstarted(session, record, "cancelled", stop="stopped")
-            except Exception as e:
-                return self._unstarted(session, record, "failed", error=("failed_to_start", str(e)))
-            finally:
-                live.started.set()
-            if live.stop_asked:
-                live.response.stop(live.stop_timeout)
-            record.base = live.response.prepared.base
-            self.records.put(record.id, record)
-            await self._pump(session, record, live.response)
-            result = await live.response.result()
-        except asyncio.CancelledError:
-            raise
-        except Exception as e:                       # a bug, not the harness: the record still gets an end
-            return self._unstarted(session, record, "failed", error=("internal_error", f"{type(e).__name__}: {e}"))
-        self._finish(session, record, result)
-        return result
-
-    async def _begin(self, session: Session, live: Live) -> Response:
-        folder, installed = await self.registry.ready(session.harness)
-        entry = self.registry.provider(session.provider)
-        provider = Provider(entry.url, entry.api, entry.key, token=session.token)
-        return await Response.start(folder, installed, Workspace(Path(session.workspace)), live.request,
-                                    placement=self.placement, rundir=self.runs / live.record.id, provider=provider,
-                                    new_session=live.new_session, session=session.id)
-
-    async def _pump(self, session: Session, record: ResponseRecord, response: Response) -> None:
-        """Keep what the harness prints byte for byte, and hand every event to followers as it comes."""
-        feed, logs = self._feeds[session.id], {}
-        self.logs.mkdir(parents=True, exist_ok=True)
-        try:
-            async for event in response.events():
-                if event.stream == "steer":
-                    record.steers.append({"at": time.time(), "input": event.data.decode()})
-                    self.records.put(record.id, record)
-                    feed.publish(SessionEvent("steer", record.id, event.data))
-                    continue
-                f: IO[bytes] = logs.get(event.stream) or logs.setdefault(
-                    event.stream, open(self.logs / f"{record.id}.{event.stream}", "ab"))
-                f.write(event.data)
-                f.flush()
-                if event.stream in ("stdout", "stderr"):
-                    feed.publish(SessionEvent(event.stream, record.id, event.data))
-        finally:
-            for f in logs.values():
-                f.close()
-
-    def _finish(self, session: Session, record: ResponseRecord, result: Result) -> None:
-        record.status, record.answer, record.resume = status_of(result), result.answer, result.resume
-        record.usage, record.cost_usd, record.output = dict(result.usage), result.cost_usd, dict(result.output)
-        record.exit_code, record.base, record.commit = result.outcome.code, result.base, result.commit
-        if result.stop:
-            record.stop = "killed" if result.outcome.kind == "killed" else "stopped"
-        record.undelivered = [s["input"] for s in record.steers[result.steers:]]
-        record.home = {p: None if c is None else encode(c) for p, c in result.home.items()}
-        if record.status == "failed":
-            code = "failed_to_start" if result.outcome.kind == "failed" else "harness_failed"
-            record.error = {"code": code, "message": result.answer or f"the harness ended {result.outcome.kind}"}
-        session.resume = result.resume or session.resume
-        self._ended(session, record)
-
-    def _unstarted(self, session: Session, record: ResponseRecord, status: str, stop: str | None = None,
-                   error: tuple[str, str] | None = None) -> None:
-        record.status, record.stop = status, stop
-        record.error = {"code": error[0], "message": error[1]} if error else None
-        record.undelivered = [s["input"] for s in record.steers]
-        self._ended(session, record)
-
-    def _ended(self, session: Session, record: ResponseRecord) -> None:
-        record.latency_s = round(time.time() - record.created_at, 3)
-        self.records.put(record.id, record)
-        session.updated_at = time.time()
-        self.store.put(session.id, session)
-        self._feeds[session.id].publish(SessionEvent("completed", record.id, record=copy.deepcopy(record)))
-
-    def _next(self, session: Session, record: ResponseRecord, result: Result | None) -> Live | None:
-        """What continues the session now: an interrupt's text, and the steers it didn't take if it ended ok."""
-        sid = session.id
-        if sid in self._halted:
-            return None
-        pending = self._pending.pop(sid, None)
-        texts = (record.undelivered if result and result.status == "ok" else []) + (pending.texts if pending else [])
-        if not texts:
-            return None
-        instructions = record.request.get("instructions", "")
-        if pending and pending.instructions is not None:
-            instructions = pending.instructions
-        ask = Ask(record.model, "\n".join(texts), instructions=instructions)
-        request = Request(ask.task, resume=session.resume, instructions=instructions, model=session.model)
-        live = self._new_response(session, record.model, ask, request, record.id,
-                                  interrupted=pending.outcome if pending else "continued")
-        if pending:
-            self._log_interrupt(sid, input="\n".join(pending.texts), outcome=pending.outcome,
-                                response=live.record.id)
-            pending.future.set_result(copy.deepcopy(live.record))
-        return live
-
-    def _drop_pending(self, sid: str) -> None:
-        if (pending := self._pending.pop(sid, None)) and not pending.future.done():
-            pending.future.set_exception(Conflict(f"session {sid} was stopped before it could continue"))
-
-    def _log_interrupt(self, sid: str, **entry: Any) -> None:
-        session = self._current(sid)
-        session.interrupts.append({"at": time.time(), **entry})
-        self.store.put(sid, session)
-
-    def _log(self, rid: str, stream: str) -> bytes:
-        p = self.logs / f"{rid}.{stream}"
-        return p.read_bytes() if p.is_file() else b""
-
-    async def _replay(self, record: ResponseRecord) -> AsyncIterator[SessionEvent]:
-        """A finished response's events, from its record and logs."""
-        yield SessionEvent("created", record.id, record=record)
-        for stream in ("stdout", "stderr"):
-            if data := self._log(record.id, stream):
-                yield SessionEvent(stream, record.id, data)
-        for steer in record.steers:
-            yield SessionEvent("steer", record.id, steer["input"].encode(), at=steer["at"])
-        yield SessionEvent("completed", record.id, record=record)
+        for live in list(self._live.values()):
+            if live.execution:
+                live.execution.kill()
+            elif live.task:
+                live.task.cancel()
+        await asyncio.gather(*(l.task for l in self._live.values() if l.task), return_exceptions=True)

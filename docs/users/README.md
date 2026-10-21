@@ -1,33 +1,20 @@
-# Using harness-interface
+# User docs
 
-harness-interface runs coding harnesses (Claude Code, Codex, pi, OpenCode, Hermes, or your own) in a
-sandbox, as sessions you can continue, steer and stop. Use it two ways:
-- **the server**, an OpenAI Responses-compatible HTTP API, from any language or the OpenAI SDK;
-- **the library**, from Python, with no server at all.
+harness-interface is a multi-tenant harness server. An org registers its model providers, its
+sandboxes and its harness folders; its members drive those harnesses through the OpenAI Responses
+API, stateful or stateless, and get everything the harness printed back. The server runs the script,
+relays the bytes and remembers both; it knows nothing about any CLI.
 
-**New here?** Start with [Getting started](getting-started.md).
-
-## Guides
-
-| | |
+| Read | When |
 |---|---|
-| [Getting started](getting-started.md) | install, run a harness, continue its session, steer it |
-| [How it works](how-it-works.md) | who owns what, the words, one response from start to end, when it fits |
-| [Install, upgrade and uninstall](install.md) | requirements, the installer, running from source |
-| [Providers](providers.md) | add a provider, and run a harness on any provider it can speak |
-| [Harness folders](harnesses.md) | the shipped harnesses, config and work artifacts, and writing your own |
-| [Calling the API from code](api-clients.md) | curl, the OpenAI SDK, streaming, interrupts, agents and loops |
-| [The Python library](library.md) | the same, with no server |
-| [Troubleshooting](troubleshooting.md) | what an error means, and what to do about it |
-
-## Reference
-
-| | |
-|---|---|
-| [HTTP API](api.md) | every route, the request and response, streaming, sessions |
-| [Harness contract](harness-contract.md) | `harness.json`, what a harness is given and gives back |
-| [Configuration](configuration.md) | environment variables, where data lives |
-| [Security](security.md) | the sandbox, the egress door and gateway, keys, and what isn't protected |
-
-The shipped harness folders are in [harnesses/](../../harnesses/README.md). To work on
-harness-interface itself, see [docs/contributors](../contributors/README.md).
+| [Getting started](getting-started.md) | You want a server running and a first request answered, in ten minutes. |
+| [Multi-tenant setup](multi-tenant.md) | You host it for many orgs, or run it self-hosted for one. Orgs, members, keys, roles, quotas. |
+| [Providers](providers.md) | Adding a model endpoint and its key. |
+| [Sandboxes](sandboxes.md) | Adding an image or a Dockerfile, egress and limits. |
+| [The harness template](harness-template.md) | The folder: `harness.json`, `install.sh`, `request.sh`, `seeds/`. Two worked examples. |
+| [Requests](requests.md) | The Responses API: overrides, files in, output and artifacts out, sessions, steer, cancel, traces. |
+| [Building on it](building-on-it.md) | Interactive sessions, agents, loops and a software factory, as programs against the API. |
+| [Security](security.md) | What a sandbox can reach, where keys live, what to protect. |
+| [API reference](api.md) | Every route, in one table. |
+| [Configuration](configuration.md) | The server's environment variables. |
+| [Troubleshooting](troubleshooting.md) | What a failed response says and what to do. |

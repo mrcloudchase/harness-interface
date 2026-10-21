@@ -21,8 +21,8 @@ from openai import OpenAI
 
 MAKE = "Create a file named hello.txt in the current directory containing exactly the word hello. Then reply with the one word: done"
 RECALL = "What file did you create in the previous turn? Reply with just its name."
-COUNT = ("Write the numbers 1 to 40 to count.txt, one per line, with a separate shell tool call for each number: "
-         "each call appends one number and then runs `sleep 1`. Never use a loop, and never write two numbers in one call.")
+COUNT = ("Write the numbers 1 to 60 to count.txt, one per line, with a separate shell tool call for each number: "
+         "each call appends one number and then runs `sleep 2`. Never use a loop, and never write two numbers in one call.")
 STEER = "Stop counting now. Reply with the one word: stopped"
 
 
@@ -56,8 +56,20 @@ def main() -> int:
               if e.type == "response.output_text.delta"]
     check("stream", any("streamed" in d.lower() for d in deltas) and len(deltas) > 1, "".join(deltas))
 
+    def running_for(rid: str, seconds: float) -> bool:
+        """Wait until the response has been running for `seconds`; False if it ended first."""
+        started = time.time()
+        while time.time() - started < 60:
+            if http.get(f"/v1/responses/{rid}").json()["status"] != "in_progress":
+                return False
+            if time.time() - started >= seconds:
+                return True
+            time.sleep(1)
+        return True
+
     r3 = sdk.responses.create(model=a.harness, input=COUNT, previous_response_id=r2.id, background=True)
-    time.sleep(25)
+    if not running_for(r3.id, 8):
+        print("NOTE the counting turn ended before a steer could land (the harness finished or refused it)")
     steer = http.post(f"/v1/sessions/{sid}/interrupt", json={"input": STEER})
     check("interrupt accepted", steer.status_code == 200, steer.text)
     for _ in range(120):
@@ -69,7 +81,8 @@ def main() -> int:
     check("steer", got["status"] == "completed" and "stopped" in text.lower(), text[-300:])
 
     r4 = sdk.responses.create(model=a.harness, input=COUNT, previous_response_id=r3.id, background=True)
-    time.sleep(15)
+    if not running_for(r4.id, 6):
+        print("NOTE the counting turn ended before a cancel could land")
     cancelled = http.post(f"/v1/responses/{r4.id}/cancel").json()
     check("cancel", cancelled["status"] == "cancelled", cancelled["status"])
     trace = http.get(f"/v1/sessions/{sid}/trace").json()["data"]

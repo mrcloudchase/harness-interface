@@ -5,7 +5,7 @@ pi (earendil-works), headless over `pi -p --mode json`. pi reads no base-URL var
 ## Verified
 
 `scripts/live.py` against a running server, sandbox `node22`, provider `deepseek`, model `deepseek-chat`:
-**0 of 9** checks passed ().
+**9 of 9** checks passed (make, recall, archive, stream, interrupt accepted, steer, cancel, trace, stateless).
 
 ## 1. Sandbox and provider
 

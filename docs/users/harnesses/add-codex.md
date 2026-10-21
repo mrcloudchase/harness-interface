@@ -5,7 +5,7 @@ OpenAI's Codex CLI, headless over `codex exec --json`, on any provider that spea
 ## Verified
 
 `scripts/live.py` against a running server, sandbox `node22`, provider `openai-responses`, model `gpt-5.4-mini`:
-**0 of 9** checks passed ().
+**9 of 9** checks passed (make, recall, archive, stream, interrupt accepted, steer, cancel, trace, stateless).
 
 ## 1. Sandbox and provider
 

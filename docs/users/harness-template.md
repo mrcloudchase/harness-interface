@@ -93,9 +93,28 @@ the seeds, upload it under your own name.
 <!-- harness-table -->
 | Harness | Sandbox | Provider | Checks | Note |
 |---|---|---|---|---|
-| [pi](harnesses/add-pi.md) | `node22` | `deepseek` (Anthropic Messages) | 0/9 |  |
+| [Claude Code](harnesses/add-claude-code.md) | `node22` | `deepseek` (Anthropic Messages) | 9/9 |  |
+| [Codex](harnesses/add-codex.md) | `node22` | `openai-responses` (OpenAI Responses) | 9/9 |  |
 | [Hermes Agent](harnesses/add-hermes.md) | `full` | `deepseek` (Anthropic Messages) | 0/9 |  |
-| [Codex](harnesses/add-codex.md) | `node22` | `openai-responses` (OpenAI Responses) | 0/9 |  |
+| [pi](harnesses/add-pi.md) | `node22` | `deepseek` (Anthropic Messages) | 9/9 |  |
+| [OpenCode](harnesses/add-opencode.md) | `full` | `deepseek` (Anthropic Messages) | 9/9 |  |
+| [Kilo CLI](harnesses/add-kilo.md) | `full` | `deepseek` (Anthropic Messages) | 9/9 |  |
+| [Qwen Code](harnesses/add-qwen-code.md) | `node22` | `deepseek-openai` (OpenAI chat) | 9/9 |  |
+| [Cline](harnesses/add-cline.md) | `node22` | `deepseek-openai` (OpenAI chat) | 9/9 | Headless Cline cannot resume a session (that needs its ACP mode). |
+| [Oh My Pi](harnesses/add-omp.md) | `full` | `deepseek` (Anthropic Messages) | 9/9 |  |
+| [goose](harnesses/add-goose.md) | `full` | `deepseek` (Anthropic Messages) | 9/9 |  |
+| [Kimi Code](harnesses/add-kimi-code.md) | `full` | `deepseek` (Anthropic Messages) | 9/9 |  |
+| [MiniMax Code](harnesses/add-minimax-code.md) | `full` | `deepseek` (Anthropic Messages) | 9/9 |  |
+| [aider](harnesses/add-aider.md) | `full` | `deepseek-openai` (OpenAI chat) | 6/9 | aider has no shell tool: a task that asks it to run a command is answered with a script to run instead, so the turn ends at once and the steer finds nothing to interrupt. That is aider's shape, not a platform fault; cancel and the rest work. |
+| [OpenHands](harnesses/add-openhands.md) | `py312` | `openai` (OpenAI chat) | 9/9 |  |
+| [Grok Build](harnesses/add-grok.md) | `full` | `deepseek-openai` (OpenAI chat) | 9/9 |  |
+| [CheetahClaws](harnesses/add-cheetahclaws.md) | `full` | `openai` (OpenAI chat) | 8/9 | Headless CheetahClaws starts from an empty state every run (resume is a REPL command), so each turn is a fresh conversation in the same workspace. |
+| [MiMo Code](harnesses/add-mimo.md) | `node22` | `deepseek` (Anthropic Messages) | 9/9 |  |
+| [jcode](harnesses/add-jcode.md) | `full` | `deepseek` (Anthropic Messages) | 9/9 |  |
+| [OpenSquilla](harnesses/add-opensquilla.md) | `py312` | `deepseek` (Anthropic Messages) | 9/9 |  |
+| [nanobot](harnesses/add-nanobot.md) | `full` | `deepseek` (Anthropic Messages) | 9/9 |  |
+| [zeroclaw](harnesses/add-zeroclaw.md) | `full` | `deepseek-openai` (OpenAI chat) | 7/9 | One-shot zeroclaw keeps no conversation between runs (resume needs its ACP server), so each turn starts fresh in the same workspace, and it prints its answer in one write at the end, so a streamed response arrives as one chunk. |
+| [DeepSeek Harness](harnesses/add-dsh.md) | `node22` | `deepseek` (Anthropic Messages) | 9/9 |  |
 
 Not on the list, and why:
 

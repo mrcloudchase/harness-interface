@@ -58,7 +58,8 @@ requests run on. The CLI is installed the first time the harness runs in a sandb
 
 ## 5. Make a request
 
-Any OpenAI Responses client works. `model` is the harness's name.
+Any OpenAI Responses client works. `model` is the harness's name, which takes the folder's defaults,
+or `sandbox/harness/provider/model` to choose all four.
 
 ```bash
 curl -s $HI/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
@@ -75,7 +76,7 @@ print(r.status, r.output_text)
 ```
 
 The response's `output` is two messages: everything `request.sh` wrote to stdout, then everything
-it wrote to stderr. `status` is `completed` when it exited 0. `metadata.session_id` names the
+it wrote to stderr. `status` is `completed` when it exited 0; `model` is the full path of what ran. `metadata.session_id` names the
 session; send `previous_response_id` to continue it. [Requests](requests.md) has the rest:
 overrides, files, streaming, steering, cancelling, the trace and the archive.
 

@@ -35,8 +35,8 @@ harness-interface is the server behind that:
 - **Orgs bring everything.** A provider is an endpoint and a key. A sandbox is an image or a
   Dockerfile. A harness is a folder: `harness.json`, `install.sh`, `request.sh` and seed files in the
   CLI's own formats. The server ships none of them and reads none of the CLI's configuration.
-- **One request shape.** `POST /v1/responses`, as any OpenAI Responses client sends it. `model`
-  names the harness; `metadata` picks the sandbox, provider and model; `previous_response_id`
+- **One request shape.** `POST /v1/responses`, as any OpenAI Responses client sends it. `model` is
+  `sandbox/harness/provider/model`, or just the harness for its defaults; `previous_response_id`
   continues the session; `store: false` keeps nothing. The output is what the script printed,
   stdout and stderr, streamed or whole. Steer a running turn, cancel it, read the trace, download the
   workspace.
@@ -59,7 +59,7 @@ Register a provider, a sandbox and a harness folder, then ask:
 
 ```bash
 curl -s localhost:8000/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
-  -d '{"model": "claude-code", "input": "Create hello.py that prints hello, run it, and say done."}'
+  -d '{"model": "node22/claude-code/anthropic/deepseek-chat", "input": "Create hello.py that prints hello, run it, and say done."}'
 ```
 
 [Getting started](docs/users/getting-started.md) walks through all of it in ten minutes, and
@@ -83,10 +83,10 @@ Two folders with different seeds are two harnesses: `claude-code-app1`, `claude-
 ## What comes back
 
 ```json
-{"id": "resp_…", "status": "completed", "model": "claude-code",
+{"id": "resp_…", "status": "completed", "model": "node22/claude-code/deepseek/deepseek-chat",
  "output": [{"type": "message", "content": [{"type": "output_text", "text": "…stdout…"}]},
             {"type": "message", "content": [{"type": "output_text", "text": "…stderr…"}]}],
- "metadata": {"session_id": "sess_…", "sandbox": "node22", "provider": "deepseek", "model": "deepseek-chat", "turn": "1", "exit_code": "0"}}
+ "metadata": {"session_id": "sess_…", "harness": "claude-code", "version": "929aa748cf90e7cb", "turn": "1", "exit_code": "0"}}
 ```
 
 Exit 0 is `completed`; anything else is `failed` with the code. Nothing is parsed or dropped. A loop,

@@ -17,7 +17,7 @@ from typing import AsyncIterator, Sequence
 
 from .execution import Event, Outcome, Spec
 from .harness import Config
-from .runtimes.docker import DockerRuntime, Images, Provider, whole
+from .runtimes.docker import DockerRuntime, Images, Provider, sweep, whole
 from .store import Sandbox
 
 MARKER = ".hi-installed"
@@ -61,6 +61,10 @@ class Runtimes:
 
     def __init__(self, logs: Path, ca_file: Path | None, owner: str):
         self.images, self.ca_file, self.owner = Images(logs), ca_file, owner
+
+    async def recover(self) -> None:
+        """Remove what this server's runs left behind when a crash cut them off."""
+        await sweep(self.owner)
 
     async def image_for(self, sandbox: Sandbox) -> str:
         if sandbox.dockerfile:

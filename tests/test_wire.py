@@ -23,12 +23,17 @@ def record(**kw) -> Record:
 
 def test_request_to_ask():
     req = wire.ResponseRequest(model="cc", input="do it", instructions="care", previous_response_id="resp_1",
-                               store=False, metadata={"sandbox": "gpu", "model": "m2", "team": "x"},
-                               temperature=0.2, tools=[])
+                               store=False, metadata={"team": "x"}, temperature=0.2, tools=[])
     a = req.ask(DEV)
     assert (a.org, a.member, a.harness, a.prompt, a.instructions) == ("acme", "dev", "cc", "do it", "care")
-    assert (a.sandbox, a.provider, a.model, a.previous, a.store) == ("gpu", "", "m2", "resp_1", False)
+    assert (a.sandbox, a.provider, a.model, a.previous, a.store) == ("", "", "", "resp_1", False)
     assert a.body["input"] == "do it" and "temperature" not in a.body and a.metadata["team"] == "x"
+    a = wire.ResponseRequest(model="gpu/cc/prov/vendor/m2", input="x").ask(DEV)
+    assert (a.sandbox, a.harness, a.provider, a.model) == ("gpu", "cc", "prov", "vendor/m2")
+    assert wire.ResponseRequest(model="gpu/cc/prov/", input="x").ask(DEV).model == ""
+    for bad in ("", "cc/prov", "cc/prov/m", "/cc/prov/m", "gpu//prov/m"):
+        with pytest.raises(ValidationError):
+            wire.ResponseRequest(model=bad, input="x")
 
 
 def test_request_files_and_messages():
@@ -51,12 +56,12 @@ def test_request_files_and_messages():
 
 def test_response_object():
     r = wire.response(record(status="completed", stdout="out\n", stderr="err\n", exit_code=0))
-    assert r["object"] == "response" and r["status"] == "completed" and r["model"] == "cc" and r["error"] is None
+    assert r["object"] == "response" and r["status"] == "completed" and r["model"] == "box/cc/prov/m1" and r["error"] is None
     assert [m["content"][0]["text"] for m in r["output"]] == ["out\n", "err\n"]
     assert all(m["type"] == "message" and m["role"] == "assistant" and m["status"] == "completed" for m in r["output"])
     assert r["output"][0]["id"] != r["output"][1]["id"] and r["output"][0]["id"].startswith("msg_")
     assert r["metadata"] == {"team": "x", "session_id": "sess_" + "b" * 32, "harness": "cc", "version": "0" * 16,
-                             "sandbox": "box", "provider": "prov", "model": "m1", "turn": "1", "exit_code": "0"}
+                             "turn": "1", "exit_code": "0"}
     assert r["created_at"] == 1700000000 and r["usage"] is None
     failed = wire.response(record(status="failed", exit_code=3, error="request.sh exited 3"))
     assert failed["error"] == {"code": "exit_status", "message": "request.sh exited 3"}

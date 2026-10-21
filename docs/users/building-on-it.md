@@ -13,7 +13,8 @@ stop it, and download the workspace at any point.
 ```python
 from openai import OpenAI
 hi = OpenAI(api_key=KEY, base_url=f"{URL}/v1")
-r = hi.responses.create(model="claude-code-devteam", input="Read the repo and propose a plan for issue 42.")
+r = hi.responses.create(model="py312/claude-code-devteam/anthropic/deepseek-chat",
+                        input="Read the repo and propose a plan for issue 42.")
 r = hi.responses.create(model="claude-code-devteam", input="Do step 1.", previous_response_id=r.id)
 ```
 

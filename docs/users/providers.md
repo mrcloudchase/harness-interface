@@ -40,7 +40,7 @@ its config.
 
 ## Which provider a request uses
 
-`harness.json` names a default; a request overrides it with `metadata.provider`. The provider must
+`harness.json` names a default; a request's `model` of `sandbox/harness/provider/model` names another. The provider must
 serve the API shape the CLI speaks: Claude Code speaks Anthropic Messages, so it needs an
-`anthropic-messages` provider, which DeepSeek, Anthropic and most aggregators offer. A model name
-goes with it: `metadata.model`, or the harness's default, reaches the run as `HI_MODEL`.
+`anthropic-messages` provider, which DeepSeek, Anthropic and most aggregators offer. The model
+name, the path's last segment or the harness's default, reaches the run as `HI_MODEL`.

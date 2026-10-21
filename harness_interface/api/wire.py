@@ -1,7 +1,9 @@
 """Layer 6: the OpenAI Responses wire format, and the only module that knows it. A request becomes an
-`Ask`; a record becomes a response object whose `output` is two messages, stdout then stderr, and
-whose status is the exit code's; a running record becomes the standard event stream. Nothing of
-the harness's output is read, dropped or reshaped: the bytes it wrote are the text."""
+`Ask`: its `model` is a harness name, or `sandbox/harness/provider/model` naming all four; a record
+becomes a response object whose `model` is the full path of what ran, whose `output` is two
+messages, stdout then stderr, and whose status is the exit code's; a running record becomes the
+standard event stream. Nothing of the harness's output is read, dropped or reshaped: the bytes it
+wrote are the text."""
 from __future__ import annotations
 
 import base64
@@ -15,7 +17,22 @@ from ..sessions import STREAMS, Ask, Record, SessionRecord
 from ..store import Member
 
 DATA_URL = "data:"
-OVERRIDES = ("sandbox", "provider", "model")       # metadata keys that override harness.json's defaults
+MODEL_FORM = "model is a harness name, or sandbox/harness/provider/model"
+
+
+def parse_model(model: str) -> tuple[str, str, str, str]:
+    """`model` as (sandbox, harness, provider, model): a bare harness name takes the folder's defaults;
+    the full path names all four, the model last so it may hold slashes of its own."""
+    parts = model.split("/", 3)
+    if len(parts) == 1 and parts[0]:
+        return "", parts[0], "", ""
+    if len(parts) == 4 and all(parts[:3]):
+        return parts[0], parts[1], parts[2], parts[3]
+    raise ValueError(MODEL_FORM)
+
+
+def model_path(sandbox: str, harness: str, provider: str, model: str) -> str:
+    return f"{sandbox}/{harness}/{provider}/{model}"
 
 
 class InputText(BaseModel):
@@ -82,7 +99,7 @@ class Input(BaseModel):
 
 
 class ResponseRequest(Input):
-    model: str                                       # the harness's name
+    model: str                                       # harness, or sandbox/harness/provider/model
     instructions: str | None = None
     previous_response_id: str | None = None
     store: bool = True
@@ -90,13 +107,18 @@ class ResponseRequest(Input):
     background: bool = False
     metadata: dict[str, str] | None = None
 
+    @field_validator("model")
+    @classmethod
+    def _well_formed(cls, v: str) -> str:
+        parse_model(v)
+        return v
+
     def ask(self, who: Member) -> Ask:
-        meta = self.metadata or {}
+        sandbox, harness, provider, model = parse_model(self.model)
         files = {p.filename: content(p.file_data) for p in parts(self.input) if isinstance(p, InputFile)}
-        return Ask(who.org, who.name, self.model, self.text, instructions=self.instructions or "", files=files,
-                   sandbox=meta.get("sandbox", ""), provider=meta.get("provider", ""), model=meta.get("model", ""),
-                   previous=self.previous_response_id, store=self.store, metadata=meta,
-                   body=self.model_dump(mode="json", exclude_none=True))
+        return Ask(who.org, who.name, harness, self.text, instructions=self.instructions or "", files=files,
+                   sandbox=sandbox, provider=provider, model=model, previous=self.previous_response_id,
+                   store=self.store, metadata=self.metadata or {}, body=self.model_dump(mode="json", exclude_none=True))
 
 
 class InterruptRequest(Input):
@@ -123,10 +145,10 @@ def response(r: Record) -> dict[str, Any]:
     error = {"code": "server_error" if r.exit_code is None else "exit_status", "message": r.error} \
         if r.status == "failed" else None
     incomplete = {"reason": "timeout"} if r.status == "incomplete" else None
-    meta = {**r.metadata, "session_id": r.session, "harness": r.harness, "version": r.version, "sandbox": r.sandbox,
-            "provider": r.provider, "model": r.model, "turn": str(r.turn),
+    meta = {**r.metadata, "session_id": r.session, "harness": r.harness, "version": r.version, "turn": str(r.turn),
             **({"exit_code": str(r.exit_code)} if r.exit_code is not None else {})}
-    return {"id": r.id, "object": "response", "created_at": int(r.created), "status": r.status, "model": r.harness,
+    return {"id": r.id, "object": "response", "created_at": int(r.created), "status": r.status,
+            "model": model_path(r.sandbox, r.harness, r.provider, r.model),
             "previous_response_id": r.previous, "store": r.store, "error": error, "incomplete_details": incomplete,
             "instructions": None, "metadata": meta,
             "output": [message(r.id, s, getattr(r, s), done) for s in STREAMS],

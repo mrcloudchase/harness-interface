@@ -11,7 +11,7 @@ relays the bytes and remembers both; it knows nothing about any CLI.
 | [Multi-tenant setup](multi-tenant.md) | You host it for many orgs, or run it self-hosted for one. Orgs, members, keys, roles, quotas. |
 | [Providers](providers.md) | Adding a model endpoint and its key. |
 | [Sandboxes](sandboxes.md) | Adding an image or a Dockerfile, egress and limits. |
-| [The harness template](harness-template.md) | The folder: `harness.json`, `install.sh`, `request.sh`, `seeds/`. Two worked examples. |
+| [The harness template](harness-template.md) | The folder: `harness.json`, `install.sh`, `request.sh`, `seeds/`; a table of verified harnesses, each with [its own page](harnesses/). |
 | [Requests](requests.md) | The Responses API: overrides, files in, output and artifacts out, sessions, steer, cancel, traces. |
 | [Building on it](building-on-it.md) | Interactive sessions, agents, loops and a software factory, as programs against the API. |
 | [Security](security.md) | What a sandbox can reach, where keys live, what to protect. |

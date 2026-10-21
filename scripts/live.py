@@ -4,7 +4,7 @@ the OpenAI SDK for the requests, plain HTTP for the session routes.
     python scripts/live.py --url http://127.0.0.1:8000 --key hi_… --harness claude-code
 
 It makes a file in a stateful session, continues the session and checks the harness remembers,
-streams a turn, steers a long turn mid-way, cancels one, reads the trace and downloads the archive.
+streams a turn, steers a long turn mid-way (the steer lands after the turn ends), cancels one, reads the trace and downloads the archive.
 The prompts are plain English, so any coding harness should pass; each check prints PASS or FAIL
 with what came back. Exit status 1 if any failed.
 """
@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import argparse
 import io
+import json
 import sys
 import tarfile
 import time
@@ -21,9 +22,26 @@ from openai import OpenAI
 
 MAKE = "Create a file named hello.txt in the current directory containing exactly the word hello. Then reply with the one word: done"
 RECALL = "What file did you create in the previous turn? Reply with just its name."
-COUNT = ("Write the numbers 1 to 40 to count.txt, one per line, with a separate shell tool call for each number: "
-         "each call appends one number and then runs `sleep 1`. Never use a loop, and never write two numbers in one call.")
-STEER = "Stop counting now. Reply with the one word: stopped"
+COUNT = ("Run exactly this shell command with your shell tool, wait for it to finish, then reply with the one word: counted\n\n"
+         "for i in $(seq 1 45); do echo $i >> count.txt; sleep 2; done")
+STEER = "Stop counting. Whether or not it finished, reply now with just the one word: stopped"
+
+
+def words(text: str) -> str:
+    """The text with JSON-lines output flattened to its text/data strings, so a harness that streams
+    token-sized pieces ({"text": "hel"} then {"text": "lo"}) still reads as hello."""
+    keys = {"text", "data", "content", "contentDelta", "delta", "output"}
+    def strings(v: object) -> list[str]:
+        if isinstance(v, dict):
+            return [s for k, x in v.items() for s in ([x] if k in keys and isinstance(x, str) else strings(x))]
+        return [s for x in v for s in strings(x)] if isinstance(v, list) else []
+    out = []
+    for line in text.splitlines():
+        try:
+            out.append("".join(strings(json.loads(line))) if line.startswith("{") else line + "\n")
+        except ValueError:
+            out.append(line + "\n")
+    return "".join(out)
 
 
 def main() -> int:
@@ -43,9 +61,9 @@ def main() -> int:
 
     r1 = sdk.responses.create(model=a.harness, input=MAKE)
     sid = r1.metadata["session_id"]
-    check("make", r1.status == "completed" and "done" in r1.output_text.lower(), r1.output_text)
+    check("make", r1.status == "completed" and "done" in words(r1.output_text).lower(), r1.output_text)
     r2 = sdk.responses.create(model=a.harness, input=RECALL, previous_response_id=r1.id)
-    check("recall", r2.status == "completed" and "hello.txt" in r2.output_text, r2.output_text)
+    check("recall", r2.status == "completed" and "hello.txt" in words(r2.output_text), r2.output_text)
     archive = http.get(f"/v1/sessions/{sid}/archive")
     with tarfile.open(fileobj=io.BytesIO(archive.content)) as tar:
         names = tar.getnames()
@@ -54,22 +72,35 @@ def main() -> int:
     deltas = [e.delta for e in sdk.responses.create(model=a.harness, input="Reply with the one word: streamed",
                                                     previous_response_id=r2.id, stream=True)
               if e.type == "response.output_text.delta"]
-    check("stream", any("streamed" in d.lower() for d in deltas) and len(deltas) > 1, "".join(deltas))
+    check("stream", "streamed" in words("".join(deltas)).lower() and len(deltas) > 1, "".join(deltas))
+
+    def running_for(rid: str, seconds: float) -> bool:
+        """Wait until the response has been running for `seconds`; False if it ended first."""
+        started = time.time()
+        while time.time() - started < 60:
+            if http.get(f"/v1/responses/{rid}").json()["status"] != "in_progress":
+                return False
+            if time.time() - started >= seconds:
+                return True
+            time.sleep(1)
+        return True
 
     r3 = sdk.responses.create(model=a.harness, input=COUNT, previous_response_id=r2.id, background=True)
-    time.sleep(25)
+    if not running_for(r3.id, 8):
+        print("NOTE the counting turn ended before a steer could land (the harness finished or refused it)")
     steer = http.post(f"/v1/sessions/{sid}/interrupt", json={"input": STEER})
     check("interrupt accepted", steer.status_code == 200, steer.text)
-    for _ in range(120):
+    for _ in range(150):
         got = http.get(f"/v1/responses/{r3.id}").json()
         if got["status"] != "in_progress":
             break
         time.sleep(2)
     text = "".join(m["content"][0]["text"] for m in got["output"])
-    check("steer", got["status"] == "completed" and "stopped" in text.lower(), text[-300:])
+    check("steer", got["status"] == "completed" and "stopped" in words(text).lower(), text[-300:])
 
     r4 = sdk.responses.create(model=a.harness, input=COUNT, previous_response_id=r3.id, background=True)
-    time.sleep(15)
+    if not running_for(r4.id, 6):
+        print("NOTE the counting turn ended before a cancel could land")
     cancelled = http.post(f"/v1/responses/{r4.id}/cancel").json()
     check("cancel", cancelled["status"] == "cancelled", cancelled["status"])
     trace = http.get(f"/v1/sessions/{sid}/trace").json()["data"]

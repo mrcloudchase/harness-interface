@@ -63,7 +63,7 @@ curl -s localhost:8000/v1/responses -H "Authorization: Bearer $KEY" -H 'content-
 ```
 
 [Getting started](docs/users/getting-started.md) walks through all of it in ten minutes, and
-[the harness template](docs/users/harness-template.md) has a working Claude Code folder to copy.
+[the harness template](docs/users/harness-template.md) lists the verified harnesses, each with [a folder to copy](docs/users/harnesses/).
 
 ## The folder
 

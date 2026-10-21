@@ -45,8 +45,9 @@ curl -s -X PUT $HI/v1/sandboxes/node22 -H "Authorization: Bearer $KEY" -H 'conte
 ## 4. Add a harness
 
 A harness is a folder you upload: how to install the CLI, how to run one turn, and the seed files
-for its config. Copy the Claude Code example from [the harness template](harness-template.md) into a
-directory, then:
+for its config. Copy the folder from [Add Claude Code](harnesses/add-claude-code.md) into a
+directory, set `defaults` in its `harness.json` to the provider from step 2 and a model it serves
+(`{"sandbox": "node22", "provider": "anthropic", "model": "<model id>"}`), then:
 
 ```bash
 tar czf claude-code.tgz -C claude-code .

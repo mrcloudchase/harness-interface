@@ -1,116 +1,92 @@
 # Getting started
 
-By the end you will have run Claude Code in a sandbox through the API, continued its session, steered
-it while it worked, and read everything it did. It takes about ten minutes.
+Ten minutes: a server, an org, a provider, a sandbox, a harness and a request. This is the
+self-hosted path; a hosted platform differs only in how an org is created
+([multi-tenant setup](multi-tenant.md)).
 
-**You need:** Linux or macOS, git, Docker (running), and an Anthropic API key (or any provider that
-serves the Anthropic Messages shape).
+You need Docker running and [uv](https://docs.astral.sh/uv/).
 
-## 1. Install and start the server
+## 1. Install and initialize
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mrcloudchase/harness-interface/main/install.sh | sh
-harness-interface
+uv tool install "git+https://github.com/mrcloudchase/harness-interface@v3.0.0"
+harness-interface init --org acme --owner chase
 ```
 
-The server runs in the foreground on `http://127.0.0.1:8000`, for you only: it has no authentication.
-It keeps what it stores in `~/.harness-interface/data`. Leave it running and open another terminal.
+`init` writes a master key to `~/.harness-interface/data/master.key`, creates the org `acme` with
+`chase` as its owner, and prints the owner's API key once. Keep it: it is how you register things.
+
+```bash
+harness-interface serve
+```
+
+The server listens on `127.0.0.1:8000`. Put TLS in front of it before anyone else reaches it.
 
 ## 2. Add a provider
 
-A provider is where a harness's model calls go, and the key for them:
+A provider is a model endpoint and its key. The key is sealed on arrival and never shown again.
 
 ```bash
-export ANTHROPIC_API_KEY=sk-ant-...
-python3 -c 'import json, os; print(json.dumps({"url": "https://api.anthropic.com",
-  "api": "anthropic-messages", "key": os.environ["ANTHROPIC_API_KEY"]}))' \
-| curl -s -X PUT localhost:8000/providers/anthropic -H 'content-type: application/json' -d @-
+export HI="http://127.0.0.1:8000" KEY="hi_…"
+curl -s -X PUT $HI/v1/providers/anthropic -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
+  -d '{"url": "https://api.anthropic.com", "api": "anthropic-messages", "key": "sk-ant-…"}'
 ```
 
-```json
-{"name": "anthropic", "url": "https://api.anthropic.com", "api": "anthropic-messages"}
-```
+## 3. Add a sandbox
 
-The key is stored privately and never shown again. In a sandbox the harness never sees it either: it
-gets a session token that the sandbox's gateway swaps for the key.
-
-## 3. Add a harness
-
-A harness is a folder. Get the shipped ones, and register Claude Code with the snippet from
-[harnesses/README.md](../../harnesses/README.md#register-one):
+A sandbox is an image with nothing of ours in it, plus the hosts a run may reach besides its
+provider, and limits.
 
 ```bash
-git clone https://github.com/mrcloudchase/harness-interface && cd harness-interface
-python3 - <<'EOF'
-import base64, json, pathlib, urllib.request
-root = pathlib.Path("harnesses/claude-code")
-files = {}
-for p in sorted(root.rglob("*")):
-    if p.is_file():
-        data = p.read_bytes()
-        try:
-            files[p.relative_to(root).as_posix()] = data.decode()
-        except UnicodeDecodeError:
-            files[p.relative_to(root).as_posix()] = {"base64": base64.b64encode(data).decode()}
-req = urllib.request.Request("http://127.0.0.1:8000/harnesses/claude-code", method="PUT",
-                             data=json.dumps(files).encode(), headers={"content-type": "application/json"})
-print(json.load(urllib.request.urlopen(req))["install"])
-EOF
+curl -s -X PUT $HI/v1/sandboxes/node22 -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
+  -d '{"image": "node:22-bookworm-slim", "egress": [], "memory": "4g", "pids": 512}'
 ```
 
-Its install starts in the background: the first time, the server builds a small base image (about
-400 MB, a minute or two) and installs Claude Code into a cached tools directory. Check on it:
+## 4. Add a harness
+
+A harness is a folder you upload: how to install the CLI, how to run one turn, and the seed files
+for its config. Copy the Claude Code example from [the harness template](harness-template.md) into a
+directory, then:
 
 ```bash
-curl -s localhost:8000/harnesses/claude-code | python3 -c 'import json,sys; print(json.load(sys.stdin)["install"]["state"])'
+tar czf claude-code.tgz -C claude-code .
+curl -s -X PUT $HI/v1/harnesses/claude-code -H "Authorization: Bearer $KEY" --data-binary @claude-code.tgz
 ```
 
-When it says `ready`, every session after starts in seconds.
+The server validates the folder, stores it by the digest of its files, and makes it the version
+requests run on. The CLI is installed the first time the harness runs in a sandbox, then cached.
 
-## 4. Run it
+## 5. Make a request
+
+Any OpenAI Responses client works. `model` is the harness's name.
 
 ```bash
-curl -s localhost:8000/responses -H 'content-type: application/json' \
-  -d '{"model": "claude-code", "input": "Write hello.py that prints hello, and run it.",
-       "instructions": "Be brief."}' > first.json
-python3 -c 'import json; r = json.load(open("first.json")); print(r["status"], r["output"][0]["content"][0]["text"])'
+curl -s $HI/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
+  -d '{"model": "claude-code", "input": "Create hello.py that prints hello, run it, and say done."}'
 ```
 
-Claude Code ran in a fresh, locked-down container whose only way out was a gateway to `api.anthropic.com`,
-holding a session token rather than your key.
-The response has everything it did under `harness`: its own output (`stdout`), the files it changed
-(`changes`, with their contents), a diff, the session id and its resume handle.
+Or from Python:
 
-## 5. Continue the session
+```python
+from openai import OpenAI
+client = OpenAI(api_key="hi_…", base_url="http://127.0.0.1:8000/v1")
+r = client.responses.create(model="claude-code", input="Create hello.py that prints hello, run it, and say done.")
+print(r.status, r.output_text)
+```
+
+The response's `output` is two messages: everything `request.sh` wrote to stdout, then everything
+it wrote to stderr. `status` is `completed` when it exited 0. `metadata.session_id` names the
+session; send `previous_response_id` to continue it. [Requests](requests.md) has the rest:
+overrides, files, streaming, steering, cancelling, the trace and the archive.
+
+## 6. Add members
+
+The owner's key does everything in the org. Give each person their own key:
 
 ```bash
-curl -s localhost:8000/responses -H 'content-type: application/json' \
-  -d "{\"model\": \"claude-code\", \"input\": \"Now make it print goodbye too.\",
-       \"previous_response_id\": \"$(python3 -c 'import json; print(json.load(open("first.json"))["id"])')\"}" \
-| python3 -c 'import json,sys; r = json.load(sys.stdin); print(r["status"], r["harness"]["changes"])'
+curl -s -X POST $HI/v1/members -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"name": "dev"}'
+curl -s -X POST $HI/v1/members/dev/keys -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"label": "laptop"}'
 ```
 
-Same workspace, same `hello.py`, and Claude Code resumed its own conversation.
-
-## 6. Steer it while it works
-
-Start something long, streamed, and put more text into it while it runs:
-
-```bash
-curl -sN localhost:8000/responses -H 'content-type: application/json' -D headers.txt \
-  -d '{"model": "claude-code", "stream": true,
-       "input": "Write the numbers 1 to 30 to count.txt, one shell command per number, each followed by sleep 1. No loops."}' &
-sleep 15
-SESSION=$(grep -i x-session-id headers.txt | cut -d' ' -f2 | tr -d '\r')
-curl -s localhost:8000/sessions/$SESSION/interrupt -H 'content-type: application/json' \
-  -d '{"input": "Stop counting now. Write DONE to done.txt instead."}'
-```
-
-The reply's `outcome` is `steered`: the text went into the running work, and Claude Code stops counting
-at its next step. `POST /sessions/$SESSION/stop` stops it instead, gracefully.
-
-## Next
-
-- [Harness folders](harnesses.md): configure a harness your way, or write one.
-- [Calling the API from code](api-clients.md): the OpenAI SDK, streaming, agents and loops.
-- [The Python library](library.md): the same, with no server.
+A member reads the org's providers, sandboxes and harnesses, makes requests, and sees only their own
+sessions. Their harness `$HOME` is theirs, seeded from the folder on first use.

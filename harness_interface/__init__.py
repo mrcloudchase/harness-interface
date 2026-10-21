@@ -1,18 +1,20 @@
-"""harness-interface: run any coding harness in a locked-down sandbox.
+"""harness-interface: a multi-tenant harness server. Orgs register providers, sandboxes and harness
+folders; members make OpenAI Responses requests that run `request.sh` in a sandbox against a
+provider; the output comes back as the response.
 
-The library's public API is layers 0 to 5, so Python callers need no server; the server (layer 6,
-`harness_interface.api`) is built on it."""
+Python callers use the layers directly: Store, Runtimes and Sessions; the server (`harness_interface.api`)
+is built on them."""
 from .errors import Conflict, Invalid, NotFound
 from .execution import Event, Execution, NeverStarted, Outcome, Runtime, Spec
-from .harness import (HarnessFolder, InstallFailed, Installed, Installer, Placement, Request, Response, Result,
-                      check_provider_url, session_token)
-from .runtimes import DockerRuntime, Images, LocalRuntime, Provider, owner_of
-from .sessions import Artifacts, Ask, ResponseRecord, Session, SessionEvent, Sessions
-from .store import InstallState, JsonStore, ProviderEntry, Registry
-from .workspace import Workspace
+from .harness import Config, load_config
+from .runtimes import ContainerExecution, DockerRuntime, Images, Provider, owner_of
+from .sandboxes import InstallFailed, Runtimes
+from .secrets import Vault
+from .sessions import Ask, Record, SessionRecord, Sessions, session_token
+from .store import ApiKey, Harness, Member, Org, Sandbox, Store
+from .store import Provider as ProviderRecord
 
-__all__ = ["Artifacts", "Ask", "Conflict", "DockerRuntime", "Event", "Execution", "HarnessFolder", "Images",
-           "InstallFailed", "InstallState", "Installed", "Installer", "Invalid", "JsonStore", "LocalRuntime",
-           "NeverStarted", "NotFound", "Outcome", "Placement", "Provider", "ProviderEntry", "Registry", "Request",
-           "Response", "ResponseRecord", "Result", "Runtime", "Session", "SessionEvent", "Sessions", "Spec",
-           "Workspace", "check_provider_url", "owner_of", "session_token"]
+__all__ = ["ApiKey", "Ask", "Config", "Conflict", "ContainerExecution", "DockerRuntime", "Event", "Execution",
+           "Harness", "Images", "InstallFailed", "Invalid", "Member", "NeverStarted", "NotFound", "Org", "Outcome",
+           "Provider", "ProviderRecord", "Record", "Runtime", "Runtimes", "Sandbox", "SessionRecord", "Sessions",
+           "Spec", "Store", "Vault", "load_config", "owner_of", "session_token"]

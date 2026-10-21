@@ -1,12 +1,7 @@
 # Contributing
 
-Thank you for helping. Everything you need is in [docs/contributors](docs/contributors/README.md): the
-architecture, how to set up and test, where each kind of change goes, the conventions, and how a merge
-becomes a release.
-
-```bash
-uv run --extra dev pytest          # no Docker or keys needed
-```
-
-New harnesses are the easiest place to start: a harness is a folder, not code
-([adding one](docs/contributors/extending.md#add-a-harness)).
+Open an issue for anything beyond a small fix, then a pull request with a test beside the change.
+[AGENTS.md](AGENTS.md) says the principles and where a change goes;
+[docs/contributors](docs/contributors/README.md) says how to run the tests, the Docker tests and the
+live script. A change that adds server code for one particular CLI will be asked to become a folder
+instead.

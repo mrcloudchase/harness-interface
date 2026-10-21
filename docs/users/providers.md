@@ -1,63 +1,46 @@
 # Providers
 
-A provider is where a harness's model calls go: a name, a base URL, the API shape it serves, and its
-key. The server keeps the key; a harness never gets it, only a way to call the provider through its
-sandbox's gateway ([keys](security.md#keys)).
-
-## Add one
+A provider is a model endpoint: its base URL, the API shape its credential travels in, and its
+key. Owners register them; every member's requests may name them.
 
 ```bash
-python3 -c 'import json, os; print(json.dumps({"url": "https://api.anthropic.com",
-  "api": "anthropic-messages", "key": os.environ["ANTHROPIC_API_KEY"]}))' \
-| curl -s -X PUT localhost:8000/providers/anthropic -H 'content-type: application/json' -d @-
+curl -s -X PUT $HI/v1/providers/anthropic -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
+  -d '{"url": "https://api.anthropic.com", "api": "anthropic-messages", "key": "sk-ant-…"}'
 ```
 
-Building the body in a program keeps the key off the command line. From Python:
-`sessions.registry.put_provider(ProviderEntry("anthropic", url, api, key))` ([library](library.md)).
-
-| Field | |
+| Field | Meaning |
 |---|---|
-| `url` | the base URL the shape's official SDK takes: `https://api.anthropic.com` for `anthropic-messages` (no version path), `https://api.openai.com/v1` for `openai-*` (with one). `https` only, no credentials, query or fragment. |
-| `api` | the shape it serves: `anthropic-messages`, `openai-responses` or `openai-chat` |
-| `key` | its API key; stored privately, never returned |
+| `url` | `https://host[/path]`, the base the CLI's own SDK would take. |
+| `api` | `anthropic-messages` (the key goes in `x-api-key`), `openai-responses` or `openai-chat` (`Authorization: Bearer`), or `none`. |
+| `key` | The credential. Sealed on arrival; `GET` never returns it. Empty only with `api: none`. |
 
-Putting a provider under an existing name replaces it; the next response uses the new one. `GET
-/providers` lists them, without keys; `DELETE /providers/{name}` removes one.
+`api: none` is for an endpoint that adds the credential itself: your own proxy, or a gateway that
+authenticates by network. The server then holds no secret for that provider at all.
 
-Some that work:
+Examples:
 
-| Provider | `url` | `api` |
-|---|---|---|
-| Anthropic | `https://api.anthropic.com` | `anthropic-messages` |
-| OpenAI | `https://api.openai.com/v1` | `openai-responses` or `openai-chat` |
-| DeepSeek, Anthropic shape | `https://api.deepseek.com/anthropic` | `anthropic-messages` |
-| DeepSeek, OpenAI shape | `https://api.deepseek.com/v1` | `openai-chat` |
+```json
+{"url": "https://api.openai.com/v1", "api": "openai-responses", "key": "sk-…"}
+{"url": "https://api.deepseek.com/anthropic", "api": "anthropic-messages", "key": "sk-…"}
+{"url": "https://openrouter.ai/api/v1", "api": "openai-chat", "key": "sk-or-…"}
+{"url": "https://llm-proxy.internal.example", "api": "none", "key": ""}
+```
 
-## Which provider a response uses
+## How a run reaches it
 
-`model` in a request is `harness[@provider][/model]`:
+A run never holds the key. It gets the gateway's URL in `HI_PROVIDER_URL` (and in the variable
+`harness.json` names as `provider_env.url`) and a session token in `HI_PROVIDER_KEY_FILE` (and
+`provider_env.key`). The CLI calls the gateway with the token exactly as it would call the provider
+with a key; the gateway, a process started for that one run, swaps the token for the key and
+forwards over TLS. The token is worthless anywhere else and dies with the run.
 
-| `model` | Provider | Model |
-|---|---|---|
-| `claude-code` | the one registered for the harness's default URL and shape | the CLI's default |
-| `claude-code/claude-sonnet-4-6` | the same | `claude-sonnet-4-6` |
-| `claude-code@deepseek/deepseek-chat` | `deepseek` | `deepseek-chat` |
+A harness decides what to do with the two variables in its `request.sh`. For Claude Code,
+`ANTHROPIC_BASE_URL` and `ANTHROPIC_API_KEY` are enough; for Codex, a `model_providers` entry in
+its config.
 
-Each folder's `harness.json` names a default (`provider.url` and `provider.api`) and every shape its CLI
-speaks (`apis`). With no `@provider`, the server uses a registered provider whose URL and shape match
-the default; if there is none, the request is a 400 that says what to register. A named provider must
-serve a shape in `apis`. A session keeps its provider for its whole life.
+## Which provider a request uses
 
-So running Claude Code on DeepSeek is one word: register DeepSeek's Anthropic endpoint, and ask for
-`claude-code@deepseek/deepseek-chat`. The shipped folders' shapes are in
-[harnesses/README.md](../../harnesses/README.md).
-
-## What a harness gets
-
-`HI_PROVIDER_URL`, `HI_PROVIDER_API` and `HI_PROVIDER_KEY_FILE`, and the model as `HI_MODEL`. Under the
-gateway (the default) the URL is the sandbox's gateway, `http://hi-provider:8080` plus the provider's
-path, and the file holds a session token; the gateway swaps it for the key. A folder whose CLI can't
-use a plain-HTTP base URL sets `"credential": "file"` in `run`: then the URL is the provider's own and
-the file holds the key. Either way the folder's `run.sh` maps them onto the CLI's own settings.
-
-The sandbox reaches the provider, and nothing else but the hosts a folder lists in `run.egress`.
+`harness.json` names a default; a request overrides it with `metadata.provider`. The provider must
+serve the API shape the CLI speaks: Claude Code speaks Anthropic Messages, so it needs an
+`anthropic-messages` provider, which DeepSeek, Anthropic and most aggregators offer. A model name
+goes with it: `metadata.model`, or the harness's default, reaches the run as `HI_MODEL`.

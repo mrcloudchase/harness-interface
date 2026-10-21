@@ -5,7 +5,7 @@
 <h1 align="center">harness-interface</h1>
 
 <p align="center">
-  <b>Run any coding harness as a sandboxed session behind one API.</b>
+  <b>A multi-tenant harness server. Bring your providers, your sandboxes and your harness folders; drive them through the OpenAI Responses API.</b>
 </p>
 
 <p align="center">
@@ -18,141 +18,94 @@
 
 <p align="center">
   <a href="docs/users/getting-started.md">Getting started</a> ·
-  <a href="docs/users/how-it-works.md">How it works</a> ·
-  <a href="docs/users/README.md">Docs</a> ·
-  <a href="docs/users/api.md">API</a> ·
-  <a href="docs/users/library.md">Library</a> ·
-  <a href="harnesses/README.md">Harnesses</a>
+  <a href="docs/users/harness-template.md">Harness template</a> ·
+  <a href="docs/users/requests.md">Requests</a> ·
+  <a href="docs/users/multi-tenant.md">Multi-tenant</a> ·
+  <a href="docs/users/README.md">Docs</a>
 </p>
 
 ---
 
 **Meet Picky**, a hermit crab with no shell of its own. Hermit crabs don't grow shells; they find one
-that fits, wear it, and swap it when they need to. Picky does that with coding harnesses: Claude Code
-for one task, Codex for the next, then the one you configured yourself.
+that fits, wear it, and swap it when they need to. Picky does that with coding harnesses: whichever
+CLI your org brings, configured however your org likes, run in a sandbox your org chose.
 
-That's harness-interface, an execution layer for coding CLIs:
-- **One API.** Call any harness by name through the OpenAI Responses format. Continue its session,
-  steer it while it works, stop it, and get its own output streamed back.
-- **One sandbox per response.** A fresh, locked-down container that reaches its model provider and
-  nothing else, holding a session token instead of your key.
-- **Harnesses are folders.** How to install a CLI, which config and work artifacts it brings, how to
-  run, steer and stop it, and what to report back: all in its folder. The server has no code for any.
+harness-interface is the server behind that:
+
+- **Orgs bring everything.** A provider is an endpoint and a key. A sandbox is an image or a
+  Dockerfile. A harness is a folder: `harness.json`, `install.sh`, `request.sh` and seed files in the
+  CLI's own formats. The server ships none of them and reads none of the CLI's configuration.
+- **One request shape.** `POST /v1/responses`, as any OpenAI Responses client sends it. `model`
+  names the harness; `metadata` picks the sandbox, provider and model; `previous_response_id`
+  continues the session; `store: false` keeps nothing. The output is what the script printed,
+  stdout and stderr, streamed or whole. Steer a running turn, cancel it, read the trace, download the
+  workspace.
+- **Nothing in the sandbox but the work.** A fresh locked-down container per turn, the member's own
+  `$HOME` and the session's workspace mounted, an internal network with one door, and a session
+  token where the key would be. The key is sealed at rest and opened only for that run's gateway.
+- **Multi-tenant by construction.** Every record and path lives under an org; a key is a member's;
+  owners register, members request, nobody sees another org. A hosted platform and a self-hosted box
+  run the same code.
 
 ## Quickstart
 
-You need git and Docker. The installer brings everything else.
+```bash
+uv tool install "git+https://github.com/mrcloudchase/harness-interface@v3.0.0"
+harness-interface init --org acme --owner chase     # prints the owner's API key once
+harness-interface serve
+```
+
+Register a provider, a sandbox and a harness folder, then ask:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/mrcloudchase/harness-interface/main/install.sh | sh
-harness-interface
+curl -s localhost:8000/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
+  -d '{"model": "claude-code", "input": "Create hello.py that prints hello, run it, and say done."}'
 ```
 
-Then add a provider, register a harness folder and run it:
-[getting started](docs/users/getting-started.md) takes about ten minutes.
+[Getting started](docs/users/getting-started.md) walks through all of it in ten minutes, and
+[the harness template](docs/users/harness-template.md) has a working Claude Code folder to copy.
 
-```bash
-curl -s localhost:8000/responses -H 'content-type: application/json' \
-  -d '{"model": "claude-code", "input": "Write hello.py and run it.", "instructions": "Be brief."}'
+## The folder
+
+```
+claude-code/
+  harness.json      defaults (sandbox, provider, model), the variable names the CLI reads its credential from, the steer signal, caps
+  install.sh        npm install @anthropic-ai/claude-code@… into $HI_TOOLS
+  request.sh        claude -p "$(cat)" --output-format stream-json …; --continue on turn 2
+  seeds/org/        .claude/CLAUDE.md and settings every member gets, every turn
+  seeds/user/       what a member's $HOME starts with, then theirs
+  seeds/project/    what a new workspace starts with; the repository wins
 ```
 
-**It runs on your machine, for you.** The server listens on `127.0.0.1` with no authentication, and
-anyone who can reach it can run harnesses with your provider keys. Don't expose it to a network
-([security](docs/users/security.md)).
+Two folders with different seeds are two harnesses: `claude-code-app1`, `claude-code-devteam`,
+`codex-marketing`. A program of your own is a folder whose `request.sh` runs it.
 
-## What a response gives back
+## What comes back
 
-Everything, streamed as it happens and whole at the end: the answer, the CLI's own stdout and stderr,
-the workspace's diff and every changed file, the files its folder reports from `$HOME` (memory it
-wrote, its transcript), its usage and cost, and its resume handle.
+```json
+{"id": "resp_…", "status": "completed", "model": "claude-code",
+ "output": [{"type": "message", "content": [{"type": "output_text", "text": "…stdout…"}]},
+            {"type": "message", "content": [{"type": "output_text", "text": "…stderr…"}]}],
+ "metadata": {"session_id": "sess_…", "sandbox": "node22", "provider": "deepseek", "model": "deepseek-chat", "turn": "1", "exit_code": "0"}}
+```
+
+Exit 0 is `completed`; anything else is `failed` with the code. Nothing is parsed or dropped. A loop,
+an agent or a factory is a program you write against that shape;
+[building on it](docs/users/building-on-it.md) shows four.
+
+## Library
+
+Python callers use the layers the server is built on, without HTTP:
 
 ```python
-from openai import OpenAI
-
-client = OpenAI(base_url="http://127.0.0.1:8000", api_key="unused")   # the server holds the keys
-first = client.responses.create(model="claude-code", input="Remember the word ORCHID. Reply OK.")
-second = client.responses.create(model="claude-code", input="Which word did I ask you to remember?",
-                                 previous_response_id=first.id)   # the same session: ORCHID
-print(second.model_extra["harness"]["usage"], second.model_extra["harness"]["changes"])
+from harness_interface import Ask, Runtimes, Sessions, Store, Vault
+store = Store(data_dir, Vault.from_env())
+sessions = Sessions(store, Runtimes(data_dir / "logs", ca_file=None, owner=owner_of(data_dir)))
+record = await sessions.wait((await sessions.create(Ask("acme", "chase", "claude-code", "Say hello."))).id)
+print(record.status, record.stdout)
 ```
-
-A session stays on its harness and provider, keeps its workspace and the CLI's own `.home/`, and runs
-one response at a time. While one runs, `POST /sessions/{id}/interrupt` steers more text into it, and
-`POST /sessions/{id}/stop` stops it gracefully. [Calling the API](docs/users/api-clients.md) has the
-rest.
-
-## How it works
-
-```mermaid
-flowchart LR
-  C["Your code, curl,<br>or the OpenAI SDK"] -->|OpenAI Responses API,<br>sessions| S["harness-interface"]
-  S -->|installs once, runs,<br>streams, collects| H
-  subgraph SB["A fresh container for every response"]
-    H["A harness folder<br>run.sh + adapter.py<br>around its CLI"]
-  end
-  H -->|through the gateway,<br>its only way out| P["Its model provider"]
-```
-
-A harness's CLI is installed once per version into a cached tools directory, on a small base image
-with no CLI and no secret. Each response copies the folder's config artifacts (`home/`) into the
-session's `$HOME`, writes the request's files into its workspace, and runs the folder's `run.sh` with
-the request on stdin. The contract is environment variables, stdin and one result file
-([harness contract](docs/users/harness-contract.md)), so any CLI fits, and adding one never changes the
-server. [How it works](docs/users/how-it-works.md) has the details.
-
-## Harnesses
-
-Five ship with it, each proven live, sandboxed, from the library and the API: **Claude Code**,
-**Codex**, **pi**, **OpenCode** and **Hermes**, plus a template. All five can be steered while they
-work, stopped gracefully and resumed. [harnesses/](harnesses/README.md) has each one's provider and how
-it is driven, and a survey of eighteen more.
-
-A harness's provider is a default, not a limit: `claude-code@deepseek/deepseek-chat` runs Claude Code
-on DeepSeek ([providers](docs/users/providers.md)). Configure one your way by copying its folder and
-putting your skills, MCP servers, hooks and instructions in its `home/`
-([harness folders](docs/users/harnesses.md)).
-
-## Use it from Python
-
-The server is built on a library you can use directly, with no server:
-
-```python
-sessions = Sessions(data, Placement(Images(data / "logs"), owner=owner_of(data)))
-session = await sessions.start(Ask("claude-code", "Fix the failing test."))
-async for event in sessions.follow(session.id):       # its own output, as it prints it
-    ...
-record = await sessions.wait(session.responses[-1])   # status, answer, usage, cost, resume
-```
-
-[The Python library](docs/users/library.md) has the whole example.
-
-## Highlights
-
-- **Sandboxed by default.** No capabilities, a read-only root, an unprivileged user, and one way out:
-  the provider through its gateway ([security](docs/users/security.md)).
-- **The key never enters the sandbox.** The gateway swaps the session's token for it.
-- **Sessions belong to the server.** They run side by side, outlive a client that disconnects, and can
-  be followed by any number of clients.
-- **Change anything live.** Add or replace a provider or harness folder, and the next request uses it.
-- **Small enough to read.** About 3,500 lines of Python, standard library only below the HTTP layer,
-  in layers that each import only those below them.
-
-## Documentation
-
-| | |
-|---|---|
-| [**Using it**](docs/users/README.md) | getting started, how it works, install, providers, harness folders, API clients, the library, troubleshooting; the API, contract, configuration and security references |
-| [**Contributing to it**](docs/contributors/README.md) | the architecture, development, testing, extending, conventions and releasing |
 
 ## Contributing
 
-New harnesses are welcome: a harness is a folder in [harnesses/](harnesses/), not code.
-
-```bash
-git clone https://github.com/mrcloudchase/harness-interface && cd harness-interface
-uv run --extra dev pytest          # no Docker or keys needed
-```
-
-## License
-
-[Apache 2.0](LICENSE).
+[AGENTS.md](AGENTS.md) says how the code is built and where a change goes;
+[docs/contributors](docs/contributors/README.md) has the rest. Apache 2.0.

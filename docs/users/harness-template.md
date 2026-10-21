@@ -95,7 +95,7 @@ the seeds, upload it under your own name.
 |---|---|---|---|---|
 | [Claude Code](harnesses/add-claude-code.md) | `node22` | `deepseek` (Anthropic Messages) | 9/9 |  |
 | [Codex](harnesses/add-codex.md) | `node22` | `openai-responses` (OpenAI Responses) | 9/9 |  |
-| [Hermes Agent](harnesses/add-hermes.md) | `full` | `deepseek` (Anthropic Messages) | 0/9 |  |
+| [Hermes Agent](harnesses/add-hermes.md) | `full` | `deepseek` (Anthropic Messages) | 9/9 |  |
 | [pi](harnesses/add-pi.md) | `node22` | `deepseek` (Anthropic Messages) | 9/9 |  |
 | [OpenCode](harnesses/add-opencode.md) | `full` | `deepseek` (Anthropic Messages) | 9/9 |  |
 | [Kilo CLI](harnesses/add-kilo.md) | `full` | `deepseek` (Anthropic Messages) | 9/9 |  |

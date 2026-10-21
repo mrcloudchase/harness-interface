@@ -5,7 +5,7 @@ Nous Research's Hermes Agent, headless over `hermes chat -q`, on an Anthropic-sh
 ## Verified
 
 `scripts/live.py` against a running server, sandbox `full`, provider `deepseek`, model `deepseek-chat`:
-**0 of 9** checks passed ().
+**9 of 9** checks passed (make, recall, archive, stream, interrupt accepted, steer, cancel, trace, stateless).
 
 ## 1. Sandbox and provider
 

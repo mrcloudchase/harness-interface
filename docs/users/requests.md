@@ -5,10 +5,10 @@ examples use curl and the official Python SDK.
 
 ```json
 {
-  "model": "claude-code-devteam",
+  "model": "py312-gpu/claude-code-devteam/deepseek/deepseek-chat",
   "input": "Fix the flaky test in test_client.py and run the suite.",
   "instructions": "Keep the diff small.",
-  "metadata": {"sandbox": "py312-gpu", "provider": "deepseek", "model": "deepseek-chat"},
+  "metadata": {"team": "platform"},
   "previous_response_id": null,
   "store": true,
   "stream": false,
@@ -18,10 +18,10 @@ examples use curl and the official Python SDK.
 
 | Field | Meaning |
 |---|---|
-| `model` | The harness's name. |
+| `model` | `sandbox/harness/provider/model`, naming all four; or the bare harness name, which takes the folder's defaults for the other three. Nothing in between. The model is the last segment, so an id with slashes of its own is fine; it may be empty to take the default. |
 | `input` | Text, or Responses items: `input_text` parts and `input_file` parts (`filename` and `file_data`, text or a `data:…;base64,` URL) that land in the workspace before the turn. |
 | `instructions` | Reaches the script as `HI_INSTRUCTIONS`; what it does with them is the harness's. |
-| `metadata` | `sandbox`, `provider` and `model` override `harness.json`'s defaults for this request. Other keys are kept and echoed back. |
+| `metadata` | Yours; kept and echoed back with what ran added. |
 | `previous_response_id` | Continue that response's session: same workspace, same `$HOME`, `HI_TURN` one higher. |
 | `store` | `true` keeps the session's workspace for continuation and archive. `false` keeps only the response and the trace. |
 | `stream` | Server-sent events as the harness prints. |
@@ -34,7 +34,7 @@ those things.
 
 ```json
 {
-  "id": "resp_…", "object": "response", "status": "completed", "model": "claude-code-devteam",
+  "id": "resp_…", "object": "response", "status": "completed", "model": "py312-gpu/claude-code-devteam/deepseek/deepseek-chat",
   "previous_response_id": null, "store": true, "error": null, "incomplete_details": null,
   "output": [
     {"type": "message", "id": "msg_…0", "role": "assistant", "status": "completed",
@@ -42,8 +42,8 @@ those things.
     {"type": "message", "id": "msg_…1", "role": "assistant", "status": "completed",
      "content": [{"type": "output_text", "text": "…everything it wrote to stderr…", "annotations": []}]}
   ],
-  "metadata": {"session_id": "sess_…", "harness": "claude-code-devteam", "version": "929aa748cf90e7cb",
-               "sandbox": "py312-gpu", "provider": "deepseek", "model": "deepseek-chat", "turn": "1", "exit_code": "0"},
+  "metadata": {"team": "platform", "session_id": "sess_…", "harness": "claude-code-devteam", "version": "929aa748cf90e7cb",
+               "turn": "1", "exit_code": "0"},
   "usage": null
 }
 ```
@@ -54,8 +54,9 @@ those things.
 - `status`: `completed` (exit 0), `failed` (`error.code` is `exit_status` with the code in the
   message, or `server_error` when the run could not be set up), `cancelled`, `incomplete` (the
   wall-clock cap), `in_progress`.
-- `metadata` echoes yours and adds what ran: the session, the harness version, the sandbox, the
-  provider, the model, the turn and the exit code.
+- `model` is the full path of what ran, whatever form the request used: send it back as is to run
+  the same way again.
+- `metadata` echoes yours and adds the session, the harness version, the turn and the exit code.
 - `usage` is empty. Token counts are in the output when the CLI prints them.
 
 ## Streaming
@@ -76,7 +77,8 @@ for event in client.responses.create(model="claude-code", input="…", stream=Tr
 
 A response with no `previous_response_id` starts a session: a directory with the workspace, a run
 directory, the responses and a trace. `previous_response_id` continues it; one turn at a time
-(409 while one runs). A session is one harness version for its life.
+(409 while one runs). A session is one harness, at one version, for its life: a continuation naming
+another harness is refused; its sandbox, provider and model may change per turn.
 
 | Route | What |
 |---|---|

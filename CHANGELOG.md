@@ -4,6 +4,15 @@ Every release is a section here, newest first, and the newest section's heading 
 A merge to `main` that adds a section releases it: the release workflow tags that version and
 publishes the section as its notes.
 
+## [3.0.1]
+
+- **`model` is the path.** A request's `model` is `sandbox/harness/provider/model`, naming all four,
+  or the bare harness name for the folder's defaults; nothing in between, and `metadata` no longer
+  overrides. A response's `model` is the full path of what ran. A continuation naming another
+  harness than its session's is refused.
+- The crash sweep at startup goes through `Runtimes`, so the API runs without Docker under the
+  test fakes.
+
 ## [3.0.0]
 
 A rebuild, from scratch, as a multi-tenant harness server. The repository ships no harness folders;
@@ -24,7 +33,7 @@ API. Nothing of 2.0 carries over on the wire or on disk.
 - **One member, one home per harness.** `$HOME` persists across a member's sessions, so the CLI's
   own memory and settings behave as on a laptop.
 - **The standard wire.** `model` is the harness; `metadata.sandbox`, `.provider`, `.model` override
-  the folder's defaults; `store: false` keeps only the response and trace; `background: true` returns
+  the folder's defaults (3.0.1: the path form instead); `store: false` keeps only the response and trace; `background: true` returns
   at once. `output` is two messages, stdout then stderr; streaming is the standard events.
 - **Steer, cancel, trace, archive.** `POST /v1/sessions/{id}/interrupt` writes `$HI_DIR/interrupt`
   and sends the folder's signal; `POST /v1/responses/{id}/cancel` is SIGTERM then SIGKILL;

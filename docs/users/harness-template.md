@@ -37,7 +37,7 @@ started on; re-upload the previous folder to roll back.
 
 | Key | Meaning |
 |---|---|
-| `defaults` | The sandbox, provider and model a request uses unless its `metadata` names others. The model is whatever id the provider serves (`deepseek-chat` on DeepSeek's Anthropic-compatible endpoint, for instance). Any may be empty; a request must then name it. |
+| `defaults` | The sandbox, provider and model a request with a bare harness name uses; a request's `model` of `sandbox/harness/provider/model` names its own. The model is whatever id the provider serves (`deepseek-chat` on DeepSeek's Anthropic-compatible endpoint, for instance). Any may be empty; a request must then name it. |
 | `provider_env` | Variable names to put the session token and the gateway URL in, so the CLI finds its credential where it looks. Optional: `HI_PROVIDER_KEY_FILE` and `HI_PROVIDER_URL` are always set. |
 | `interrupt` | The signal a steer sends after writing `$HI_DIR/interrupt`: `SIGUSR1`, `SIGUSR2`, `SIGINT`, `SIGTERM` or `SIGHUP`. |
 | `install.egress` | Hosts `install.sh` may reach. `install.timeout_s`: its cap. |

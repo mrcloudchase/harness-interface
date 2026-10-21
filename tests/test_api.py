@@ -87,11 +87,11 @@ def test_registration_refusals(client):
 
 def test_a_response(client):
     dev = ready(client, org(client))
-    r = client.post("/v1/responses", json={"model": "cc", "input": "hello", "metadata": {"model": "m9", "team": "a"}},
+    r = client.post("/v1/responses", json={"model": "box/cc/prov/m9", "input": "hello", "metadata": {"team": "a"}},
                     headers=auth(dev))
     assert r.status_code == 200, r.text
     body = r.json()
-    assert body["object"] == "response" and body["status"] == "completed" and body["model"] == "cc"
+    assert body["object"] == "response" and body["status"] == "completed" and body["model"] == "box/cc/prov/m9"
     out, err = body["output"]
     assert "prompt=hello turn=1 model=m9" in out["content"][0]["text"] and err["content"][0]["text"] == "stderr line\n"
     assert body["metadata"]["team"] == "a" and body["metadata"]["exit_code"] == "0"
@@ -107,8 +107,11 @@ def test_a_response(client):
     trace = client.get(f"/v1/sessions/{sid}/trace", headers=auth(dev)).json()["data"]
     assert [t["kind"] for t in trace] == ["request", "response", "request", "response"]
     assert trace[1]["body"]["output"][0]["content"][0]["text"] == out["content"][0]["text"]
-    assert trace[0]["body"] == {"model": "cc", "input": "hello", "store": True, "stream": False, "background": False,
-                                "metadata": {"model": "m9", "team": "a"}}
+    assert trace[0]["body"] == {"model": "box/cc/prov/m9", "input": "hello", "store": True, "stream": False,
+                                "background": False, "metadata": {"team": "a"}}
+    assert client.post("/v1/responses", json={"model": "cc/prov", "input": "x"}, headers=auth(dev)).status_code == 422
+    assert client.post("/v1/responses", json={"model": "other", "input": "x", "previous_response_id": body["id"]},
+                       headers=auth(dev)).status_code == 400
     tar = client.get(f"/v1/sessions/{sid}/archive", headers=auth(dev))
     assert tar.headers["content-type"] == "application/gzip"
     with tarfile.open(fileobj=io.BytesIO(tar.content)) as t:
@@ -174,8 +177,8 @@ def test_openai_sdk_client(client):
     openai = pytest.importorskip("openai")
     dev = ready(client, org(client))
     sdk = openai.OpenAI(api_key=dev, base_url=str(client.base_url) + "/v1", http_client=client)
-    r = sdk.responses.create(model="cc", input="from the sdk", metadata={"model": "m3"})
-    assert r.status == "completed" and "prompt=from the sdk turn=1 model=m3" in r.output_text
+    r = sdk.responses.create(model="box/cc/prov/m3", input="from the sdk")
+    assert r.status == "completed" and "prompt=from the sdk turn=1 model=m3" in r.output_text and r.model == "box/cc/prov/m3"
     assert "stderr line" in r.output_text
     parts = [ev for ev in sdk.responses.create(model="cc", input="streamed", stream=True)]
     assert parts[-1].type == "response.completed" and parts[-1].response.status == "completed"

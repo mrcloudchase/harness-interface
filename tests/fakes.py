@@ -75,6 +75,9 @@ class FakeRuntimes:
         self.owner = "0" * 12
         self.installs = 0
 
+    async def recover(self) -> None:
+        pass
+
     async def image_for(self, sandbox) -> str:
         return sandbox.image or "built:" + sandbox.name
 

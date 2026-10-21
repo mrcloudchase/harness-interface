@@ -39,7 +39,7 @@ from typing import Any, AsyncIterator, Mapping
 from . import harness as contract
 from .errors import Conflict, Invalid, NotFound
 from .execution import Execution, Outcome, Spec
-from .runtimes.docker import ContainerExecution, Provider, signal, sweep
+from .runtimes.docker import ContainerExecution, Provider, signal
 from .sandboxes import Runtimes, path_with
 from .store import JsonStore, Member, Store
 
@@ -246,6 +246,8 @@ class Sessions:
                 raise Invalid(f"{ask.previous} was not stored, so it cannot be continued")
             if any(live.record.session == s.id for live in self._live.values()):
                 raise Conflict(f"session {s.id} is running a response")
+            if ask.harness != s.harness:
+                raise Invalid(f"session {s.id} runs {s.harness}, not {ask.harness}")
             h = self.store.harness(ask.org, s.harness, s.version)
         else:
             h = self.store.harness(ask.org, ask.harness)
@@ -432,7 +434,7 @@ class Sessions:
     # the server's life
     async def recover(self) -> None:
         """Close what a restart cut off, and remove what its runs left behind."""
-        await sweep(self.runtimes.owner)
+        await self.runtimes.recover()
         for p in self.store.sessions_root.glob("*/*/*/sess_*/responses/resp_*.json"):
             store = JsonStore(p.parent, lambda d: Record(**d))
             r = store.get(p.stem)

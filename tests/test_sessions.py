@@ -60,6 +60,9 @@ def test_continue_and_overrides(sessions, store):
     assert sessions.records(dev, r1.session)[1].id == r2.id
     with pytest.raises(NotFound):
         asyncio.run(run(sessions, ask(previous="resp_nope")))
+    store.put_harness("acme", "other", archive())
+    with pytest.raises(Invalid, match="runs cc, not other"):
+        asyncio.run(run(sessions, Ask("acme", "dev", "other", "x", previous=r1.id)))
 
 
 def test_stateless_keeps_no_workspace(sessions, store):
@@ -172,10 +175,5 @@ def test_recover_closes_what_a_restart_cut_off(sessions, store):
     s, rec = sessions._record_by_id(r.id)
     rec.status = "in_progress"
     sessions._save_record(s, rec)
-    sessions.runtimes.owner = "0" * 12
-    import harness_interface.sessions as mod
-    async def no_sweep(owner):
-        pass
-    mod.sweep = no_sweep
     asyncio.run(sessions.recover())
     assert sessions._record_by_id(r.id)[1].status == "failed"

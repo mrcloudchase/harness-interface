@@ -23,8 +23,8 @@ It knows nothing about any CLI. [VISION.md](VISION.md) is the owner's direction.
    an owner puts; the next request uses them. Org, member and project settings are seed files in the
    CLI's own formats, copied by rule: `seeds/org` every turn, `seeds/user` once, `seeds/project` at a
    session's start.
-3. **One request shape.** `model` is the harness, `metadata` overrides sandbox, provider and model,
-   `previous_response_id` continues, `store` decides what stays. The output is stdout and stderr as
+3. **One request shape.** `model` is `sandbox/harness/provider/model`, or the harness alone for its
+   defaults; `previous_response_id` continues, `store` decides what stays. The output is stdout and stderr as
    two messages, the exit code as the status. Any Responses client works unchanged.
 4. **A tenant is a prefix.** Every record and path lives under its org; a key is a member's; every
    route checks the org of what it touches and answers 404 otherwise. Hosted and self-hosted are

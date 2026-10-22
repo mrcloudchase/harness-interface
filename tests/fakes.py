@@ -66,7 +66,37 @@ class LocalRuntime:
     async def start(self, spec: Spec) -> Execution:
         env = {**spec.env, "PATH": f"{spec.env.get('PATH', '')}:{host_env().get('PATH', os.defpath)}"}
         return await ProcessExecution.spawn(list(spec.command), env=env, cwd=spec.workspace, input=spec.input,
-                                            interactive=spec.interactive, timeout_s=spec.timeout_s)
+                                            interactive=spec.interactive, timeout_s=spec.timeout_s, stop_signal=15)
 
     async def recover(self) -> None:
         pass
+
+
+class FakeNode:
+    """A node without Docker: the turn runs as a process here; install.sh too."""
+    image = "fake"
+
+    def __init__(self):
+        self.installs = 0
+
+    async def prepare(self) -> str:
+        return "fakeimage000"
+
+    async def recover(self) -> None:
+        pass
+
+    def runtime_for(self, tenant, limits, *, read_only=(), writable=(), egress=(), gateway_url="", token=""):
+        return LocalRuntime(token)
+
+    async def tools_for(self, tenant, limits, folder, config, root, image_id) -> Path:
+        tools = root / f"{folder.name}-{image_id[:12]}"
+        if not tools.is_dir():
+            self.installs += 1
+            tools.mkdir(parents=True)
+            from harness_interface.sandboxes import path_with
+            spec = Spec(("bash", str(folder / "install.sh")), env={"HI_TOOLS": str(tools), "PATH": path_with(tools)}, workspace=tools)
+            execution = await LocalRuntime().start(spec)
+            if not (await execution.wait()).ok:
+                from harness_interface.sandboxes import InstallFailed
+                raise InstallFailed("install.sh failed")
+        return tools

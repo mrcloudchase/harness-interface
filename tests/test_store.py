@@ -93,10 +93,10 @@ def test_workers_tokens_deployer(store):
     assert store.workers()[0].running == 2
     store.forget_worker(w.id)
     assert store.workers() == []
-    tok = store.issue_token("acme", "prov", "resp_1", "openai-chat", ttl_s=60)
+    tok = store.issue_token("acme", "prov", "sess_1", "resp_1", "openai-chat", ttl_s=60)
     assert tok.startswith("sk-hi-") and store.resolve_token(tok)["provider"] == "prov"
-    assert store.issue_token("acme", "p", "r", "anthropic-messages", 60).startswith("sk-ant-api03-hi-")
-    assert store.resolve_token(store.issue_token("acme", "p", "r", "openai-chat", ttl_s=-1)) is None
+    assert store.issue_token("acme", "p", "s", "r", "anthropic-messages", 60).startswith("sk-ant-api03-hi-")
+    assert store.resolve_token(store.issue_token("acme", "p", "s", "r", "openai-chat", ttl_s=-1)) is None
     store.revoke_token(tok)
     assert store.resolve_token(tok) is None
     dk = store.set_deployer_key()

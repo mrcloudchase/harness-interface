@@ -13,7 +13,7 @@ from pathlib import Path
 import pytest
 
 from harness_interface.execution import Spec
-from harness_interface.runtimes.docker import TURN_PATH, DockerRuntime, Limits, docker, owner_of
+from harness_interface.runtimes.docker import TURN_SCRIPT, DockerRuntime, Resources, docker, owner_of
 
 pytestmark = pytest.mark.docker
 IMAGE = "python:3.12-slim"
@@ -76,7 +76,7 @@ def folder(tmp_path: Path, response: bool = True) -> Path:
 
 
 def runtime(tmp_path: Path, gateway: str, **kw) -> DockerRuntime:
-    return DockerRuntime(IMAGE, uid=100123, limits=Limits(cpus=1, memory="1g", pids=128), read_only=(tmp_path / "folder",),
+    return DockerRuntime(IMAGE, uid=100123, limits=Resources(cpus=1, memory="1g", pids=128), read_only=(tmp_path / "folder",),
                          writable=(tmp_path / "home", tmp_path / "run"), gateway_url=gateway, token="sk-hi-testtoken",
                          ca_file=CA, owner=owner_of(tmp_path), **kw)
 
@@ -89,7 +89,7 @@ def spec(tmp_path: Path, prompt: str, rt: DockerRuntime, timeout: float = 120) -
            "HI_HARNESS_DIR": str(tmp_path / "folder"), "HI_INTERRUPT": "SIGUSR1", "PATH": "/usr/local/bin:/usr/bin:/bin",
            "HI_PROVIDER_URL": rt.provider_url + "/x", "HI_PROVIDER_KEY_FILE": str(rt.token_path),
            "FAKE_KEY": "sk-hi-testtoken", "FAKE_URL": rt.provider_url}
-    return Spec(("bash", str(TURN_PATH)), input=prompt.encode(), env=env, workspace=tmp_path / "workspace", timeout_s=timeout)
+    return Spec(("bash", str(TURN_SCRIPT)), input=prompt.encode(), env=env, workspace=tmp_path / "workspace", timeout_s=timeout)
 
 
 async def run(rt: DockerRuntime, sp: Spec):

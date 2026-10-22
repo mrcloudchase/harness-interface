@@ -353,11 +353,11 @@ class Store:
     def forget_worker(self, worker_id: str) -> None:
         self.records.delete("worker", PLATFORM, worker_id)
 
-    def issue_token(self, tenant: str, provider: str, response: str, api: str, ttl_s: float) -> str:
+    def issue_token(self, tenant: str, provider: str, session: str, response: str, api: str, ttl_s: float) -> str:
         """A session token the gateway will swap for the provider's key, for one response."""
         secret = session_token(api)
-        self.records.put("token", PLATFORM, digest_of(secret),
-                         {"tenant": tenant, "provider": provider, "response": response, "expires": time.time() + ttl_s})
+        self.records.put("token", PLATFORM, digest_of(secret), {"tenant": tenant, "provider": provider, "session": session,
+                                                                 "response": response, "expires": time.time() + ttl_s})
         return secret
 
     def resolve_token(self, secret: str) -> dict[str, Any] | None:

@@ -45,7 +45,6 @@ PROVIDER_URL = f"http://{PROVIDER_HOST}:{GATEWAY_PORT}"  # where a run calls its
 PROXY = f"http://{DOOR_HOST}:{DOOR_PORT}"
 NO_PROXY = f"127.0.0.1,localhost,{DOOR_HOST},{PROVIDER_HOST}"
 TOKEN_PATH = Path("/run/hi/token")                   # where every run reads its session token
-TURN_PATH = Path("/run/hi/turn.sh")                  # the platform's runner, read-only
 CA_PATH = "/etc/hi/ca.pem"
 CA_VARS = ("SSL_CERT_FILE", "NODE_EXTRA_CA_CERTS", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "GIT_SSL_CAINFO")
 SECRETS = Path("/dev/shm") if Path("/dev/shm").is_dir() else Path(tempfile.gettempdir())
@@ -100,6 +99,22 @@ async def pull(reference: str) -> str:
     return reference
 
 
+BASE_DOCKERFILE = Path(__file__).with_name("base.Dockerfile")
+
+
+async def build_base() -> str:
+    """The platform's own base image, built from the shipped Dockerfile once per content; its tag."""
+    text = BASE_DOCKERFILE.read_text()
+    tag = f"{PREFIX}base:{hashlib.sha256(text.encode()).hexdigest()[:12]}"
+    if (await docker("image", "inspect", tag))[0] == 0:
+        return tag
+    with tempfile.TemporaryDirectory() as context:
+        code, log = await docker("build", "-t", tag, "-f", "-", context, stdin=text.encode())
+    if code != 0:
+        raise RuntimeError(f"the base image failed to build:\n{log[-2000:]}")
+    return tag
+
+
 async def identity(reference: str) -> tuple[str, str]:
     """An image's id and CPU architecture."""
     code, out = await docker("image", "inspect", "-f", "{{.Id}} {{.Architecture}}", reference)
@@ -133,8 +148,12 @@ class Names:
 
 
 class ContainerExecution(ProcessExecution):
-    """A run's process, plus the name of its container, so a signal other than a stop can reach it."""
+    """A run's process, plus the name of its container, so a signal other than a stop can reach it:
+    it goes to the container's PID 1, which forwards it to the turn runner."""
     container: str = ""
+
+    async def interrupt(self, name: str) -> bool:
+        return bool(self.container) and not self._ended and await signal(self.container, name)
 
 
 async def signal(container: str, name: str) -> bool:
@@ -142,8 +161,8 @@ async def signal(container: str, name: str) -> bool:
 
 
 @dataclass(frozen=True)
-class Limits:
-    """What a run may use."""
+class Resources:
+    """What one run may use."""
     cpus: float = 2
     memory: str = "4g"
     pids: int = 512
@@ -153,7 +172,7 @@ class DockerRuntime:
     """Runs specs in fresh containers of one image, each reaching only `egress` and, through the door's
     forwarder, the gateway at `gateway_url` with `token` as its credential."""
 
-    def __init__(self, image: str, *, uid: int, limits: Limits = Limits(), read_only: Sequence[Path] = (),
+    def __init__(self, image: str, *, uid: int, limits: Resources = Resources(), read_only: Sequence[Path] = (),
                  writable: Sequence[Path] = (), egress: Sequence[str] = (), gateway_url: str = "", token: str = "",
                  ca_file: Path | None = None, owner: str, runtime: str = "", allow_private: bool = False):
         if bool(gateway_url) != bool(token):
@@ -223,7 +242,7 @@ class DockerRuntime:
             argv += ["-v", f"{path}:{path}"]
         for path in self.read_only:
             argv += ["-v", f"{path}:{path}:ro"]
-        argv += ["-v", f"{TURN_SCRIPT}:{TURN_PATH}:ro"]
+        argv += ["-v", f"{TURN_SCRIPT}:{TURN_SCRIPT}:ro"]           # the runner, at its own path, read-only
         if self.gateway_url:
             argv += ["-v", f"{names.secrets / 'token'}:{TOKEN_PATH}:ro"]
         if self.ca_file:
@@ -234,7 +253,8 @@ class DockerRuntime:
 
     def door_argv(self, names: Names) -> list[str]:
         argv = ["run", "-i", "--rm", "--name", names.door, *self.label, "--network", names.network,
-                "--network-alias", DOOR_HOST, "--network-alias", PROVIDER_HOST, *LOCKDOWN, *DOOR_LIMITS,
+                "--network-alias", DOOR_HOST, "--network-alias", PROVIDER_HOST, "--add-host", "host.docker.internal:host-gateway",
+                *LOCKDOWN, *DOOR_LIMITS,
                 "--user", "65534:65534", "-v", f"{DOOR_SCRIPT}:/door/door.py:ro"]
         if self.ca_file:
             argv += ["-v", f"{self.ca_file}:{CA_PATH}:ro", "-e", f"SSL_CERT_FILE={CA_PATH}"]

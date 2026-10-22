@@ -82,13 +82,13 @@ class DirBlobs:
         expires = int(time.time()) + ttl_s
         claim = json.dumps({"m": method, "k": checked_key(key), "e": expires}, separators=(",", ":")).encode()
         mac = hmac.new(self._secret, claim, hashlib.sha256).digest()
-        return base64.urlsafe_b64encode(claim + b"." + mac).decode().rstrip("=")
+        return base64.urlsafe_b64encode(claim + mac).decode().rstrip("=")
 
     def verify(self, token: str, method: str) -> str:
         """The key a token grants for `method`, or Invalid."""
         try:
             raw = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4))
-            claim, mac = raw.rsplit(b".", 1)
+            claim, mac = raw[:-32], raw[-32:]
             if not hmac.compare_digest(hmac.new(self._secret, claim, hashlib.sha256).digest(), mac):
                 raise ValueError
             c = json.loads(claim)

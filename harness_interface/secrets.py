@@ -9,6 +9,8 @@ provides, on a self-hosted box a file `init` wrote with mode 600.
 from __future__ import annotations
 
 import base64
+import hashlib
+import hmac
 import os
 import secrets
 from pathlib import Path
@@ -24,7 +26,12 @@ class Vault:
     def __init__(self, master: bytes):
         if len(master) != 32:
             raise ValueError("a master key is 32 bytes")
+        self._master = master
         self._aead = AESGCM(master)
+
+    def derive(self, label: str) -> bytes:
+        """A secondary secret for one purpose (`label`), from the master key; the same every time."""
+        return hmac.new(self._master, label.encode(), hashlib.sha256).digest()
 
     @staticmethod
     def generate() -> str:

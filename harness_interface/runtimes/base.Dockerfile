@@ -3,7 +3,7 @@
 # tools layer at first use. Built once per node when HI_BASE_IMAGE is empty; a deployer may point
 # HI_BASE_IMAGE at an image built from this file elsewhere and scanned on a schedule.
 FROM python:3.12-slim-bookworm
-ARG NODE_VERSION=22.14.0
+ARG NODE_VERSION=22.23.4
 ENV DEBIAN_FRONTEND=noninteractive
 RUN apt-get update && apt-get install -y --no-install-recommends \
       ca-certificates curl git ripgrep procps tmux xz-utils unzip jq less \

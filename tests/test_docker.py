@@ -20,6 +20,7 @@ REQUEST = """#!/usr/bin/env bash
 set -u
 prompt=$(cat)
 echo "prompt=$prompt uid=$(id -u) caps=$(grep CapEff /proc/self/status | awk '{print $2}')"
+echo "user=$(id -un) home=$(python3 -c 'import os,pwd; print(pwd.getpwuid(os.getuid()).pw_dir)')"
 echo "token=$(cat "$HI_PROVIDER_KEY_FILE") keyenv=${FAKE_KEY:-} url=${FAKE_URL:-}"
 fetch() { python3 -c "import sys,urllib.request as u
 r=u.Request(sys.argv[1], headers={'Authorization': 'Bearer ' + open(sys.argv[2]).read().strip()} if len(sys.argv) > 2 else {})
@@ -105,12 +106,13 @@ def test_a_turn(tmp_path, gateway):
     lines = dict(line.split("=", 1) for line in out["stdout"].decode().splitlines() if "=" in line)
     assert outcome.kind == "exited" and outcome.code == 0, (outcome, out)  # response.sh's exit code, not request.sh's 4
     assert lines["prompt"].startswith("hello uid=100123 caps=0000000000000000")
+    assert lines["user"] == f"sandbox home={tmp_path / 'home'}"                 # a uid with a name and a home
     assert lines["token"] == "sk-hi-testtoken keyenv=sk-hi-testtoken url=http://hi-provider:8080"
     assert lines["gateway"] == '{"ok": true}' and Gateway.seen[-1] == ("/x/v1/models", "Bearer sk-hi-testtoken")
     assert lines["private"] == "refused" and lines["rootfs"] == "readonly"
     assert out["stderr"].decode() == "a warning\n"
     response = (tmp_path / "run" / "response").read_text()
-    assert response.startswith("outcome=exited exit=4 lines=5 err=a warning")
+    assert response.startswith("outcome=exited exit=4 lines=6 err=a warning")
     assert (tmp_path / "run" / "stdout").read_bytes() == out["stdout"]
     assert b"door deny 169.254.169.254:443" in out["door"] and b"gateway forward" in out["door"]
     assert (tmp_path / "workspace").stat().st_uid == (100123 if os.geteuid() == 0 else os.getuid())

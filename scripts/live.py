@@ -60,9 +60,6 @@ def main() -> int:
         failed += not ok
         print(f"{'PASS' if ok else 'FAIL'} {name}: {detail[:300]!r}", flush=True)
 
-    def detail(rid: str) -> dict:
-        return http.get(f"/v1/responses/{rid}?detail=true").json()
-
     r1 = sdk.responses.create(model=a.harness, input=MAKE)
     sid = r1.metadata["session_id"]
     check("make", r1.status == "completed" and "done" in words(r1.output_text).lower(), r1.output_text)
@@ -83,7 +80,7 @@ def main() -> int:
         while time.time() - started < 90:
             if http.get(f"/v1/responses/{rid}").json()["status"] != "in_progress":
                 return False
-            if time.time() - started >= seconds and detail(rid)["stdout"]:
+            if time.time() - started >= seconds:
                 return True
             time.sleep(1)
         return True

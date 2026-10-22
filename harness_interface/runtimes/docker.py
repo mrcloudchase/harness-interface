@@ -243,6 +243,7 @@ class DockerRuntime:
         for path in self.read_only:
             argv += ["-v", f"{path}:{path}:ro"]
         argv += ["-v", f"{TURN_SCRIPT}:{TURN_SCRIPT}:ro"]           # the runner, at its own path, read-only
+        argv += ["-v", f"{names.secrets / 'passwd'}:/etc/passwd:ro", "-v", f"{names.secrets / 'group'}:/etc/group:ro"]   # the run's user has a name and a home
         if self.gateway_url:
             argv += ["-v", f"{names.secrets / 'token'}:{TOKEN_PATH}:ro"]
         if self.ca_file:
@@ -266,12 +267,20 @@ class DockerRuntime:
         return argv
 
     def _prepare(self, spec: Spec, names: Names) -> None:
-        """Hand the writable paths to the run's user, and write its token."""
+        """Hand the writable paths to the run's user, give it a name, and write its token."""
         if os.geteuid() == 0:
             for path in (*([spec.workspace] if spec.workspace else []), *self.writable):
                 hand_over(path, self.uid)
+        names.secrets.mkdir(mode=0o700)
+        uid = self.uid if os.geteuid() == 0 else os.getuid()
+        home = spec.env.get("HOME", "/tmp")
+        (names.secrets / "passwd").write_text(f"root:x:0:0:root:/root:/usr/sbin/nologin\nnobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin\n"
+                                              f"sandbox:x:{uid}:{uid}:sandbox:{home}:/bin/bash\n")
+        (names.secrets / "group").write_text(f"root:x:0:\nnogroup:x:65534:\nsandbox:x:{uid}:\n")
+        for name in ("passwd", "group"):
+            os.chmod(names.secrets / name, 0o644)
+        os.chmod(names.secrets, 0o711)
         if self.gateway_url:
-            names.secrets.mkdir(mode=0o700)
             token = names.secrets / "token"
             fd = os.open(token, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o400)
             with os.fdopen(fd, "w") as f:

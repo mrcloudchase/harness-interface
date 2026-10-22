@@ -50,7 +50,7 @@ harness-interface is the server behind that:
 ## Quickstart
 
 ```bash
-uv tool install "git+https://github.com/mrcloudchase/harness-interface@v3.0.0"
+uv tool install "git+https://github.com/mrcloudchase/harness-interface@v3.0.1"
 harness-interface init --org acme --owner chase     # prints the owner's API key once
 harness-interface serve
 ```

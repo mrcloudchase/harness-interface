@@ -18,3 +18,4 @@ relays the bytes and remembers both; it knows nothing about any CLI.
 | [API reference](api.md) | Every route, in one table. |
 | [Configuration](configuration.md) | The server's environment variables. |
 | [Troubleshooting](troubleshooting.md) | What a failed response says and what to do. |
+| [Setup skill](../../skills/harness-interface-setup/SKILL.md) | A SKILL.md to hand your coding agent so it sets all of this up for you, end to end. |

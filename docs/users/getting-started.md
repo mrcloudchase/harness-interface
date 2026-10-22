@@ -9,7 +9,7 @@ You need Docker running and [uv](https://docs.astral.sh/uv/).
 ## 1. Install and initialize
 
 ```bash
-uv tool install "git+https://github.com/mrcloudchase/harness-interface@v3.0.0"
+uv tool install "git+https://github.com/mrcloudchase/harness-interface@v3.0.1"
 harness-interface init --org acme --owner chase
 ```
 

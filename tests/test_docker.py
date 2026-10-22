@@ -105,7 +105,8 @@ def test_a_turn(tmp_path, gateway):
     ex, out, outcome = asyncio.run(run(rt, spec(tmp_path, "hello", rt)))
     lines = dict(line.split("=", 1) for line in out["stdout"].decode().splitlines() if "=" in line)
     assert outcome.kind == "exited" and outcome.code == 0, (outcome, out)  # response.sh's exit code, not request.sh's 4
-    assert lines["prompt"].startswith("hello uid=100123 caps=0000000000000000")
+    uid = 100123 if os.geteuid() == 0 else os.getuid()                           # unprivileged servers run as themselves
+    assert lines["prompt"].startswith(f"hello uid={uid} caps=0000000000000000")
     assert lines["user"] == f"sandbox home={tmp_path / 'home'}"                 # a uid with a name and a home
     assert lines["token"] == "sk-hi-testtoken keyenv=sk-hi-testtoken url=http://hi-provider:8080"
     assert lines["gateway"] == '{"ok": true}' and Gateway.seen[-1] == ("/x/v1/models", "Bearer sk-hi-testtoken")
@@ -115,7 +116,7 @@ def test_a_turn(tmp_path, gateway):
     assert response.startswith("outcome=exited exit=4 lines=6 err=a warning")
     assert (tmp_path / "run" / "stdout").read_bytes() == out["stdout"]
     assert b"door deny 169.254.169.254:443" in out["door"] and b"gateway forward" in out["door"]
-    assert (tmp_path / "workspace").stat().st_uid == (100123 if os.geteuid() == 0 else os.getuid())
+    assert (tmp_path / "workspace").stat().st_uid == uid
 
 
 def test_without_response_sh(tmp_path, gateway):

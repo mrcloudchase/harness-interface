@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/media/picky.png" width="240" alt="Picky, the harness-interface mascot: a hermit crab with no shell of its own">
+</p>
+
 # harness-interface
 
 A multi-tenant platform that runs coding-agent CLIs, the **harnesses**, one turn at a time in

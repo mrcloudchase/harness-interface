@@ -1,0 +1,25 @@
+{
+  "contract": 4,
+  "description": "OpenHands CLI 1.16.0, headless `openhands --headless --json`; any litellm provider.",
+  "defaults": {
+    "provider": "openai",
+    "model": "gpt-5.4-mini"
+  },
+  "provider_env": {
+    "key": "LLM_API_KEY",
+    "url": ""
+  },
+  "interrupt": "SIGUSR1",
+  "install": {
+    "egress": [
+      "pypi.org",
+      "files.pythonhosted.org"
+    ],
+    "timeout_s": 1800
+  },
+  "run": {
+    "egress": [],
+    "timeout_s": 2400,
+    "stop_timeout_s": 20
+  }
+}

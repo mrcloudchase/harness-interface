@@ -1,0 +1,29 @@
+{
+ "title": "Grok Build",
+ "intro": "Grok Build, headless over `grok -p --output-format streaming-json`, on any provider through a `[model.hi]` entry in `$HOME/.grok/config.toml` whose `env_key` names the variable holding the credential.",
+ "verified": {
+  "contract": 4,
+  "checks": {
+   "make": true,
+   "recall": true,
+   "archive": true,
+   "stream": true,
+   "interrupt accepted": true,
+   "steer": true,
+   "cancel": true,
+   "trace": true,
+   "stateless": true
+  },
+  "passed": 9,
+  "provider": "deepseek-openai",
+  "model": "deepseek-chat"
+ },
+ "notes": [
+  "Installed from the single static binary x.ai publishes.",
+  "`-s <uuid>` on the first turn and `--resume <uuid>` after, the UUID derived from the platform session id.",
+  "`api_backend = \"chat_completions\"` here; `responses` or `messages` for the other shapes.",
+  "`GROK_FOLDER_TRUST=0` lets it read `AGENTS.md` from the workspace; `GROK_DISABLE_AUTOUPDATER=1` keeps it off the network.",
+  "Assistant text arrives as `text` events with token-sized `data`; join them to read it."
+ ],
+ "caveat": ""
+}

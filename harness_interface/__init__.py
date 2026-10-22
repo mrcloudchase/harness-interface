@@ -1,20 +1,14 @@
-"""harness-interface: a multi-tenant harness server. Orgs register providers, sandboxes and harness
-folders; members make OpenAI Responses requests that run `request.sh` in a sandbox against a
-provider; the output comes back as the response.
-
-Python callers use the layers directly: Store, Runtimes and Sessions; the server (`harness_interface.api`)
-is built on them."""
+"""harness-interface: a multi-tenant harness platform. Tenants bring providers and harness packages;
+members make OpenAI Responses requests; a worker runs the package in a sandbox the platform owns and
+returns what the package decided; the gateway relays provider calls and holds the keys."""
 from .errors import Conflict, Invalid, NotFound
 from .execution import Event, Execution, NeverStarted, Outcome, Runtime, Spec
 from .harness import Config, load_config
-from .runtimes import ContainerExecution, DockerRuntime, Images, Provider, owner_of
-from .sandboxes import InstallFailed, Runtimes
+from .limits import Limits
 from .secrets import Vault
-from .sessions import Ask, Record, SessionRecord, Sessions, session_token
-from .store import ApiKey, Harness, Member, Org, Sandbox, Store
-from .store import Provider as ProviderRecord
+from .sessions import Ask, Record, SessionRecord, Sessions
+from .store import ApiKey, Harness, Member, Provider, Store, Tenant, Worker
 
-__all__ = ["ApiKey", "Ask", "Config", "Conflict", "ContainerExecution", "DockerRuntime", "Event", "Execution",
-           "Harness", "Images", "InstallFailed", "Invalid", "Member", "NeverStarted", "NotFound", "Org", "Outcome",
-           "Provider", "ProviderRecord", "Record", "Runtime", "Runtimes", "Sandbox", "SessionRecord", "Sessions",
-           "Spec", "Store", "Vault", "load_config", "owner_of", "session_token"]
+__all__ = ["ApiKey", "Ask", "Config", "Conflict", "Event", "Execution", "Harness", "Invalid", "Limits", "Member",
+           "NeverStarted", "NotFound", "Outcome", "Provider", "Record", "Runtime", "SessionRecord", "Sessions", "Spec",
+           "Store", "Tenant", "Vault", "Worker", "load_config"]

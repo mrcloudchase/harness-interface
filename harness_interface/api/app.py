@@ -1,38 +1,43 @@
-"""Layer 6: the HTTP routes. A Bearer key names a member of an org; the platform's admin key creates
-orgs. Owners register providers, sandboxes and harnesses; every member reads them and makes requests.
-`POST /v1/responses` is the OpenAI Responses API; sessions are read, followed, interrupted and
-archived. Each route validates, calls the layer below and shapes the reply with `wire`; nothing
-else. A refusal is 400 (can't be done), 401, 403, 404 (unknown) or 409 (busy), a malformed body 422,
-each `{"detail": …}`. (No `from __future__ import annotations` here: FastAPI reads the route types
-at runtime.)"""
+"""Layer 6: the HTTP routes a tenant uses. A member's key names a member of a tenant; owners register
+providers and packages and add members; every member reads them and makes requests.
+`POST /v1/responses` is the OpenAI Responses API; sessions are read, followed, steered, archived.
+Each route validates, calls the layer below and shapes the reply with `wire`; nothing else. A refusal
+is 400, 401, 403, 404 or 409 with `{"detail": …}`; a malformed body 422."""
+from __future__ import annotations
+
 import asyncio
-import hmac
+import secrets
 from contextlib import asynccontextmanager
 from dataclasses import asdict
 from importlib.metadata import version
+from pathlib import Path
 from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import JSONResponse, Response, StreamingResponse
-from pydantic import BaseModel, Field
+from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from pydantic import BaseModel
 
+from ..blobs import open_blobs
+from ..catalog import Catalog
 from ..errors import Conflict, Invalid, NotFound
-from ..runtimes.docker import owner_of
-from ..sandboxes import Runtimes
+from ..records import open_records
 from ..secrets import Vault
 from ..sessions import Record, Sessions
 from ..store import Member, Store
-from . import wire
+from . import deployer, internal, wire
+from .auth import Principals
 from .config import Settings
 
 STATUS = {Invalid: 400, NotFound: 404, Conflict: 409}
-ADMIN = Member("", "", "admin", 0)
+CONSOLE = Path(__file__).resolve().parents[1] / "console"      # inside the wheel; a checkout has it at the repository root
+if not CONSOLE.is_dir():
+    CONSOLE = Path(__file__).resolve().parents[2] / "console"
+VERSION = version("harness-interface")
 
 
-class OrgBody(BaseModel):
-    name: str
+class SignupBody(BaseModel):
+    tenant: str
     owner: str
-    max_runs: int = Field(default=4, ge=1)
 
 
 class MemberBody(BaseModel):
@@ -50,177 +55,151 @@ class ProviderBody(BaseModel):
     key: str = ""
 
 
-class SandboxBody(BaseModel):
-    image: str = ""
-    dockerfile: str = ""
-    egress: list[str] = []
-    memory: str = "4g"
-    pids: int = 512
+class ForkBody(BaseModel):
+    catalog: str
 
 
 class Service:
-    """The server's parts, built from its settings."""
+    """The platform's parts, built from its settings; shared by every role in a process."""
 
     def __init__(self, settings: Settings, vault: Optional[Vault] = None):
         self.settings = settings
-        data = settings.data_dir
-        self.store = Store(data, vault or Vault.from_env())
-        self.sessions = Sessions(self.store, Runtimes(data / "logs", settings.ca_file, owner_of(data)))
-
-    def running(self, sid: str) -> bool:
-        return any(live.record.session == sid for live in self.sessions._live.values())
+        self.vault = vault or Vault.from_env()
+        self.records = open_records(settings.records_url)
+        self.blobs = open_blobs(settings.blobs_url, base_url=settings.public_url, secret=self.vault.derive("blobs"))
+        self.store = Store(self.records, self.blobs, self.vault, settings.allow_private)
+        self.sessions = Sessions(self.store, settings.public_url, settings.gateway_url)
+        self.catalog = Catalog()
+        self.join_token = settings.join_token or secrets.token_urlsafe(32)   # an in-process worker joins with it
+        self.principals = Principals(self.store, settings.deployer_key, self.join_token)
 
 
 def create_app(service: Service) -> FastAPI:
+    settings, store, sessions, principals = service.settings, service.store, service.sessions, service.principals
+
     @asynccontextmanager
     async def lifespan(_: FastAPI):
-        await service.sessions.recover()
+        async def sweeps() -> None:
+            while True:
+                await asyncio.sleep(15)
+                try:
+                    sessions.sweep_lost()
+                except Exception:
+                    pass
+        task = asyncio.create_task(sweeps())
         yield
-        await service.sessions.close()
+        task.cancel()
 
-    app = FastAPI(title="harness-interface", version=version("harness-interface"), lifespan=lifespan)
+    app = FastAPI(title="harness-interface", version=VERSION, lifespan=lifespan)
 
     for error, code in STATUS.items():
         @app.exception_handler(error)
         async def refused(_: Request, e: Exception, code: int = code) -> JSONResponse:
             return JSONResponse({"detail": str(e)}, status_code=code)
 
-    store, sessions, settings = service.store, service.sessions, service.settings
+    member, owner = Depends(principals.member), Depends(principals.owner)
 
-    def bearer(request: Request) -> str:
-        auth = request.headers.get("authorization", "")
-        if not auth.lower().startswith("bearer "):
-            raise HTTPException(401, "a Bearer API key is required")
-        return auth[7:].strip()
+    @app.get("/healthz")
+    def healthz() -> dict:
+        return {"status": "ok", "version": VERSION, "roles": list(settings.roles), "signup": settings.signup}
 
-    def principal(request: Request) -> Member:
-        token = bearer(request)
-        if settings.admin_key and hmac.compare_digest(token, settings.admin_key):
-            return ADMIN
-        who = store.resolve_key(token)
-        if who is None:
-            raise HTTPException(401, "unknown or revoked API key")
-        return who
-
-    def member(who: Member = Depends(principal)) -> Member:
-        if who is ADMIN:
-            raise HTTPException(403, "the admin key manages orgs; a member's key does this")
-        return who
-
-    def owner(who: Member = Depends(member)) -> Member:
-        if not who.owner:
-            raise HTTPException(403, "an owner's key does this")
-        return who
-
-    def admin(who: Member = Depends(principal)) -> Member:
-        if who is not ADMIN:
-            raise HTTPException(403, "the admin key does this")
-        return who
-
-    # the platform
-    @app.post("/v1/orgs")
-    def create_org(body: OrgBody, _: Member = Depends(admin)) -> dict:
-        org = store.create_org(body.name, body.max_runs)
-        store.create_member(org.name, body.owner, "owner")
-        key, secret = store.mint_key(org.name, body.owner, "first")
-        return {"org": asdict(org), "owner": body.owner, "key": {"id": key.id, "secret": secret}}
-
-    @app.get("/v1/orgs")
-    def list_orgs(_: Member = Depends(admin)) -> dict:
-        return {"object": "list", "data": [asdict(o) for o in store.orgs()]}
+    # the front door
+    @app.post("/v1/signup")
+    def signup(body: SignupBody) -> dict:
+        if settings.signup != "open":
+            raise HTTPException(404, "sign-up is closed on this platform; the deployer creates tenants")
+        t = store.create_tenant(body.tenant)
+        store.create_member(t.name, body.owner, "owner")
+        key, secret = store.mint_key(t.name, body.owner, "first")
+        return {"tenant": asdict(t), "owner": body.owner, "key": {"id": key.id, "secret": secret}}
 
     @app.get("/v1/me")
-    def me(who: Member = Depends(member)) -> dict:
-        return asdict(who)
+    def me(who: Member = member) -> dict:
+        t = store.tenant(who.tenant)
+        return {**asdict(who), "limits": t.limits, "tenant_status": t.status}
 
-    # the org
+    # the tenant
     @app.post("/v1/members")
-    def create_member(body: MemberBody, who: Member = Depends(owner)) -> dict:
-        return asdict(store.create_member(who.org, body.name, body.role))
+    def create_member(body: MemberBody, who: Member = owner) -> dict:
+        return asdict(store.create_member(who.tenant, body.name, body.role))
 
     @app.get("/v1/members")
-    def list_members(who: Member = Depends(owner)) -> dict:
-        return {"object": "list", "data": [asdict(m) for m in store.members(who.org)]}
+    def list_members(who: Member = member) -> dict:
+        return {"object": "list", "data": [asdict(m) for m in store.members(who.tenant)]}
 
     @app.post("/v1/members/{name}/keys")
-    def mint_key(name: str, body: KeyBody, who: Member = Depends(member)) -> dict:
+    def mint_key(name: str, body: KeyBody, who: Member = member) -> dict:
         if not (who.owner or who.name == name):
             raise HTTPException(403, "a member mints keys for themselves; an owner for anyone")
-        key, secret = store.mint_key(who.org, name, body.label)
+        key, secret = store.mint_key(who.tenant, name, body.label)
         return {**asdict(key), "secret": secret}
 
     @app.get("/v1/keys")
-    def list_keys(who: Member = Depends(member)) -> dict:
-        keys = [k for k in store.keys(who.org) if who.owner or k.member == who.name]
-        return {"object": "list", "data": [asdict(k) for k in keys]}
+    def list_keys(who: Member = member) -> dict:
+        return {"object": "list", "data": [asdict(k) for k in store.keys(who.tenant) if who.owner or k.member == who.name]}
 
     @app.delete("/v1/keys/{key_id}")
-    def revoke_key(key_id: str, who: Member = Depends(member)) -> dict:
-        keys = {k.id: k for k in store.keys(who.org)}
+    def revoke_key(key_id: str, who: Member = member) -> dict:
+        keys = {k.id: k for k in store.keys(who.tenant)}
         if key_id not in keys or not (who.owner or keys[key_id].member == who.name):
             raise NotFound(f"no key {key_id}")
-        return asdict(store.revoke_key(who.org, key_id))
+        return asdict(store.revoke_key(who.tenant, key_id))
 
-    # providers, sandboxes, harnesses
+    # providers
     @app.put("/v1/providers/{name}")
-    def put_provider(name: str, body: ProviderBody, who: Member = Depends(owner)) -> dict:
-        return store.put_provider(who.org, name, body.url, body.api, body.key).public()
+    def put_provider(name: str, body: ProviderBody, who: Member = owner) -> dict:
+        return store.put_provider(who.tenant, name, body.url, body.api, body.key).public()
 
     @app.get("/v1/providers")
-    def list_providers(who: Member = Depends(member)) -> dict:
-        return {"object": "list", "data": [p.public() for p in store.providers(who.org)]}
+    def list_providers(who: Member = member) -> dict:
+        return {"object": "list", "data": [p.public() for p in store.providers(who.tenant)]}
 
     @app.get("/v1/providers/{name}")
-    def get_provider(name: str, who: Member = Depends(member)) -> dict:
-        return store.provider(who.org, name).public()
+    def get_provider(name: str, who: Member = member) -> dict:
+        return store.provider(who.tenant, name).public()
 
     @app.delete("/v1/providers/{name}")
-    def delete_provider(name: str, who: Member = Depends(owner)) -> dict:
-        store.delete_provider(who.org, name)
+    def delete_provider(name: str, who: Member = owner) -> dict:
+        store.delete_provider(who.tenant, name)
         return {"deleted": name}
 
-    @app.put("/v1/sandboxes/{name}")
-    def put_sandbox(name: str, body: SandboxBody, who: Member = Depends(owner)) -> dict:
-        return store.put_sandbox(who.org, name, image=body.image, dockerfile=body.dockerfile, egress=body.egress,
-                                 memory=body.memory, pids=body.pids).public()
+    # packages
+    @app.get("/v1/catalog")
+    def list_catalog(who: Member = member) -> dict:
+        return {"object": "list", "data": [service.catalog.info(n) for n in service.catalog.names()]}
 
-    @app.get("/v1/sandboxes")
-    def list_sandboxes(who: Member = Depends(member)) -> dict:
-        return {"object": "list", "data": [s.public() for s in store.sandboxes(who.org)]}
-
-    @app.get("/v1/sandboxes/{name}")
-    def get_sandbox(name: str, who: Member = Depends(member)) -> dict:
-        return store.sandbox(who.org, name).public()
-
-    @app.delete("/v1/sandboxes/{name}")
-    def delete_sandbox(name: str, who: Member = Depends(owner)) -> dict:
-        store.delete_sandbox(who.org, name)
-        return {"deleted": name}
-
-    def shaped_harness(org: str, name: str) -> dict:
-        h = store.harness(org, name)
-        return h.public(store.config(h))
+    @app.get("/v1/catalog/{name}")
+    def get_catalog(name: str, who: Member = member) -> dict:
+        return service.catalog.info(name)
 
     @app.put("/v1/harnesses/{name}")
-    async def put_harness(name: str, request: Request, who: Member = Depends(owner)) -> dict:
-        """The body is the folder as a tar archive, gzipped or not."""
-        archive = await request.body()
-        if not archive:
-            raise Invalid("send the harness folder as a tar archive in the request body")
-        h = await asyncio.to_thread(store.put_harness, who.org, name, archive)
-        return h.public(store.config(h))
+    async def put_harness(name: str, request: Request, who: Member = owner) -> dict:
+        """The body is the package as a tar archive, or JSON `{"catalog": "<package>"}` to fork one."""
+        t = store.tenant(who.tenant)
+        if request.headers.get("content-type", "").startswith("application/json"):
+            body = ForkBody(**(await request.json()))
+            await asyncio.to_thread(service.catalog.fork, store, who.tenant, body.catalog, name)
+        else:
+            cap = t.ceilings.upload_mb * 1024 * 1024
+            if int(request.headers.get("content-length", "0") or 0) > cap:
+                raise Invalid(f"the package is over the tenant's upload limit of {t.ceilings.upload_mb} MB")
+            archive = await request.body()
+            if not archive:
+                raise Invalid("send the package as a tar archive in the request body")
+            await asyncio.to_thread(store.put_harness, who.tenant, name, archive)
+        return store.harness(who.tenant, name).public()
 
     @app.get("/v1/harnesses")
-    def list_harnesses(who: Member = Depends(member)) -> dict:
-        return {"object": "list", "data": [h.public(store.config(h)) for h in store.harnesses(who.org)]}
+    def list_harnesses(who: Member = member) -> dict:
+        return {"object": "list", "data": [h.public() for h in store.harnesses(who.tenant)]}
 
     @app.get("/v1/harnesses/{name}")
-    def get_harness(name: str, who: Member = Depends(member)) -> dict:
-        return shaped_harness(who.org, name)
+    def get_harness(name: str, who: Member = member) -> dict:
+        return store.harness(who.tenant, name).public()
 
     @app.delete("/v1/harnesses/{name}")
-    def delete_harness(name: str, who: Member = Depends(owner)) -> dict:
-        store.delete_harness(who.org, name)
+    def delete_harness(name: str, who: Member = owner) -> dict:
+        store.delete_harness(who.tenant, name)
         return {"deleted": name}
 
     # responses
@@ -231,53 +210,78 @@ def create_app(service: Service) -> FastAPI:
                                  headers={"Cache-Control": "no-cache", "X-Session-Id": r.session})
 
     @app.post("/v1/responses")
-    async def create_response(req: wire.ResponseRequest, who: Member = Depends(member)) -> Any:
-        r = await sessions.create(req.ask(who))
+    async def create_response(req: wire.ResponseRequest, who: Member = member) -> Any:
+        r = await asyncio.to_thread(sessions.create, req.ask(who))
         if req.stream:
             return streamed(who, r)
         if not req.background:
-            r = await sessions.wait(r.id)            # a client that leaves does not stop it
+            r = await sessions.wait(r.id)
         return JSONResponse(wire.response(r), headers={"X-Session-Id": r.session})
 
     @app.get("/v1/responses/{rid}")
-    def get_response(rid: str, stream: bool = False, who: Member = Depends(member)) -> Any:
+    def get_response(rid: str, stream: bool = False, detail: bool = False, who: Member = member) -> Any:
         r = sessions.response(who, rid)
-        return streamed(who, r) if stream else wire.response(r)
+        return streamed(who, r) if stream else (wire.record_detail(sessions.with_live_streams(r)) if detail else wire.response(r))
 
     @app.post("/v1/responses/{rid}/cancel")
-    async def cancel_response(rid: str, who: Member = Depends(member)) -> dict:
-        return wire.response(await sessions.cancel(who, rid))
+    async def cancel_response(rid: str, who: Member = member) -> dict:
+        r = sessions.cancel(who, rid)
+        if not r.final:
+            r = await sessions.wait(rid)
+        return wire.response(r)
+
+    @app.get("/v1/responses/{rid}/captures")
+    def list_captures(rid: str, who: Member = member) -> dict:
+        return {"object": "list", "data": sessions.captures(who, rid)}
+
+    @app.get("/v1/responses/{rid}/captures/{name:path}")
+    def get_capture(rid: str, name: str, who: Member = member) -> Response:
+        return Response(sessions.capture(who, rid, name), media_type="application/octet-stream")
 
     # sessions
     @app.get("/v1/sessions")
-    def list_sessions(who: Member = Depends(member)) -> dict:
-        return {"object": "list", "data": [wire.session(s, service.running(s.id)) for s in sessions.sessions(who)]}
+    def list_sessions(who: Member = member) -> dict:
+        return {"object": "list", "data": [wire.session(s) for s in sessions.sessions(who)]}
 
     @app.get("/v1/sessions/{sid}")
-    def get_session(sid: str, who: Member = Depends(member)) -> dict:
-        return wire.session(sessions.session(who, sid), service.running(sid))
+    def get_session(sid: str, who: Member = member) -> dict:
+        return wire.session(sessions.session(who, sid))
 
     @app.post("/v1/sessions/{sid}/interrupt")
-    async def interrupt(sid: str, req: wire.InterruptRequest, who: Member = Depends(member)) -> dict:
-        return wire.response(await sessions.interrupt(who, sid, req.text))
+    def interrupt(sid: str, req: wire.InterruptRequest, who: Member = member) -> dict:
+        return wire.response(sessions.interrupt(who, sid, req.text))
 
     @app.get("/v1/sessions/{sid}/trace")
-    def trace(sid: str, who: Member = Depends(member)) -> dict:
+    def trace(sid: str, who: Member = member) -> dict:
         lines = sessions.trace(who, sid)
         for line in lines:
-            if line["kind"] == "response":           # kept as the record; shown as the response object
-                line["body"] = wire.response(Record(**line["body"]))
+            if line["kind"] == "response":
+                line["body"] = wire.record_detail(Record(**line["body"]))
         return {"object": "list", "data": lines}
 
     @app.get("/v1/sessions/{sid}/archive")
-    async def archive(sid: str, who: Member = Depends(member)) -> Response:
-        data = await sessions.archive(who, sid)
-        return Response(data, media_type="application/gzip",
+    def archive(sid: str, who: Member = member) -> Response:
+        return Response(sessions.archive(who, sid), media_type="application/gzip",
                         headers={"Content-Disposition": f'attachment; filename="{sid}.tar.gz"'})
 
     @app.delete("/v1/sessions/{sid}")
-    async def delete_session(sid: str, who: Member = Depends(member)) -> dict:
-        await sessions.delete(who, sid)
+    def delete_session(sid: str, who: Member = member) -> dict:
+        sessions.delete(who, sid)
         return {"deleted": sid}
+
+    app.include_router(deployer.router(store, sessions, principals))
+    app.include_router(internal.router(store, sessions, principals, VERSION))
+
+    if (CONSOLE / "index.html").is_file():
+        @app.get("/", include_in_schema=False)
+        def console() -> FileResponse:
+            return FileResponse(CONSOLE / "index.html")
+
+        @app.get("/console/{path:path}", include_in_schema=False)
+        def console_file(path: str) -> FileResponse:
+            target = (CONSOLE / path).resolve()
+            if not target.is_file() or CONSOLE not in target.parents:
+                raise HTTPException(404)
+            return FileResponse(target)
 
     return app

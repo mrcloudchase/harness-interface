@@ -1,24 +1,23 @@
-"""Layer 1: the Docker runtime. Every run gets a fresh container from the image it is given, an internal
-network of its own, and an egress door on that network as its only way out.
+"""Layer 1: the Docker runtime. Every run gets a fresh container from the platform's base image, an
+internal network of its own, and an egress door on that network as its only way out.
 
-Its guarantees, on every run, whatever the image holds:
-- no Linux capabilities, no privilege escalation, a read-only root, process and memory limits, and
-  an unprivileged user: uid 1000 when the server runs as root (it hands the writable paths over), or
-  the server's own user otherwise, so what the run writes is always its own;
+Its guarantees, on every run:
+- no Linux capabilities, no privilege escalation, a read-only root, cpu, memory and pid limits, a
+  sandboxed runtime when the node has one (`runtime`), and the tenant's own unprivileged user when the
+  server runs as root (it hands the writable paths over), else the server's own user;
 - tini as PID 1, so a stop (SIGTERM) reaches the command's whole process group, and a kill follows;
-- no route out but the door, which tunnels only to the hosts it is given, and no DNS of its own;
-- at most one provider. Under the gateway the provider's key reaches only the door, on its stdin, and
-  the run reads a session token from `KEY_PATH`; in file mode the run reads the key there. Either
-  way the gateway's URL and the key's path are the same for every run, so a session can keep them;
+  any other signal reaches PID 1 and is forwarded the same way;
+- no route out but the door, which tunnels only to the hosts it is given, refuses private addresses,
+  and has no DNS to give; provider calls go through the door's forwarder to the platform's gateway,
+  which is where the keys are. The run reads its session token from `TOKEN_PATH`; it never sees a key;
 - the spec's environment and nothing of the host's, passed by name so no value is on a command line
-  (but PATH, HOME and DOCKER_*, which the Docker client runs by, and no secret ever is); the client
-  itself gets only the allowlisted host variables;
-- teardown of the container, the door, the network and the credential on every path, shielded;
-- every container, network and credential it makes carries its owner, one data directory's id
-  (`owner_of`), or one of its own; a sweep removes one owner's leftovers, never another's.
+  (but PATH, HOME and DOCKER_*, which the Docker client runs by); the client itself gets only the
+  allowlisted host variables;
+- teardown of the container, the door, the network and the token on every path, shielded;
+- every container and network it makes carries its owner (`owner_of` a data directory, or one of its
+  own); a sweep removes one owner's leftovers, never another's.
 
-Paths are the same inside as outside: the workspace and every mount appear at their own paths, so
-nothing above this layer translates them. `Images` builds images from Dockerfiles, once each.
+Paths are the same inside as outside: the workspace and every mount appear at their own paths.
 """
 from __future__ import annotations
 
@@ -29,72 +28,41 @@ import re
 import shutil
 import tempfile
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Awaitable, Sequence, TypeVar
-from urllib.parse import urlsplit
 
 from ..errors import Invalid
 from ..execution import Execution, NeverStarted, Spec
-from .door import APIS, DOOR_PORT, GATEWAY_PORT, KEYLESS, READY, normalize
+from .door import DOOR_PORT, GATEWAY_PORT, READY, normalize
 from .process import ProcessExecution, host_env
 
 DOOR_IMAGE = "python:3.12-alpine"
 DOOR_SCRIPT = Path(__file__).with_name("door.py")
+TURN_SCRIPT = Path(__file__).with_name("turn.sh")
 DOOR_HOST, PROVIDER_HOST = "hi-door", "hi-provider"  # the door's aliases, the same on every run's network
-GATEWAY = f"http://{PROVIDER_HOST}:{GATEWAY_PORT}"
+PROVIDER_URL = f"http://{PROVIDER_HOST}:{GATEWAY_PORT}"  # where a run calls its provider; the gateway's path is appended
 PROXY = f"http://{DOOR_HOST}:{DOOR_PORT}"
 NO_PROXY = f"127.0.0.1,localhost,{DOOR_HOST},{PROVIDER_HOST}"
-KEY_PATH = Path("/run/hi/key")                       # where every run reads its credential
-CA_PATH = "/etc/hi/ca.pem"                           # where a CA bundle appears, when one is given
+TOKEN_PATH = Path("/run/hi/token")                   # where every run reads its session token
+CA_PATH = "/etc/hi/ca.pem"
 CA_VARS = ("SSL_CERT_FILE", "NODE_EXTRA_CA_CERTS", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "GIT_SSL_CAINFO")
-SECRETS = Path("/dev/shm") if Path("/dev/shm").is_dir() else Path(tempfile.gettempdir())   # memory, not disk
-UID = 1000                                           # the sandbox user, when the server is root
+SECRETS = Path("/dev/shm") if Path("/dev/shm").is_dir() else Path(tempfile.gettempdir())
 PREFIX = "hi-"
-LABEL = "hi.owner"                                   # on every container and network: whose run it is
-# Every container, the door included: nothing to escalate with, nothing to write outside its mounts.
+LABEL = "hi.owner"
 LOCKDOWN = ("--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only")
-# The run's container, besides. /tmp allows exec, as a normal /tmp does: CLIs unpack native modules there.
 HARDENING = (*LOCKDOWN, "--tmpfs", "/tmp:rw,exec,nosuid,nodev,size=512m")
 DOOR_LIMITS = ("--pids-limit", "64", "--memory", "256m")
 T = TypeVar("T")
 
 
-@dataclass(frozen=True)
-class Provider:
-    """The one model provider a run may call: its base URL, API shape and key, and how the key
-    reaches the run (`gateway`: the session's token stands in for it; `file`: the key itself)."""
-    url: str
-    api: str
-    key: str = field(repr=False)
-    credential: str = "gateway"
-    token: str = field(default="", repr=False)       # the session's, under the gateway
-
-    def __post_init__(self) -> None:
-        u = urlsplit(self.url)
-        if u.scheme != "https" or not u.hostname:
-            raise Invalid(f"a provider's URL must be https://host…: {self.url!r}")
-        if self.api not in (*APIS, KEYLESS):
-            raise Invalid(f"a provider's API is one of {', '.join(APIS)}, or {KEYLESS}")
-        if self.credential not in ("gateway", "file"):
-            raise Invalid("a provider's credential is 'gateway' or 'file'")
-        for name, value in (("key", self.key if self.api != KEYLESS else "-"),
-                            ("token", self.token if self.credential == "gateway" else "-")):
-            if not value or any(c in value for c in "\r\n\0"):
-                raise Invalid(f"a provider's {name} must be one line")
-
-
 def clients_own(name: str) -> bool:
-    """A variable the Docker client itself runs by, so a run's value for it goes on the command line
-    (none of them is a secret) and the client keeps the host's."""
     return name in ("PATH", "HOME") or name.startswith("DOCKER_")
 
 
 def client_env(env: dict[str, str] | None = None) -> dict[str, str]:
-    """A Docker client's environment: the allowlisted host variables, with the rest of `env` for the
-    container to take by name."""
     host = host_env()
-    host.setdefault("DOCKER_CONFIG", str(Path.home() / ".docker"))   # never one a run's HOME could plant
+    host.setdefault("DOCKER_CONFIG", str(Path.home() / ".docker"))
     return {**host, **{k: v for k, v in (env or {}).items() if not clients_own(k)}}
 
 
@@ -116,64 +84,48 @@ async def docker(*args: str, stdin: bytes | None = None) -> tuple[int, str]:
         try:
             proc.kill()
         except ProcessLookupError:
-            pass                                     # it had just ended
+            pass
         raise
     return proc.returncode or 0, out.decode(errors="replace")
 
 
-class Images:
-    """Images built from Dockerfiles, each one once, named by its content so a change is a new image."""
-
-    def __init__(self, logs: Path):
-        self.logs = logs
-        self._building: dict[str, asyncio.Lock] = {}
-
-    @staticmethod
-    def tag(name: str, dockerfile: str) -> str:
-        return f"{PREFIX}{name}:{hashlib.sha256(dockerfile.encode()).hexdigest()[:12]}"
-
-    @staticmethod
-    async def pull(reference: str) -> str:
-        """An image by reference, pulled if it is not here; its reference back."""
-        if (await docker("image", "inspect", reference))[0] == 0:
-            return reference
-        code, log = await docker("pull", "-q", reference)
-        if code != 0:
-            raise RuntimeError(f"image {reference} could not be pulled:\n{log[-1000:]}")
+async def pull(reference: str) -> str:
+    """An image by reference, pulled if it is not here; its reference back."""
+    if (await docker("image", "inspect", reference))[0] == 0:
         return reference
+    code, log = await docker("pull", "-q", reference)
+    if code != 0:
+        raise RuntimeError(f"image {reference} could not be pulled:\n{log[-1000:]}")
+    return reference
 
-    @staticmethod
-    async def identity(reference: str) -> tuple[str, str]:
-        """An image's id and CPU architecture."""
-        code, out = await docker("image", "inspect", "-f", "{{.Id}} {{.Architecture}}", reference)
-        if code != 0 or len(out.split()) != 2:
-            raise RuntimeError(f"cannot inspect {reference}: {out.strip()}")
-        image_id, arch = out.split()
-        return image_id.removeprefix("sha256:"), arch
 
-    async def ensure(self, name: str, dockerfile: str) -> str:
-        """The image's tag, built first if this Dockerfile has not been built before."""
-        tag = self.tag(name, dockerfile)
-        async with self._building.setdefault(tag, asyncio.Lock()):
-            if (await docker("image", "inspect", tag))[0] == 0:
-                return tag
-            with tempfile.TemporaryDirectory() as context:                 # an empty context: nothing to copy in
-                code, log = await docker("build", "-t", tag, "-f", "-", context, stdin=dockerfile.encode())
-            self.logs.mkdir(parents=True, exist_ok=True)
-            (self.logs / f"build-{tag.replace(':', '-')}.log").write_text(log)
-            if code != 0:
-                raise RuntimeError(f"image {name} failed to build:\n{log[-2000:]}")
-            return tag
+BASE_DOCKERFILE = Path(__file__).with_name("base.Dockerfile")
+
+
+async def build_base() -> str:
+    """The platform's own base image, built from the shipped Dockerfile once per content; its tag."""
+    text = BASE_DOCKERFILE.read_text()
+    tag = f"{PREFIX}base:{hashlib.sha256(text.encode()).hexdigest()[:12]}"
+    if (await docker("image", "inspect", tag))[0] == 0:
+        return tag
+    with tempfile.TemporaryDirectory() as context:
+        code, log = await docker("build", "-t", tag, "-f", "-", context, stdin=text.encode())
+    if code != 0:
+        raise RuntimeError(f"the base image failed to build:\n{log[-2000:]}")
+    return tag
+
+
+async def identity(reference: str) -> tuple[str, str]:
+    """An image's id and CPU architecture."""
+    code, out = await docker("image", "inspect", "-f", "{{.Id}} {{.Architecture}}", reference)
+    if code != 0 or len(out.split()) != 2:
+        raise RuntimeError(f"cannot inspect {reference}: {out.strip()}")
+    image_id, arch = out.split()
+    return image_id.removeprefix("sha256:"), arch
 
 
 def owner_of(data: Path) -> str:
-    """The owner of the runs made for a data directory: the same for the same directory, however named."""
     return hashlib.sha256(str(Path(data).resolve()).encode()).hexdigest()[:12]
-
-
-def new_owner() -> str:
-    """An owner no data directory and no other runtime has."""
-    return uuid.uuid4().hex[:12]
 
 
 def checked(owner: str) -> str:
@@ -184,8 +136,6 @@ def checked(owner: str) -> str:
 
 @dataclass(frozen=True)
 class Names:
-    """A run's container, door, network and credential, named after it, the credential after its owner too,
-    so a crash's leftovers can be swept by owner."""
     run: str
     door: str
     network: str
@@ -194,53 +144,60 @@ class Names:
     @classmethod
     def new(cls, owner: str) -> Names:
         rid = uuid.uuid4().hex[:12]
-        return cls(f"{PREFIX}run-{rid}", f"{PREFIX}door-{rid}", f"{PREFIX}net-{rid}",
-                   SECRETS / f"{PREFIX}{owner}-{rid}")
+        return cls(f"{PREFIX}run-{rid}", f"{PREFIX}door-{rid}", f"{PREFIX}net-{rid}", SECRETS / f"{PREFIX}{owner}-{rid}")
 
 
 class ContainerExecution(ProcessExecution):
-    """A run's process, plus the name of its container, so a signal other than a stop can reach it."""
+    """A run's process, plus the name of its container, so a signal other than a stop can reach it:
+    it goes to the container's PID 1, which forwards it to the turn runner."""
     container: str = ""
+
+    async def interrupt(self, name: str) -> bool:
+        return bool(self.container) and not self._ended and await signal(self.container, name)
 
 
 async def signal(container: str, name: str) -> bool:
-    """Send a signal to a container's PID 1 (tini forwards it to the command's group)."""
     return (await docker("kill", "--signal", name, container))[0] == 0
 
 
-class DockerRuntime:
-    """Runs specs in fresh containers of one image, each reaching only its provider and `egress`, under
-    `memory` and `pids` limits; a stop is SIGTERM to the command's group."""
+@dataclass(frozen=True)
+class Resources:
+    """What one run may use."""
+    cpus: float = 2
+    memory: str = "4g"
+    pids: int = 512
 
-    def __init__(self, image: str, *, read_only: Sequence[Path] = (), writable: Sequence[Path] = (),
-                 egress: Sequence[str] = (), provider: Provider | None = None, ca_file: Path | None = None,
-                 owner: str | None = None, memory: str = "4g", pids: int = 512):
-        self.image, self.provider, self.ca_file = image, provider, ca_file
-        self.limits = ("--memory", memory, "--pids-limit", str(pids))
-        self.owner = checked(owner) if owner is not None else new_owner()
+
+class DockerRuntime:
+    """Runs specs in fresh containers of one image, each reaching only `egress` and, through the door's
+    forwarder, the gateway at `gateway_url` with `token` as its credential."""
+
+    def __init__(self, image: str, *, uid: int, limits: Resources = Resources(), read_only: Sequence[Path] = (),
+                 writable: Sequence[Path] = (), egress: Sequence[str] = (), gateway_url: str = "", token: str = "",
+                 ca_file: Path | None = None, owner: str, runtime: str = "", allow_private: bool = False):
+        if bool(gateway_url) != bool(token):
+            raise Invalid("a gateway comes with a token, or neither")
+        if token and any(c in token for c in "\r\n\0"):
+            raise Invalid("a token is one line")
+        self.image, self.uid, self.limits, self.ca_file = image, uid, limits, ca_file
+        self.gateway_url, self.token, self.runtime, self.allow_private = gateway_url, token, runtime, allow_private
+        self.owner = checked(owner)
         self.read_only, self.writable = tuple(Path(p) for p in read_only), tuple(Path(p) for p in writable)
-        tunnels = [*egress, *([provider.url] if provider and provider.credential == "file" else [])]
-        self.allowed = sorted({normalize(h) for h in tunnels if h.strip()})
+        self.allowed = sorted({normalize(h) for h in egress if h.strip()})
 
     @property
     def provider_url(self) -> str | None:
-        """The provider's base URL as the run must call it: the gateway's, at the same path, or its own."""
-        if not self.provider:
-            return None
-        if self.provider.credential == "file":
-            return self.provider.url
-        return GATEWAY + urlsplit(self.provider.url).path.rstrip("/")
+        return PROVIDER_URL if self.gateway_url else None
 
     @property
-    def key_path(self) -> Path | None:
-        """Where the run reads its credential: the session's token, or the key in file mode."""
-        return KEY_PATH if self.provider else None
+    def token_path(self) -> Path | None:
+        return TOKEN_PATH if self.gateway_url else None
 
     async def start(self, spec: Spec) -> Execution:
         names, door = Names.new(self.owner), None
         try:
             run_bin = docker_bin()
-            await whole(asyncio.to_thread(self._prepare, spec, names))   # a big workspace must not stall other runs
+            await whole(asyncio.to_thread(self._prepare, spec, names))
             await self._step("network", "create", "--internal", *self.label, names.network)
             door = await self._spawn_door(names)
             await self._door_ready(door)
@@ -255,7 +212,7 @@ class DockerRuntime:
             if isinstance(execution, ContainerExecution):
                 execution.container = names.run
             return execution
-        except asyncio.CancelledError:               # teardown is idempotent: whatever is left goes
+        except asyncio.CancelledError:
             await asyncio.shield(teardown(names, door))
             raise
         except (RuntimeError, OSError) as e:
@@ -269,62 +226,76 @@ class DockerRuntime:
     def label(self) -> tuple[str, str]:
         return "--label", f"{LABEL}={self.owner}"
 
+    @property
+    def user(self) -> str:
+        return f"{self.uid}:{self.uid}" if os.geteuid() == 0 else f"{os.getuid()}:{os.getgid()}"
+
     def run_argv(self, spec: Spec, names: Names, env: dict[str, str]) -> list[str]:
-        user = f"{UID}:{UID}" if os.geteuid() == 0 else f"{os.getuid()}:{os.getgid()}"
         argv = ["run", "--rm", "-i", "--init", "-e", "TINI_KILL_PROCESS_GROUP=1", "--name", names.run,
-                *self.label, "--network", names.network, *HARDENING, *self.limits, "--user", user]
+                *self.label, "--network", names.network, *HARDENING, "--cpus", str(self.limits.cpus),
+                "--memory", self.limits.memory, "--pids-limit", str(self.limits.pids), "--user", self.user]
+        if self.runtime:
+            argv += ["--runtime", self.runtime]
         if spec.workspace:
             argv += ["-v", f"{spec.workspace}:{spec.workspace}", "-w", str(spec.workspace)]
         for path in self.writable:
             argv += ["-v", f"{path}:{path}"]
         for path in self.read_only:
             argv += ["-v", f"{path}:{path}:ro"]
-        if self.provider:
-            argv += ["-v", f"{names.secrets / 'key'}:{KEY_PATH}:ro"]
+        argv += ["-v", f"{TURN_SCRIPT}:{TURN_SCRIPT}:ro"]           # the runner, at its own path, read-only
+        argv += ["-v", f"{names.secrets / 'passwd'}:/etc/passwd:ro", "-v", f"{names.secrets / 'group'}:/etc/group:ro"]   # the run's user has a name and a home
+        if self.gateway_url:
+            argv += ["-v", f"{names.secrets / 'token'}:{TOKEN_PATH}:ro"]
         if self.ca_file:
             argv += ["-v", f"{self.ca_file}:{CA_PATH}:ro"]
-        for name, value in env.items():              # names only: the values travel in the Docker client's environment
+        for name, value in env.items():
             argv += ["-e", f"{name}={value}" if clients_own(name) else name]
         return [*argv, self.image, *spec.command]
 
     def door_argv(self, names: Names) -> list[str]:
         argv = ["run", "-i", "--rm", "--name", names.door, *self.label, "--network", names.network,
-                "--network-alias", DOOR_HOST, "--network-alias", PROVIDER_HOST, *LOCKDOWN, *DOOR_LIMITS,
+                "--network-alias", DOOR_HOST, "--network-alias", PROVIDER_HOST, "--add-host", "host.docker.internal:host-gateway",
+                *LOCKDOWN, *DOOR_LIMITS,
                 "--user", "65534:65534", "-v", f"{DOOR_SCRIPT}:/door/door.py:ro"]
         if self.ca_file:
             argv += ["-v", f"{self.ca_file}:{CA_PATH}:ro", "-e", f"SSL_CERT_FILE={CA_PATH}"]
         argv += [DOOR_IMAGE, "python3", "/door/door.py", f"0.0.0.0:{DOOR_PORT}", *self.allowed]
-        if self.provider and self.provider.credential == "gateway":
-            argv += ["--gateway", f"0.0.0.0:{GATEWAY_PORT}", self.provider.url, self.provider.api]
+        if self.gateway_url:
+            argv += ["--gateway", f"0.0.0.0:{GATEWAY_PORT}", self.gateway_url]
+        if self.allow_private:
+            argv.append("--allow-private")
         return argv
 
     def _prepare(self, spec: Spec, names: Names) -> None:
-        """Hand the writable paths to the sandbox user, and write the run's credential."""
+        """Hand the writable paths to the run's user, give it a name, and write its token."""
         if os.geteuid() == 0:
             for path in (*([spec.workspace] if spec.workspace else []), *self.writable):
-                hand_over(path)
-        if self.provider:
-            names.secrets.mkdir(mode=0o700)
-            key = names.secrets / "key"
-            fd = os.open(key, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o400)
+                hand_over(path, self.uid)
+        names.secrets.mkdir(mode=0o700)
+        uid = self.uid if os.geteuid() == 0 else os.getuid()
+        home = spec.env.get("HOME", "/tmp")
+        (names.secrets / "passwd").write_text(f"root:x:0:0:root:/root:/usr/sbin/nologin\nnobody:x:65534:65534:nobody:/nonexistent:/usr/sbin/nologin\n"
+                                              f"sandbox:x:{uid}:{uid}:sandbox:{home}:/bin/bash\n")
+        (names.secrets / "group").write_text(f"root:x:0:\nnogroup:x:65534:\nsandbox:x:{uid}:\n")
+        for name in ("passwd", "group"):
+            os.chmod(names.secrets / name, 0o644)
+        os.chmod(names.secrets, 0o711)
+        if self.gateway_url:
+            token = names.secrets / "token"
+            fd = os.open(token, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o400)
             with os.fdopen(fd, "w") as f:
-                f.write(self.provider.token if self.provider.credential == "gateway" else self.provider.key)
+                f.write(self.token)
             if os.geteuid() == 0:
-                os.chown(key, UID, UID)
+                os.chown(token, self.uid, self.uid)
 
     async def _spawn_door(self, names: Names) -> asyncio.subprocess.Process:
-        """Start the door, and give a gateway its token and key on stdin."""
         door = await asyncio.create_subprocess_exec(
             docker_bin(), *self.door_argv(names), env=client_env(), start_new_session=True,
-            stdin=asyncio.subprocess.PIPE, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
-        if self.provider and self.provider.credential == "gateway":
-            door.stdin.write(f"{self.provider.token}\n{self.provider.key}\n".encode())
-        door.stdin.close()
+            stdin=asyncio.subprocess.DEVNULL, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.STDOUT)
         return door
 
     @staticmethod
     async def _door_ready(door: asyncio.subprocess.Process) -> None:
-        """Wait until the door listens: a run that calls out at once would otherwise find no way out."""
         said: list[str] = []
         try:
             async with asyncio.timeout(30):
@@ -342,9 +313,9 @@ class DockerRuntime:
             raise RuntimeError(f"docker {' '.join(args[:2])} failed: {out[-500:]}")
 
 
+
 async def whole(awaitable: Awaitable[T]) -> T:
-    """Await it to its end even if cancelled meanwhile, then let the cancel stand: a thread can't be
-    stopped, and teardown must not race what it is still writing."""
+    """Await it to its end even if cancelled meanwhile, then let the cancel stand."""
     task = asyncio.ensure_future(awaitable)
     try:
         return await asyncio.shield(task)
@@ -354,57 +325,52 @@ async def whole(awaitable: Awaitable[T]) -> T:
 
 
 async def interrupt(name: str) -> None:
-    """SIGTERM to a run's container, tried until it lands, so a stop asked for while the container is
-    still being created is not lost. The run's end cancels it."""
+    """SIGTERM to a run's container, tried until it lands. The run's end cancels it."""
     while not await signal(name, "TERM"):
         await asyncio.sleep(0.05)
 
 
-def hand_over(path: Path) -> None:
-    """Make a tree the sandbox user's: a server running as root creates it as root, and the
-    unprivileged user inside could not write to it."""
+def hand_over(path: Path, uid: int) -> None:
+    """Make a tree the run's user's, without following links."""
     for root, dirs, files in os.walk(path):
         for name in (root, *(os.path.join(root, n) for n in dirs + files)):
-            os.lchown(name, UID, UID)
+            try:
+                os.lchown(name, uid, uid)
+            except FileNotFoundError:
+                pass
 
 
 def shred(secrets: Path) -> None:
-    """Overwrite a run's credential, then remove it. A `key` that is a directory holds no secret: Docker
-    made it, mounting a credential that had already been removed."""
-    key = secrets / "key"
-    if key.is_file():
-        key.chmod(0o600)
-        with open(key, "r+b") as f:
-            f.write(b"\0" * max(key.stat().st_size, 64))
+    token = secrets / "token"
+    if token.is_file():
+        token.chmod(0o600)
+        with open(token, "r+b") as f:
+            f.write(b"\0" * max(token.stat().st_size, 64))
             f.flush()
             os.fsync(f.fileno())
-        key.unlink()
+        token.unlink()
     if secrets.exists():
         shutil.rmtree(secrets, ignore_errors=True)
 
 
 async def teardown(names: Names, door: asyncio.subprocess.Process | None) -> None:
-    """Remove everything a run created. Each is gone already, or goes now. The door's client goes
-    first, so it can't create a door after the door is removed."""
     try:
         if door:
             try:
                 door.kill()
             except ProcessLookupError:
-                pass                                 # it ended already
+                pass
             await door.wait()
         await docker("rm", "-f", names.run, names.door)
         await docker("network", "rm", "-f", names.network)
     except RuntimeError:
-        pass                                         # no Docker: it made nothing
+        pass
     finally:
         await asyncio.to_thread(shred, names.secrets)
 
 
 async def sweep(owner: str) -> None:
-    """Remove the containers, networks and credentials of the owner's runs a crash cut off, and
-    nothing of another owner's: another server's runs, or the library's beside it, go on. Also the
-    first sign of whether Docker is there at all."""
+    """Remove the containers, networks and tokens of the owner's runs a crash cut off."""
     label = f"label={LABEL}={checked(owner)}"
     code, out = await docker("ps", "-aq", "--filter", label)
     if code != 0:

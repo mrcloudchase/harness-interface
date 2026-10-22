@@ -1,8 +1,9 @@
 # Releasing
 
-A release is a `CHANGELOG.md` section merged to `main`. The newest section's heading is the version
-(`pyproject.toml` reads it from there); the release workflow tags `vX.Y.Z` when no such tag exists,
-builds the package and publishes a GitHub release with the section as its notes.
+A release is a section in `CHANGELOG.md`. The newest section's heading is the version;
+`pyproject.toml` reads it from there. Merging a new section to `main` runs the release workflow:
+the suite, the wheel, the image pushed to GitHub's registry, a tag `vX.Y.Z` and a GitHub release
+with the section as its notes. Nothing else creates tags.
 
-Before merging a release: `uv run pytest`, `uv run pytest -m docker`, and `scripts/live.py` against
-a server running the branch with at least one real harness.
+The sandbox base image is built, scanned and published on a schedule by `base-image.yml`; set
+`HI_BASE_IMAGE` on a fleet to the published reference.

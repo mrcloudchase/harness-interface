@@ -1,12 +1,12 @@
-"""Prove a registered harness works end to end against a running server, with any client's eyes:
-the OpenAI SDK for the requests, plain HTTP for the session routes.
+"""Prove a harness works end to end against a running platform, with any client's eyes: the OpenAI
+SDK for the requests, plain HTTP for the session routes.
 
-    python scripts/live.py --url http://127.0.0.1:8000 --key hi_… --harness claude-code
+    python scripts/live.py --url http://127.0.0.1:8000 --key hi_… --harness claude-code[/provider/model]
 
 It makes a file in a stateful session, continues the session and checks the harness remembers,
-streams a turn, steers a long turn mid-way (the steer lands after the turn ends), cancels one, reads the trace and downloads the archive.
-The prompts are plain English, so any coding harness should pass; each check prints PASS or FAIL
-with what came back. Exit status 1 if any failed.
+streams a turn, steers a long turn (the steer lands after the turn ends), cancels one, reads the
+trace and downloads the archive. The prompts are plain English, so any coding harness should pass;
+each check prints PASS or FAIL with what came back. Exit status 1 if any failed.
 """
 from __future__ import annotations
 
@@ -28,9 +28,10 @@ STEER = "Stop counting. Whether or not it finished, reply now with just the one 
 
 
 def words(text: str) -> str:
-    """The text with JSON-lines output flattened to its text/data strings, so a harness that streams
+    """The text with JSON-lines output flattened to its text strings, so a harness that streams
     token-sized pieces ({"text": "hel"} then {"text": "lo"}) still reads as hello."""
     keys = {"text", "data", "content", "contentDelta", "delta", "output"}
+
     def strings(v: object) -> list[str]:
         if isinstance(v, dict):
             return [s for k, x in v.items() for s in ([x] if k in keys and isinstance(x, str) else strings(x))]
@@ -48,7 +49,7 @@ def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--url", required=True)
     p.add_argument("--key", required=True)
-    p.add_argument("--harness", required=True, help="a harness name, or sandbox/harness/provider/model")
+    p.add_argument("--harness", required=True, help="a harness name, or harness/provider/model")
     a = p.parse_args()
     http = httpx.Client(base_url=a.url, headers={"Authorization": f"Bearer {a.key}"}, timeout=900)
     sdk = OpenAI(api_key=a.key, base_url=f"{a.url}/v1", timeout=900)
@@ -57,7 +58,7 @@ def main() -> int:
     def check(name: str, ok: bool, detail: str) -> None:
         nonlocal failed
         failed += not ok
-        print(f"{'PASS' if ok else 'FAIL'} {name}: {detail[:300]!r}")
+        print(f"{'PASS' if ok else 'FAIL'} {name}: {detail[:300]!r}", flush=True)
 
     r1 = sdk.responses.create(model=a.harness, input=MAKE)
     sid = r1.metadata["session_id"]
@@ -68,16 +69,15 @@ def main() -> int:
     with tarfile.open(fileobj=io.BytesIO(archive.content)) as tar:
         names = tar.getnames()
         hello = tar.extractfile("./hello.txt").read().decode().strip() if "./hello.txt" in names else ""
-    check("archive", hello == "hello", f"{hello!r} in {names}")
+    check("archive", hello == "hello", f"{hello!r} in {names[:8]}")
     deltas = [e.delta for e in sdk.responses.create(model=a.harness, input="Reply with the one word: streamed",
                                                     previous_response_id=r2.id, stream=True)
               if e.type == "response.output_text.delta"]
     check("stream", "streamed" in words("".join(deltas)).lower() and len(deltas) > 1, "".join(deltas))
 
     def running_for(rid: str, seconds: float) -> bool:
-        """Wait until the response has been running for `seconds`; False if it ended first."""
         started = time.time()
-        while time.time() - started < 60:
+        while time.time() - started < 90:
             if http.get(f"/v1/responses/{rid}").json()["status"] != "in_progress":
                 return False
             if time.time() - started >= seconds:
@@ -95,7 +95,7 @@ def main() -> int:
         if got["status"] != "in_progress":
             break
         time.sleep(2)
-    text = "".join(m["content"][0]["text"] for m in got["output"])
+    text = got["output"][0]["content"][0]["text"]
     check("steer", got["status"] == "completed" and "stopped" in words(text).lower(), text[-300:])
 
     r4 = sdk.responses.create(model=a.harness, input=COUNT, previous_response_id=r3.id, background=True)

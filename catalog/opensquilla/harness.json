@@ -1,0 +1,28 @@
+{
+  "contract": 4,
+  "description": "OpenSquilla 0.5.6, headless `opensquilla agent --json`; Anthropic- or Responses-shaped providers.",
+  "defaults": {
+    "provider": "deepseek",
+    "model": "deepseek-chat"
+  },
+  "provider_env": {
+    "key": "ANTHROPIC_API_KEY",
+    "url": ""
+  },
+  "interrupt": "SIGUSR1",
+  "install": {
+    "egress": [
+      "github.com",
+      "objects.githubusercontent.com",
+      "release-assets.githubusercontent.com",
+      "pypi.org",
+      "files.pythonhosted.org"
+    ],
+    "timeout_s": 1500
+  },
+  "run": {
+    "egress": [],
+    "timeout_s": 1800,
+    "stop_timeout_s": 20
+  }
+}

@@ -1,0 +1,28 @@
+{
+ "title": "OpenCode",
+ "intro": "OpenCode, headless over `opencode run --format json`. The provider is passed inline in `OPENCODE_CONFIG_CONTENT`: the gateway's base URL with `/v1`, the key as `{env:ANTHROPIC_API_KEY}` and the model declared, so an id outside its catalog works.",
+ "verified": {
+  "contract": 4,
+  "checks": {
+   "make": true,
+   "recall": true,
+   "archive": true,
+   "stream": true,
+   "interrupt accepted": true,
+   "steer": true,
+   "cancel": true,
+   "trace": true,
+   "stateless": true
+  },
+  "passed": 9,
+  "provider": "deepseek",
+  "model": "deepseek-chat"
+ },
+ "notes": [
+  "`-c` on later turns continues the last session in this directory, and each platform session has its own directory, so continuation is reliable.",
+  "`PWD` is exported because OpenCode takes its directory from it rather than from `getcwd()`.",
+  "The `OPENCODE_DISABLE_*` switches stop model fetching, autoupdate, LSP downloads and the embedded web UI.",
+  "For an OpenAI Responses provider use provider id `openai` and no `/v1` suffix; for a chat provider, a custom provider with `npm: @ai-sdk/openai-compatible`."
+ ],
+ "caveat": ""
+}

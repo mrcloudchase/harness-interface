@@ -1,0 +1,27 @@
+{
+ "title": "MiniMax Code",
+ "intro": "MiniMax Code (`mcode`), headless over `mcode exec --output-format stream-json`, on an Anthropic-shaped provider through a config file the folder writes into `$HI_DIR` each turn.",
+ "verified": {
+  "contract": 4,
+  "checks": {
+   "make": true,
+   "recall": true,
+   "archive": true,
+   "stream": true,
+   "interrupt accepted": true,
+   "steer": true,
+   "cancel": true,
+   "trace": true,
+   "stateless": true
+  },
+  "passed": 9,
+  "provider": "deepseek",
+  "model": "deepseek-chat"
+ },
+ "notes": [
+  "The config names a custom provider with the gateway URL and the session token as its key, and lists the model under `models` (an unlisted model is refused).",
+  "`--continue` resumes the latest session in the workspace.",
+  "`permissionMode: \"off\"` runs tools without checks; the container is the boundary."
+ ],
+ "caveat": ""
+}

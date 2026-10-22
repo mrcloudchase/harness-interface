@@ -1,0 +1,28 @@
+{
+ "title": "jcode",
+ "intro": "jcode, headless over `jcode run --ndjson`, on an Anthropic-shaped provider through `ANTHROPIC_BASE_URL` (with `/v1`) and `ANTHROPIC_API_KEY`.",
+ "verified": {
+  "contract": 4,
+  "checks": {
+   "make": true,
+   "recall": true,
+   "archive": true,
+   "stream": true,
+   "interrupt accepted": true,
+   "steer": true,
+   "cancel": true,
+   "trace": true,
+   "stateless": true
+  },
+  "passed": 9,
+  "provider": "deepseek",
+  "model": ""
+ },
+ "notes": [
+  "Installed from the GitHub release archive, which holds a launcher and a `.bin` beside it.",
+  "The session id is read from the first line of its output and kept in `$HI_DIR`; later turns pass `--resume`.",
+  "jcode only accepts model ids from its own catalog, so with a non-Anthropic provider the folder sends no `-m`, and the provider maps jcode's default id to its own model. Name a catalog id in the request's model path when the provider serves one.",
+  "It also tries to fetch a model catalog from Anthropic directly; the door refuses that and the run is unaffected."
+ ],
+ "caveat": ""
+}

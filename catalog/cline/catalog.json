@@ -1,0 +1,27 @@
+{
+ "title": "Cline",
+ "intro": "Cline, headless over `cline --json`, on an OpenAI-compatible provider. Headless Cline ignores base-URL variables, so the folder writes `$HOME/.cline/data/settings/providers.json` with the gateway URL and the session token as the key.",
+ "verified": {
+  "contract": 4,
+  "checks": {
+   "make": true,
+   "recall": true,
+   "archive": true,
+   "stream": true,
+   "interrupt accepted": true,
+   "steer": true,
+   "cancel": true,
+   "trace": true,
+   "stateless": true
+  },
+  "passed": 9,
+  "provider": "deepseek-openai",
+  "model": "deepseek-chat"
+ },
+ "notes": [
+  "`CLINE_SESSION_BACKEND_MODE=local` keeps it from starting a detached hub daemon.",
+  "The key written to `providers.json` is the session token, worthless outside the run; the real key never leaves the gateway.",
+  "Each turn starts a fresh conversation in the same workspace, so the recall check passes by looking at the files, not by remembering; give a later turn the context it needs in the prompt."
+ ],
+ "caveat": "Headless Cline cannot resume a session (that needs its ACP mode); it answers recall by looking at the workspace, not by remembering."
+}

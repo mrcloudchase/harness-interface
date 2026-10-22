@@ -1,22 +1,26 @@
 # Configuration
 
-The server reads its environment when it starts.
+Every role reads the same variables; each has a default. Read when the process starts.
 
 | Variable | Default | Meaning |
 |---|---|---|
-| `HI_HOST` | `127.0.0.1` | Listen address. |
-| `HI_PORT` | `8000` | Listen port. |
-| `HI_DATA_DIR` | `~/.harness-interface/data` | Everything: orgs, keys, providers, sandboxes, harness versions, sessions, logs. |
-| `HI_MASTER_KEY` | | 64 hex digits that seal provider keys. Or: |
-| `HI_MASTER_KEY_FILE` | `<data>/master.key` if it exists | A file holding them; `init` writes one. |
-| `HI_ADMIN_KEY` | unset | The platform key that creates orgs. Unset means no org can be created over the API. |
-| `HI_CA_FILE` | unset | A CA bundle to trust inside sandboxes and doors, where a network re-signs TLS. |
+| `HI_HOST`, `HI_PORT` | `127.0.0.1`, `8000` | where `api` listens |
+| `HI_PUBLIC_URL` | `http://127.0.0.1:8000` | how workers reach the API and where signed blob URLs point (the directory backend) |
+| `HI_DATA_DIR` | `~/.harness-interface` | the data directory: the master key file, SQLite and blobs on one box; worker caches everywhere |
+| `HI_RECORDS` | `sqlite:///<data>/records.db` | or `postgresql://user:pass@host/db` |
+| `HI_BLOBS` | `dir:///<data>/blobs` | or `s3://bucket`, with `HI_S3_ENDPOINT` and `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION` |
+| `HI_MASTER_KEY`, `HI_MASTER_KEY_FILE` | the file `init` wrote under the data directory | 64 hex digits that seal provider keys and sign blob URLs |
+| `HI_SIGNUP` | `closed` | `open`: a sign-up creates tenants; `closed`: the deployer does |
+| `HI_DEPLOYER_KEY` | the key `init` set | overrides the stored deployer key |
+| `HI_JOIN_TOKEN` | generated for the `all` role | what a worker presents to join |
+| `HI_GATEWAY_HOST`, `HI_GATEWAY_PORT` | `0.0.0.0`, `8081` | where `gateway` listens |
+| `HI_GATEWAY_URL` | `http://host.docker.internal:8081` | how a sandbox's door reaches the gateway; a TLS address across machines |
+| `HI_BASE_IMAGE` | empty: the shipped one is built on the node | the sandbox image |
+| `HI_RUNTIME` | empty | a sandboxed Docker runtime for every sandbox, e.g. `runsc` |
+| `HI_ALLOW_PRIVATE` | `0` | `1`: egress and provider URLs may name private addresses (an internal registry on a self-hosted box) |
+| `HI_CA_FILE` | none | a CA bundle given to sandboxes and the door, where the network re-signs TLS |
+| `HI_WORKER_NAME`, `HI_WORKER_SLOTS` | the hostname, `4` | the worker's name in the fleet and its turns at once |
+| `HI_CONTROL_URL` | `HI_PUBLIC_URL` | the API, for a worker on another machine |
+| `HI_CATALOG_DIR` | the shipped catalog | another catalog directory |
 
-`harness-interface init --org NAME --owner NAME [--data DIR] [--max-runs N]` creates the master
-key file, the org and the owner's key. `harness-interface serve` runs the server.
-
-Per org, `max_runs` (set at creation) is how many turns run at once. Per sandbox, `memory` and
-`pids`. Per harness, `run.timeout_s`, `run.stop_timeout_s`, `install.timeout_s`.
-
-Docker must be reachable by the server's user (`docker info`). The door's image is
-`python:3.12-alpine`, pulled once.
+`harness-interface serve --role api,gateway,worker` chooses the roles; `all` is the default.

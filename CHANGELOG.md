@@ -1,146 +1,40 @@
 # Changelog
 
 Every release is a section here, newest first, and the newest section's heading is the version.
-A merge to `main` that adds a section releases it: the release workflow tags that version and
-publishes the section as its notes.
+A merge to `main` that adds a section releases it: the release workflow tags that version, builds
+the wheel and the image, and publishes the section as its notes.
 
-## [3.0.1]
+## [4.0.0]
 
-- **`model` is the path.** A request's `model` is `sandbox/harness/provider/model`, naming all four,
-  or the bare harness name for the folder's defaults; nothing in between, and `metadata` no longer
-  overrides. A response's `model` is the full path of what ran. A continuation naming another
-  harness than its session's is refused.
-- The crash sweep at startup goes through `Runtimes`, so the API runs without Docker under the
-  test fakes.
+A rebuild as a platform. Tenants bring providers and harness packages; the platform runs a package
+in a sandbox it owns and returns what the package decides. The same image is the hosted platform
+and the self-hosted one. Nothing of 3.x carries over on the wire or on disk.
 
-## [3.0.0]
-
-A rebuild, from scratch, as a multi-tenant harness server. The repository ships no harness folders;
-orgs bring providers, sandboxes and harnesses, and members drive them through the OpenAI Responses
-API. Nothing of 2.0 carries over on the wire or on disk.
-
-- **Tenancy.** Orgs, members (`owner`, `member`) and API keys. A hosted platform creates orgs with
-  `HI_ADMIN_KEY`; a self-hosted box with `harness-interface init`. Every record and path lives under
-  its org; another org's thing is a 404. `max_runs` turns at once per org.
-- **Three registries.** `PUT /v1/providers/{name}` (url, api shape, key; `none` for a keyless
-  endpoint), `PUT /v1/sandboxes/{name}` (image or Dockerfile, egress, memory, pids),
-  `PUT /v1/harnesses/{name}` (a tar of the folder, stored by digest; a session keeps its version).
-- **Contract 3.** A folder is `harness.json`, `install.sh`, `request.sh` and `seeds/{org,user,project}`.
-  `request.sh` gets the prompt on stdin and `HI_*` variables; its stdout and stderr are the response,
-  its exit code the status. No adapter, no output file, no protocol helper: the server parses nothing.
-- **Seeds, not config.** `seeds/org` is copied into `$HOME` every turn, `seeds/user` on a member's
-  first use, `seeds/project` into a new workspace; the server reads none of them.
-- **One member, one home per harness.** `$HOME` persists across a member's sessions, so the CLI's
-  own memory and settings behave as on a laptop.
-- **The standard wire.** `model` is the harness; `metadata.sandbox`, `.provider`, `.model` override
-  the folder's defaults (3.0.1: the path form instead); `store: false` keeps only the response and trace; `background: true` returns
-  at once. `output` is two messages, stdout then stderr; streaming is the standard events.
-- **Steer, cancel, trace, archive.** `POST /v1/sessions/{id}/interrupt` writes `$HI_DIR/interrupt`
-  and sends the folder's signal; `POST /v1/responses/{id}/cancel` is SIGTERM then SIGKILL;
-  `GET /v1/sessions/{id}/trace` is every request and response body; `/archive` is the workspace.
-- **Keys sealed at rest.** AES-256-GCM under `HI_MASTER_KEY`, opened only to start a run's door.
-  The sandbox holds a session token; the gateway swaps it for the key.
-- **Removed:** shipped harness folders, the local runtime, workspace git history, `hi_adapter.py`,
-  `HI_OUTPUT`, the `harness` object on responses, `install.sh` (install with `uv tool install`).
-
-## [2.0.0]
-
-A rebuild. harness-interface is now sessions you can steer and stop, harnesses are self-contained
-folders on contract 1, and the provider's key never enters the sandbox. Nothing of 1.x carries over:
-re-register providers and harnesses.
-
-- **Sessions.** A response starts a session, or continues one with `previous_response_id`: the same
-  workspace and the CLI's own `$HOME`, one response at a time. New routes: `GET /sessions`,
-  `GET /sessions/{id}` (`?stream=true` follows it), `POST /sessions/{id}/interrupt` (steered into the
-  running work where the harness can take it, else continued in a new response) and
-  `POST /sessions/{id}/stop` (SIGINT, then a kill). `GET /responses` and the `/responses/{id}` routes
-  (cancel, output, log, diff, files) are gone: a session holds its responses, each with everything it
-  produced. `/sandboxes` is gone too.
-- **Harness folders, contract 1.** A folder is `harness.json` (a closed schema), `install.sh`,
-  `run.sh`, `adapter.py`, `hi_adapter.py`, `home/` (config artifacts, copied into `$HOME` every
-  response), `workspace/` (work artifacts, copied into a new session) and optionally
-  `image.Dockerfile`. `report` globs bring files back from `$HOME`. A folder is sent to
-  `PUT /harnesses/{name}` as a map of its files.
-- **Installed once, per version.** `install.sh` puts the pinned CLI in a cached tools directory, on a
-  small base image with no CLI and no secret; sandboxes are gone, and with them the 10 GB image.
-- **The provider per request.** `model` is `harness[@provider][/model]`; a provider has a `url`, an
-  `api` shape and a key.
-- **The key stays out.** Each sandbox's door is also a gateway that swaps a session token for the key;
-  a folder can opt into a read-only key file instead. Never an environment variable.
-- **Everything comes back:** the answer, the CLI's stdout and stderr, the diff and changed files, the
-  reported artifacts, usage with fixed keys, cost and the resume handle, streamed as
-  `harness.stdout`, `harness.stderr`, `harness.steer` and `session.interrupted` events.
-- **Five harnesses:** Claude Code, Codex, pi, OpenCode and Hermes, each steerable and resumable, and
-  proven with the new live suite (`scripts/live.py`). The other eighteen are surveyed in
-  `docs/contributors/harness-survey/`.
-- **Removed:** the `hi` command line, and Keeper. The server is the one command, `harness-interface`.
-
-## [1.0.5]
-
-- **The default sandbox builds the same way every time.** Its CLIs were pinned, but what they
-  depend on floated, so a release published upstream an hour earlier could break the build (one
-  did: a package that requires a version its publisher never released). npm and uv now resolve
-  every dependency as published by one date, `RESOLVED_AS_OF` in the Dockerfile, which moves
-  forward with the pins. The image's tag changes, so the first run after upgrading builds it once.
-- **The image is published.** `sandbox-image.yml` builds it once per Dockerfile and publishes it to
-  this repository's packages, so a fresh machine can pull it instead of building it.
-
-## [1.0.4]
-
-- **AGENTS.md** gives anyone changing the code, person or coding agent, the founding principles,
-  the layers, the flow of a turn, the rules that always hold and where each change goes.
-- **The harness contract is closed.** The server assumes only that a harness takes input and
-  returns output, so nothing is added to the contract; a harness builds anything more in its own
-  folder. The contributor docs now say so.
-- **A changelog section is a release.** The version is written only in `CHANGELOG.md`, as its
-  newest section's heading; a merge that adds a section tags and publishes it, with no separate
-  version bump.
-
-## [1.0.3]
-
-- **Bring artifacts to any harness.** Drop files in a harness's folder and list them in its
-  `artifacts` file, which every shipped folder has, listing nothing; every shipped `run.sh` puts
-  them under the CLI's home before each turn. Skills, settings, MCP servers, hooks: whatever that
-  CLI reads, with no server change.
-- **The harness guide says what a harness is, and whose choices it holds:** three files, and every
-  CLI setting (permissions, MCP servers, skills, hooks) is the harness author's to configure.
-- **Every shipped harness is a template you can read.** Each `run.sh` now explains every setting
-  its `harness.json` makes, and `harnesses/README.md` says how to make one your own. Gajae drops a
-  setting that repeated another.
-
-## [1.0.2]
-
-- **Docs checked line by line against the code,** and corrected wherever they had drifted.
-- **How it works,** a new page for users: who owns what, the words, the three ways in, and when
-  it fits. The README is shorter, and points to it.
-- **The default sandbox drops its leftover `HOME` and `WORKDIR`.** Runs work at the workspace's
-  own path and every harness sets its own `HOME`, so the image no longer sets either. Its tag
-  changes, so the first run after upgrading builds it once.
-- **The installer runs on Python 3.13,** a version CI tests; CI now also tests 3.14. The minimum
-  stays 3.11.
-- **The license names its copyright holder.**
-
-## [1.0.1]
-
-- **OpenHands follows the request's instructions.** It reads `AGENTS.md` only as untrusted
-  context for code style, so a model such as Claude ignored a role or rule given there. Its harness
-  now puts the instructions ahead of the task.
-- **The CI badge** in the README renders everywhere, the GitHub mobile app included.
-
-## [1.0.0]
-
-The first release. harness-interface runs any harness in a sandbox, as a Python library and as an
-OpenAI Responses-compatible server, with `hi`, its command line.
-
-- **The library:** run a harness folder from Python with `Turn`, on Docker or locally, with no
-  server and no dependencies beyond the standard library and git.
-- **The server:** one API for every harness. `model` names the harness, `previous_response_id`
-  continues its conversation, and its own output streams back. Runs belong to the server: they
-  run side by side, outlive their clients, and can be cancelled at any point.
-- **Sandboxed by default:** every run in a fresh container with no capabilities, a read-only root,
-  and one way out, to its provider.
-- **See everything:** stdout and stderr live; every file added, changed or deleted; each turn's
-  diff and files as it left them, even mid-run.
-- **23 harnesses ship with it**, each passing the request's instructions to its CLI.
-- **Built in layers:** execution, runtimes, workspace, harness contract, resources, routing,
-  platform, front end, each importing only those below it, enforced by tests.
+- **Tenants, not orgs.** `POST /v1/signup` creates a tenant when `HI_SIGNUP=open`; otherwise the
+  deployer does, with a deployer key, and sets each tenant's ceilings (cpus, memory, pids, timeouts,
+  runs at once, disk, output, upload). A tenant configures two things: providers and harnesses.
+- **No sandboxes resource.** One platform-built base image for every turn; a package carries its
+  own egress (`install.egress`, `run.egress`); the request's `model` is `harness` or
+  `harness/provider/model`.
+- **Contract 4.** `response.sh` decides what the response carries, from `request.sh`'s captured
+  streams, exit code and outcome; without it the response is `request.sh`'s stdout. The whole
+  request is in `$HI_REQUEST`. A steer reaches `request.sh` alone. `SIGTERM` is a stop, never a steer.
+- **The catalog.** Twenty-two verified packages ship with the platform; `PUT /v1/harnesses/{name}`
+  with `{"catalog": "<package>"}` forks one. A template package to start from.
+- **Roles.** `api`, `gateway`, `worker`, or `all`. Workers join with a token, pull turns over HTTPS,
+  fetch and push blobs through URLs good for one object, and hold no key, database or bucket
+  credential. A worker that stops heartbeating loses its turns, not its sessions.
+- **Backends.** Records in one table on SQLite or Postgres; blobs in a directory or any S3-API
+  store. The suite runs on both.
+- **The gateway as a service.** The one process where a provider key is in the clear; it swaps the
+  per-turn session token for the key, relays only the API shape's endpoints, meters calls and bytes,
+  and captures every exchange for the tenant (`GET /v1/responses/{id}/captures`).
+- **Containment.** A uid per tenant, cpu limits, an optional sandboxed runtime (`HI_RUNTIME`), a
+  door that refuses private addresses after resolution and connects to the checked address, the
+  platform's own writes into sandbox trees through a symlink-refusing helper, `install.sh`
+  unprivileged, body and output caps, no tenant-chosen images or limits.
+- **The console** at `/`: sign-up or sign-in, providers, harnesses and the catalog, sessions with live
+  output, steer and cancel, members and keys; the deployer's fleet, tenants and workers.
+- **Deploy.** One image (`deploy/Dockerfile`), one compose file with a one-box profile (SQLite, a
+  directory, Caddy) and an HA profile (Postgres, MinIO, replicas, workers), a cloud-init for worker
+  machines, a scheduled build and scan of the base image. No cloud SDK anywhere.

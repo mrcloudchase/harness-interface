@@ -1,15 +1,20 @@
 # Conventions
 
-- **Keep it simple.** The smallest code that does the job. No option nobody asked for.
-- **Say each thing once.** One place knows each fact: the wire format is `wire.py`, the folder is
-  `harness.py`, the layout is `store.py`.
-- **One job per module, objects for state.** A module's docstring says its job in a paragraph; a
-  class holds what changes.
-- **Layers import downward only.** Nothing in `sessions.py` imports `api`; nothing in `harness.py`
-  imports `store`.
-- **Make what must never happen impossible.** The key is opened only in `_run`; a path is checked
-  before it is a path; another org's thing is a 404, never a 403.
-- **Tests first, fakes at the Docker line.** Every layer has a test; the Docker layer has the one
-  that needs a daemon.
-- **Docstrings say what and why, comments say why.** A comment that repeats the code is removed.
-- **No em-dashes, no model identifiers, no keys** in anything committed.
+- **One concept per module, named for it**, and a docstring that opens with its layer and that one
+  responsibility. If a change to one module needs a change to a module above it, the boundary is wrong.
+- **Interfaces are protocols with two implementations and one shared test.** `Records` (SQLite,
+  Postgres) and `Blobs` (directory, S3) run the same test file by fixture. No third implementation
+  without a customer.
+- **Refuse by name, early, at the edge.** Validation lives in `store.py`, `harness.py` and `wire.py`
+  with messages that say what was wrong. Lower layers assert nothing about input and never guard with
+  `assert`.
+- **Prefer a setting to a feature and a ceiling to a policy.** Deployer knobs are `HI_*` variables read
+  once into `Settings`; tenant ceilings are a `Limits` on the tenant record. No plan logic in the engine.
+- **Nothing cloud-named.** `test_layers.py` fails on a cloud SDK outside `blobs.py` and `records.py`.
+- **The public surface is frozen within a major version**: the Responses API, the package contract, the
+  folder format, the `HI_*` variables a package sees.
+- **Short sentences in docs, a table for parallel facts, no marketing.** A docstring says what the
+  code guarantees, not what it hopes.
+- **Deliberately absent**: a sandboxes or environments resource, image or Dockerfile uploads, a
+  registry client, per-request limits, an adapter layer over harness output, an orchestrator, a
+  third backend, a second edition.

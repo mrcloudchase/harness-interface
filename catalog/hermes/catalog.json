@@ -1,0 +1,28 @@
+{
+ "title": "Hermes Agent",
+ "intro": "Nous Research's Hermes Agent, headless over `hermes chat -q`, on an Anthropic-shaped provider. The `Session:` line it prints at exit is kept in `$HI_DIR` and later turns pass `--resume`.",
+ "verified": {
+  "contract": 4,
+  "checks": {
+   "make": true,
+   "recall": true,
+   "archive": true,
+   "stream": true,
+   "interrupt accepted": true,
+   "steer": true,
+   "cancel": true,
+   "trace": true,
+   "stateless": true
+  },
+  "passed": 9,
+  "provider": "deepseek",
+  "model": "deepseek-chat"
+ },
+ "notes": [
+  "Installed with pip into its own venv (`hermes-agent[anthropic]`). `config.yaml` under `$HERMES_HOME` is rewritten every turn with the provider's base URL and the model.",
+  "`--no-restore-cwd` keeps a resumed session in the current workspace rather than the directory it was recorded in.",
+  "`tirith_enabled: false` and the two `nudge_interval: 0` settings stop its scanner download and its background memory review, which would otherwise make model calls after the turn ends.",
+  "Hermes also speaks OpenAI-chat providers (`--provider openai-api`); change the provider block in `config.yaml` and `provider_env` accordingly."
+ ],
+ "caveat": ""
+}

@@ -1,0 +1,27 @@
+{
+ "title": "zeroclaw",
+ "intro": "zeroclaw, one-shot over `zeroclaw agent -m`, on an OpenAI chat-shaped provider through a `[providers.models.custom.hi]` entry in a config directory the folder writes each turn; the credential travels in the environment variable zeroclaw derives from that key path.",
+ "verified": {
+  "contract": 4,
+  "checks": {
+   "make": true,
+   "recall": false,
+   "archive": true,
+   "stream": false,
+   "interrupt accepted": true,
+   "steer": true,
+   "cancel": true,
+   "trace": true,
+   "stateless": true
+  },
+  "passed": 7,
+  "provider": "deepseek-openai",
+  "model": "deepseek-chat"
+ },
+ "notes": [
+  "Installed from the GitHub release archive.",
+  "`native_tools = true` makes it use the provider's tool calls rather than prompt-guided ones.",
+  "The risk profile allows every command; the container is the boundary."
+ ],
+ "caveat": "One-shot zeroclaw keeps no conversation between runs (resume needs its ACP server), so each turn starts fresh in the same workspace, and it prints its answer in one write at the end, so a streamed response arrives as one chunk."
+}

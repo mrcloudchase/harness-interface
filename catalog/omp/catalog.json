@@ -1,0 +1,27 @@
+{
+ "title": "Oh My Pi",
+ "intro": "Oh My Pi (omp), headless over `omp -p --mode json`, on any provider through `$HOME/.omp/agent/models.yml`, where `apiKey` names the environment variable holding the credential.",
+ "verified": {
+  "contract": 4,
+  "checks": {
+   "make": true,
+   "recall": true,
+   "archive": true,
+   "stream": true,
+   "interrupt accepted": true,
+   "steer": true,
+   "cancel": true,
+   "trace": true,
+   "stateless": true
+  },
+  "passed": 9,
+  "provider": "deepseek",
+  "model": "deepseek-chat"
+ },
+ "notes": [
+  "The session id is read from the first turn's `session` event and kept in `$HI_DIR`; later turns pass `--resume`.",
+  "Stdin is appended to the prompt, so the CLI runs with `</dev/null`.",
+  "`api: anthropic-messages` here; `openai-completions` or `openai-responses` with a `/v1` base for the OpenAI shapes."
+ ],
+ "caveat": ""
+}

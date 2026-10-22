@@ -1,36 +1,34 @@
 # API reference
 
-Every route takes `Authorization: Bearer <key>`. A member's key names its org. Refusals are
-`{"detail": "…"}` with 400 (cannot be done as asked), 401 (no or bad key), 403 (not your role),
-404 (unknown, or not yours), 409 (busy), 422 (malformed body).
+Every route takes `Authorization: Bearer <key>`: a member's `hi_…` key, the deployer's `hd_…` key, or a
+worker's credential, as the row says. Refusals are `{"detail": …}` with 400 (cannot be done), 401, 403,
+404 (unknown), 409 (busy) or 422 (malformed).
 
 | Route | Who | What |
 |---|---|---|
-| `POST /v1/orgs` `{name, owner, max_runs}` | admin key | Create an org, its owner and the owner's first key. |
-| `GET /v1/orgs` | admin key | List orgs. |
-| `GET /v1/me` | any member | Your org, name and role. |
-| `POST /v1/members` `{name, role}` | owner | Add a member (`owner` or `member`). |
-| `GET /v1/members` | owner | List members. |
-| `POST /v1/members/{name}/keys` `{label}` | owner, or the member | Mint a key; the secret is in the answer once. |
-| `GET /v1/keys` | any | Your keys (every key, for an owner). |
-| `DELETE /v1/keys/{id}` | owner, or its member | Revoke. |
-| `PUT /v1/providers/{name}` `{url, api, key}` | owner | Register or replace. |
-| `GET /v1/providers`, `GET /v1/providers/{name}` | any | Without keys. |
-| `DELETE /v1/providers/{name}` | owner | |
-| `PUT /v1/sandboxes/{name}` `{image \| dockerfile, egress, memory, pids}` | owner | Register or replace. |
-| `GET /v1/sandboxes`, `GET /v1/sandboxes/{name}` | any | |
-| `DELETE /v1/sandboxes/{name}` | owner | |
-| `PUT /v1/harnesses/{name}` (body: a tar archive) | owner | Validate and store a version; make it current. |
-| `GET /v1/harnesses`, `GET /v1/harnesses/{name}` | any | The current version and its `harness.json`. |
-| `DELETE /v1/harnesses/{name}` | owner | Every version. |
-| `POST /v1/responses` | any | A turn ([requests](requests.md)). |
-| `GET /v1/responses/{id}` `?stream=true` | any | The response; streamed or replayed as events. |
-| `POST /v1/responses/{id}/cancel` | any | Stop it. |
-| `GET /v1/sessions` | any | Yours; everyone's for an owner. |
-| `GET /v1/sessions/{id}` | any | |
-| `POST /v1/sessions/{id}/interrupt` `{input}` | any | Steer the running turn. |
-| `GET /v1/sessions/{id}/trace` | any | Requests, responses, interrupts, cancels, in order. |
-| `GET /v1/sessions/{id}/archive` | any | The workspace, `application/gzip`. |
-| `DELETE /v1/sessions/{id}` | any | |
+| `GET /healthz` | anyone | status, version, roles, whether sign-up is open |
+| `POST /v1/signup` | anyone, when `HI_SIGNUP=open` | `{tenant, owner}` → the owner's key, once |
+| `GET /v1/me` | member | who you are, your tenant's ceilings and status |
+| `POST /v1/members`, `GET /v1/members` | owner | add a member (`{name, role}`), list them |
+| `POST /v1/members/{name}/keys` | member (self) or owner | mint a key (`{label}`) → the secret, once |
+| `GET /v1/keys`, `DELETE /v1/keys/{id}` | member (own) or owner | list, revoke |
+| `PUT /v1/providers/{name}` | owner | `{url, api, key}`; the key is sealed |
+| `GET /v1/providers`, `GET /v1/providers/{name}`, `DELETE …` | member / owner | without keys |
+| `GET /v1/catalog`, `GET /v1/catalog/{name}` | member | the shipped packages and their verification |
+| `PUT /v1/harnesses/{name}` | owner | a tar body: upload; a JSON body `{"catalog": …}`: fork |
+| `GET /v1/harnesses`, `GET /v1/harnesses/{name}`, `DELETE …` | member / owner | versions and config; never the files |
+| `POST /v1/responses` | member | the OpenAI Responses request ([requests](requests.md)) |
+| `GET /v1/responses/{id}` | member | the response; `?stream=true` as events; `?detail=true` with raw streams |
+| `POST /v1/responses/{id}/cancel` | member | stop it |
+| `GET /v1/responses/{id}/captures`, `…/captures/{name}` | member | the door log and the provider exchanges |
+| `GET /v1/sessions`, `GET /v1/sessions/{id}` | member | sessions, one session |
+| `POST /v1/sessions/{id}/interrupt` | member | `{input}`: steer the running turn |
+| `GET /v1/sessions/{id}/trace`, `GET /v1/sessions/{id}/archive`, `DELETE /v1/sessions/{id}` | member | the record, the workspace, removal |
+| `POST /v1/tenants`, `GET /v1/tenants`, `GET /v1/tenants/{name}`, `PATCH …`, `DELETE …` | deployer | tenants, their ceilings and status, their usage |
+| `GET /v1/workers`, `DELETE /v1/workers/{id}` | deployer | the fleet's workers |
+| `GET /v1/fleet` | deployer | counts across the platform |
+| `POST /internal/join` | the join token | a worker's credential |
+| `POST /internal/heartbeat`, `/claim`, `/turns/{id}/started`, `/turns/{id}/chunks`, `/turns/{id}/result` | worker | the worker protocol |
+| `GET`/`PUT /internal/blobs/{token}` | the signed token | blob access for the directory backend |
 
-`GET /docs` is the interactive OpenAPI page.
+Interactive documentation is at `/docs`.

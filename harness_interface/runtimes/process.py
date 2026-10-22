@@ -39,8 +39,8 @@ def host_env() -> dict[str, str]:
 class ProcessExecution:
     def __init__(self, proc: asyncio.subprocess.Process, timeout_s: float | None, interactive: bool,
                  interrupt: Action | None, kill: Action | None, cleanup: Callable[[], Awaitable[None]] | None,
-                 sidecars: Mapping[str, asyncio.StreamReader]):
-        self._proc, self._cleanup = proc, cleanup
+                 sidecars: Mapping[str, asyncio.StreamReader], stop_signal: int = signal.SIGINT):
+        self._proc, self._cleanup, self._stop_signal = proc, cleanup, stop_signal
         self._signal = interrupt or self._interrupt_group
         self._kill = kill
         self._loop = asyncio.get_running_loop()
@@ -60,11 +60,11 @@ class ProcessExecution:
     async def spawn(cls, argv: Sequence[str], *, env: Mapping[str, str], cwd: Path | None, input: bytes,
                     interactive: bool, timeout_s: float | None, signal: Action | None = None,
                     kill: Action | None = None, cleanup: Callable[[], Awaitable[None]] | None = None,
-                    sidecars: Mapping[str, asyncio.StreamReader] | None = None) -> Execution:
+                    sidecars: Mapping[str, asyncio.StreamReader] | None = None, stop_signal: int = 2) -> Execution:
         """Start the process and write its input. A process that can't start is a NeverStarted.
-        `signal` asks it to stop (by default, SIGINT to its group); `kill` ends it where it runs, before
-        its group is killed; `cleanup` runs once it has ended; `sidecars` are more streams to read as
-        events until then."""
+        `signal` asks it to stop (by default, `stop_signal`, SIGINT, to its group); `kill` ends it where
+        it runs, before its group is killed; `cleanup` runs once it has ended; `sidecars` are more
+        streams to read as events until then."""
         try:
             proc = await asyncio.create_subprocess_exec(
                 *argv, cwd=cwd, env=dict(env), start_new_session=True,
@@ -73,7 +73,7 @@ class ProcessExecution:
             if cleanup:
                 await cleanup()
             return NeverStarted(f"could not start {argv[0]}: {e}")
-        execution = cls(proc, timeout_s, interactive, signal, kill, cleanup, sidecars or {})
+        execution = cls(proc, timeout_s, interactive, signal, kill, cleanup, sidecars or {}, stop_signal)
         try:
             try:
                 await execution._write(input)
@@ -121,6 +121,16 @@ class ProcessExecution:
 
     async def wait(self) -> Outcome:
         return await asyncio.shield(self._finished)
+
+    async def interrupt(self, name: str) -> bool:
+        """A named signal (`SIGUSR1`…) to the process itself, not its group; False once it has ended."""
+        if self._ended:
+            return False
+        try:
+            os.kill(self._proc.pid, getattr(signal, name))
+            return True
+        except (ProcessLookupError, AttributeError):
+            return False
 
     # the process
     @property
@@ -201,7 +211,7 @@ class ProcessExecution:
             pass
 
     def _interrupt_group(self) -> None:
-        self._signal_group(signal.SIGINT)
+        self._signal_group(self._stop_signal)
 
     def _kill_group(self) -> None:
         self._signal_group(signal.SIGKILL)

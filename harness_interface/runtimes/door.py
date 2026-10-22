@@ -1,37 +1,32 @@
-"""Layer 1: the egress door, a sandbox's only way out. Two listeners in one process, run in a container of
-its own on the sandbox's network:
+"""Layer 1: the egress door, a sandbox's only way out. One process, run as a script in a container of
+its own on the sandbox's internal network, standard library only:
 
-- the CONNECT door tunnels to an allowlist of host:port and refuses anything else with a 403. TLS
-  stays end to end, so it sees nothing; it resolves names itself, so the sandbox needs no DNS.
-- the provider gateway is a plain-HTTP reverse proxy to one upstream. A request must present the
-  session's token, and only it, as its credential; the gateway swaps it for the real key in the
-  header the API shape uses (none, for a `none` upstream that adds its own) and forwards over TLS. The real key never enters the sandbox. Once an
-  answer has begun, an upstream failure only closes the connection.
+- the CONNECT door tunnels to an allowlist of host:port and refuses anything else with a 403. It
+  resolves names itself, so the sandbox needs no DNS, and it connects to the address it checked, so a
+  name that resolves to a private address is refused and cannot be rebound past the check;
+- the provider forwarder relays bytes between the sandbox and the platform's gateway, which holds the
+  keys. The sandbox calls http://hi-provider:8080 with its session token; the forwarder opens the
+  gateway (TLS when its URL is https) and copies both ways. It reads nothing.
 
-It logs one line per decision (host, method and path; never a query, token or key) on stderr. It runs
-as a script, standard library only, and takes the gateway's token and key as two lines on stdin,
-never from its arguments or environment:
-    python3 door.py LISTEN [HOST ...] [--gateway LISTEN UPSTREAM_URL API]
+It logs one line per decision (host, or the forward) on stderr, never a token or a body.
+
+    python3 door.py LISTEN [HOST ...] [--gateway LISTEN URL] [--allow-private]
 """
 from __future__ import annotations
 
 import asyncio
-import hmac
+import ipaddress
+import socket
 import ssl
 import sys
 from urllib.parse import urlsplit
 
 READY = "door listening"
 DOOR_PORT, GATEWAY_PORT = 3128, 8080
-APIS = ("anthropic-messages", "openai-responses", "openai-chat")
-KEYLESS = "none"                                     # the upstream adds its own credential
 END = b"\r\n\r\n"
 REFUSED = b"HTTP/1.1 403 Forbidden\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
-UNAUTHORIZED = b"HTTP/1.1 401 Unauthorized\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
 BAD_GATEWAY = b"HTTP/1.1 502 Bad Gateway\r\nConnection: close\r\nContent-Length: 0\r\n\r\n"
 ESTABLISHED = b"HTTP/1.1 200 Connection established\r\n\r\n"
-AUTH_HEADERS = {"x-api-key", "authorization", "api-key"}
-HOP_HEADERS = {"host", "connection", "proxy-connection", "keep-alive", "proxy-authorization", "te", "upgrade"}
 FAILURES = (asyncio.IncompleteReadError, asyncio.LimitOverrunError, TimeoutError, OSError, ValueError)
 
 
@@ -48,8 +43,36 @@ def normalize(host: str) -> str:
     return host if ":" in host else f"{host}:443"
 
 
+def is_public(address: str) -> bool:
+    """A routable address: not loopback, link-local, private, multicast, reserved or unspecified."""
+    ip = ipaddress.ip_address(address)
+    return ip.is_global and not ip.is_multicast
+
+
+def check_host(host: str, allow_private: bool = False) -> str:
+    """The host as a plain name or address, or ValueError saying why it is refused before any
+    resolution: an address literal that is not public, or a name that is not a name."""
+    name = normalize(host).rsplit(":", 1)[0].strip("[]")
+    try:
+        ipaddress.ip_address(name)
+    except ValueError:
+        if not name or name == "localhost" or name.endswith(".localhost") or name.startswith("-") \
+                or any(c in name for c in " /\\@"):
+            raise ValueError(f"{host!r} is not a host name") from None
+        return name
+    if not allow_private and not is_public(name):
+        raise ValueError(f"{host!r} is not a public address")
+    return name
+
+
+async def resolve(host: str, port: int, allow_private: bool) -> list[str]:
+    """The addresses `host` resolves to that may be connected to, in order."""
+    infos = await asyncio.get_running_loop().getaddrinfo(host, port, type=socket.SOCK_STREAM)
+    addresses = [info[4][0] for info in infos]
+    return [a for a in addresses if allow_private or is_public(a)]
+
+
 async def pipe(src: asyncio.StreamReader, dst: asyncio.StreamWriter) -> None:
-    """Copy bytes until `src` ends, then close `dst`."""
     try:
         while chunk := await src.read(65536):
             dst.write(chunk)
@@ -58,23 +81,42 @@ async def pipe(src: asyncio.StreamReader, dst: asyncio.StreamWriter) -> None:
         dst.close()
 
 
+async def connect(addresses: list[str], port: int, tls: ssl.SSLContext | None = None, server_hostname: str | None = None):
+    """A connection to the first address that answers."""
+    last: Exception = OSError("no address")
+    for address in addresses:
+        try:
+            return await asyncio.wait_for(asyncio.open_connection(address, port, ssl=tls, server_hostname=server_hostname), timeout=15)
+        except (OSError, TimeoutError) as e:
+            last = e
+    raise last
+
+
 class Door:
-    def __init__(self, allowed: list[str]):
+    def __init__(self, allowed: list[str], allow_private: bool):
         self.allowed = {normalize(h) for h in allowed if h.strip()}
+        self.allow_private = allow_private
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
         try:
             head = await asyncio.wait_for(reader.readuntil(END), timeout=10)
             words = head.split(b"\r\n", 1)[0].decode(errors="replace").split()
             target = words[1].lower() if len(words) == 3 and words[0] == "CONNECT" else ""
-            log(f"door {'allow' if target in self.allowed else 'deny'} {target or '(not a CONNECT)'}")
-            if target not in self.allowed:
+            allowed = target in self.allowed
+            addresses: list[str] = []
+            if allowed:
+                host, port = target.rsplit(":", 1)
+                try:
+                    addresses = await resolve(host, int(port), self.allow_private)
+                except OSError:
+                    addresses = []
+            log(f"door {'allow' if allowed and addresses else 'deny'} {target or '(not a CONNECT)'}")
+            if not addresses:
                 writer.write(REFUSED)
                 await writer.drain()
                 return
-            host, port = target.rsplit(":", 1)
             try:
-                up_r, up_w = await asyncio.wait_for(asyncio.open_connection(host, int(port)), timeout=15)
+                up_r, up_w = await connect(addresses, int(port))
             except (OSError, TimeoutError):
                 writer.write(BAD_GATEWAY)
                 await writer.drain()
@@ -88,68 +130,39 @@ class Door:
             writer.close()
 
 
-class Gateway:
-    def __init__(self, upstream: str, api: str, token: str, key: str, tls: ssl.SSLContext | None = None):
-        u = urlsplit(upstream)
-        if u.scheme != "https" or not u.hostname:
-            raise ValueError(f"the upstream must be https://host: {upstream!r}")
-        if api not in (*APIS, KEYLESS):
-            raise ValueError(f"unknown API shape {api!r}")
-        self.host, self.port = u.hostname, u.port or 443
-        self.authority = self.host if self.port == 443 else f"{self.host}:{self.port}"
-        self._token = token
-        self._auth = ("" if api == KEYLESS else f"x-api-key: {key}" if api == "anthropic-messages"
-                      else f"Authorization: Bearer {key}")
-        self._tls = tls or ssl.create_default_context()
+class Forwarder:
+    """Relays a sandbox's provider calls to the gateway, as bytes."""
 
-    def admits(self, headers: list[tuple[str, str]]) -> bool:
-        """Every credential it presents is the session's token, and it presents one."""
-        presented = [v[7:].strip() if v.lower().startswith("bearer ") else v for k, v in headers
-                     if k.lower() in AUTH_HEADERS]
-        return bool(presented) and all(hmac.compare_digest(p.encode(), self._token.encode()) for p in presented)
+    def __init__(self, url: str):
+        u = urlsplit(url)
+        if u.scheme not in ("http", "https") or not u.hostname:
+            raise ValueError(f"the gateway URL must be http(s)://host[:port]: {url!r}")
+        self.host, self.port = u.hostname, u.port or (443 if u.scheme == "https" else 80)
+        self.tls = ssl.create_default_context() if u.scheme == "https" else None
 
     async def handle(self, reader: asyncio.StreamReader, writer: asyncio.StreamWriter) -> None:
-        answered = False                             # once the answer has begun, a failure only closes
         try:
-            lines = (await asyncio.wait_for(reader.readuntil(END), timeout=30)).decode("latin-1").split("\r\n")
-            method, target, _ = lines[0].split(" ", 2)
-            path = target.split("?", 1)[0]
-            headers = [(k.strip(), v.strip()) for k, v in (line.split(":", 1) for line in lines[1:] if ":" in line)]
-            if not self.admits(headers):
-                log(f"gateway refuse {method} {path}")
-                writer.write(UNAUTHORIZED)
+            try:
+                up_r, up_w = await connect([self.host], self.port, self.tls, self.host if self.tls else None)
+            except (OSError, TimeoutError) as e:
+                log(f"gateway unreachable {type(e).__name__}")
+                writer.write(BAD_GATEWAY)
                 await writer.drain()
                 return
-            up_r, up_w = await asyncio.wait_for(asyncio.open_connection(
-                self.host, self.port, ssl=self._tls, server_hostname=self.host), timeout=15)
-            kept = [f"{k}: {v}" for k, v in headers if k.lower() not in AUTH_HEADERS | HOP_HEADERS]
-            up_w.write("\r\n".join([f"{method} {target} HTTP/1.1", f"Host: {self.authority}", "Connection: close",
-                                    *([self._auth] if self._auth else []), *kept, "", ""]).encode("latin-1"))
-            await up_w.drain()
-            body = asyncio.ensure_future(pipe(reader, up_w))
-            body.add_done_callback(lambda t: t.cancelled() or t.exception())   # its failure is the answer's
-            try:
-                answer = (await up_r.readuntil(END)).decode("latin-1").split("\r\n")
-                log(f"gateway {method} {path} -> {answer[0].split(' ')[1] if ' ' in answer[0] else '?'}")
-                kept_answer = [line for line in answer[1:]
-                               if line and line.split(":", 1)[0].strip().lower() not in ("connection", "keep-alive")]
-                writer.write("\r\n".join([answer[0], *kept_answer, "Connection: close", "", ""]).encode("latin-1"))
-                answered = True
-                await pipe(up_r, writer)
-            finally:
-                body.cancel()
-                up_w.close()
-        except FAILURES as e:
-            log(f"gateway error {type(e).__name__}")
-            if not answered:
-                writer.write(BAD_GATEWAY)
+            log("gateway forward")
+            await asyncio.gather(pipe(reader, up_w), pipe(up_r, writer), return_exceptions=True)
+        except FAILURES:
+            pass
         finally:
             writer.close()
 
 
-async def serve(listen: str, allowed: list[str], gateway: Gateway | None, gateway_listen: str) -> None:
+async def serve(listen: str, allowed: list[str], forward: Forwarder | None, forward_listen: str, allow_private: bool) -> None:
     servers = []
-    for handle, address in ((Door(allowed).handle, listen), *(((gateway.handle, gateway_listen),) if gateway else ())):
+    handlers = [(Door(allowed, allow_private).handle, listen)]
+    if forward:
+        handlers.append((forward.handle, forward_listen))
+    for handle, address in handlers:
         host, port = address.rsplit(":", 1)
         servers.append(await asyncio.start_server(handle, host, int(port)))
     log(READY)
@@ -157,16 +170,15 @@ async def serve(listen: str, allowed: list[str], gateway: Gateway | None, gatewa
 
 
 def main(argv: list[str]) -> None:
-    gateway, gateway_listen = None, ""
+    allow_private = "--allow-private" in argv
+    argv = [a for a in argv if a != "--allow-private"]
+    forward, forward_listen = None, ""
     if "--gateway" in argv:
         i = argv.index("--gateway")
-        gateway_listen, upstream, api = argv[i + 1:i + 4]
+        forward_listen, url = argv[i + 1:i + 3]
         argv = argv[:i]
-        token, key = sys.stdin.readline().strip(), sys.stdin.readline().strip()
-        if not token or (not key and api != KEYLESS):
-            raise SystemExit("door: the gateway needs a token and a key, one line each, on stdin")
-        gateway = Gateway(upstream, api, token, key)
-    asyncio.run(serve(argv[0], argv[1:], gateway, gateway_listen))
+        forward = Forwarder(url)
+    asyncio.run(serve(argv[0], argv[1:], forward, forward_listen, allow_private))
 
 
 if __name__ == "__main__":

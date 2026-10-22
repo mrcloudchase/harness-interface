@@ -1,0 +1,27 @@
+# The sandbox base image, rebuilt from the shipped Dockerfile weekly and on change, scanned, and
+# published by digest. Point HI_BASE_IMAGE at the published reference to run it on your nodes.
+name: base-image
+on:
+  schedule: [{cron: "17 4 * * 1"}]
+  push:
+    branches: [main]
+    paths: [harness_interface/runtimes/base.Dockerfile]
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: write
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          image=ghcr.io/${{ github.repository }}-base
+          docker build -f harness_interface/runtimes/base.Dockerfile -t "$image:$(date +%Y%m%d)" -t "$image:latest" .
+          docker push "$image:$(date +%Y%m%d)" && docker push "$image:latest"
+      - uses: aquasecurity/trivy-action@0.29.0
+        with:
+          image-ref: ghcr.io/${{ github.repository }}-base:latest
+          severity: CRITICAL,HIGH
+          exit-code: "1"

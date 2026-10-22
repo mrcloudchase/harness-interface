@@ -1,5 +1,4 @@
-"""Stand-ins for the Docker layer: a runtime that runs `request.sh` as a process on this machine, and
-Runtimes that hand it out. Nothing above layer 4 can tell the difference."""
+"""Stand-ins: a test package as a tar, and a runtime that runs the turn as a process on this machine."""
 from __future__ import annotations
 
 import io
@@ -7,16 +6,15 @@ import json
 import os
 import tarfile
 from pathlib import Path
-from typing import Sequence
 
 from harness_interface.execution import Execution, Spec
 from harness_interface.runtimes.process import ProcessExecution, host_env
-from harness_interface.sandboxes import path_with
 
-HARNESS_JSON = {"contract": 3, "description": "a test harness",
-                "defaults": {"sandbox": "box", "provider": "prov", "model": "m1"},
+HARNESS_JSON = {"contract": 4, "description": "a test harness",
+                "defaults": {"provider": "prov", "model": "m1"},
                 "provider_env": {"key": "FAKE_KEY", "url": "FAKE_URL"}, "interrupt": "SIGUSR1",
-                "install": {"egress": ["registry.example"], "timeout_s": 60}, "run": {"timeout_s": 60, "stop_timeout_s": 2}}
+                "install": {"egress": ["registry.example"], "timeout_s": 60},
+                "run": {"egress": ["git.example"], "timeout_s": 60, "stop_timeout_s": 2}}
 REQUEST_SH = """#!/usr/bin/env bash
 set -eu
 prompt=$(cat)
@@ -26,18 +24,22 @@ echo "$prompt" > out.txt
 [ -f "$HOME/org.txt" ] && echo "org=$(cat "$HOME/org.txt")"
 [ -f "$HOME/user.txt" ] && echo "user=$(cat "$HOME/user.txt")"
 [ -f README.md ] && echo "project=$(cat README.md)"
+[ -f "$HI_REQUEST" ] && echo "request=$(python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['input'])" "$HI_REQUEST")"
 exit 0
+"""
+RESPONSE_SH = """#!/usr/bin/env bash
+echo "shaped: outcome=$HI_OUTCOME exit=$HI_EXIT $(head -1 "$HI_STDOUT")"
 """
 INSTALL_SH = "#!/usr/bin/env bash\nset -eu\nmkdir -p \"$HI_TOOLS/bin\"\nprintf '#!/bin/sh\\necho tool-ran\\n' > \"$HI_TOOLS/bin/tool\"\nchmod +x \"$HI_TOOLS/bin/tool\"\n"
 
 
-def archive(files: dict[str, str | bytes] | None = None, root: str = "", **changes: str) -> bytes:
-    """A harness folder as a tar: the test harness, with `files` replacing or adding members and
-    `changes` replacing harness.json's top-level keys. `root` wraps it in a directory."""
+def archive(files: dict[str, str | bytes | None] | None = None, root: str = "", **changes: str) -> bytes:
+    """A package as a tar: the test package, with `files` replacing or adding members (None removes)
+    and `changes` replacing harness.json's top-level keys (JSON text for objects). `root` wraps it."""
     config = {**HARNESS_JSON, **{k: json.loads(v) if v.startswith(("{", "[")) else v for k, v in changes.items()}}
-    members: dict[str, str | bytes] = {"harness.json": json.dumps(config), "install.sh": INSTALL_SH,
-                                       "request.sh": REQUEST_SH, "seeds/org/org.txt": "from-org",
-                                       "seeds/user/user.txt": "from-user", "seeds/project/README.md": "from-project"}
+    members: dict[str, str | bytes | None] = {"harness.json": json.dumps(config), "install.sh": INSTALL_SH,
+                                              "request.sh": REQUEST_SH, "seeds/org/org.txt": "from-org",
+                                              "seeds/user/user.txt": "from-user", "seeds/project/README.md": "from-project"}
     if files is not None:
         members = {**members, **files}
     buf = io.BytesIO()
@@ -53,45 +55,48 @@ def archive(files: dict[str, str | bytes] | None = None, root: str = "", **chang
 
 
 class LocalRuntime:
-    """Runs a spec as a process here, with the spec's environment plus the host's PATH."""
+    """Runs a spec as a process here, with the spec's environment plus the host's PATH; the token
+    file and provider URL a Docker runtime would give are faked."""
 
-    def __init__(self, provider_url: str | None = None):
-        self.provider_url = provider_url
-        self.key_path = None
+    def __init__(self, token: str = ""):
+        self.token = token
+        self.provider_url = "http://hi-provider:8080" if token else None
+        self.token_path: Path | None = None
 
     async def start(self, spec: Spec) -> Execution:
         env = {**spec.env, "PATH": f"{spec.env.get('PATH', '')}:{host_env().get('PATH', os.defpath)}"}
         return await ProcessExecution.spawn(list(spec.command), env=env, cwd=spec.workspace, input=spec.input,
-                                            interactive=spec.interactive, timeout_s=spec.timeout_s)
+                                            interactive=spec.interactive, timeout_s=spec.timeout_s, stop_signal=15)
 
     async def recover(self) -> None:
         pass
 
 
-class FakeRuntimes:
-    """Runtimes without Docker: every image exists, tools are installed by running install.sh here."""
+class FakeNode:
+    """A node without Docker: the turn runs as a process here; install.sh too."""
+    image = "fake"
 
     def __init__(self):
-        self.owner = "0" * 12
         self.installs = 0
+
+    async def prepare(self) -> str:
+        return "fakeimage000"
 
     async def recover(self) -> None:
         pass
 
-    async def image_for(self, sandbox) -> str:
-        return sandbox.image or "built:" + sandbox.name
+    def runtime_for(self, tenant, limits, *, read_only=(), writable=(), egress=(), gateway_url="", token=""):
+        return LocalRuntime(token)
 
-    def runtime(self, image: str, sandbox, *, read_only: Sequence[Path] = (), writable: Sequence[Path] = (),
-                provider=None, egress: Sequence[str] = ()) -> LocalRuntime:
-        return LocalRuntime("http://hi-provider:8080" if provider else None)
-
-    async def tools_for(self, folder: Path, config, root: Path, sandbox, image: str) -> Path:
-        tools = root / f"{sandbox.name}-local"
+    async def tools_for(self, tenant, limits, folder, config, root, image_id) -> Path:
+        tools = root / f"{folder.name}-{image_id[:12]}"
         if not tools.is_dir():
             self.installs += 1
             tools.mkdir(parents=True)
-            spec = Spec(("bash", str(folder / "install.sh")), env={"HI_TOOLS": str(tools), "PATH": path_with(tools)},
-                        workspace=tools)
+            from harness_interface.sandboxes import path_with
+            spec = Spec(("bash", str(folder / "install.sh")), env={"HI_TOOLS": str(tools), "PATH": path_with(tools)}, workspace=tools)
             execution = await LocalRuntime().start(spec)
-            assert (await execution.wait()).ok
+            if not (await execution.wait()).ok:
+                from harness_interface.sandboxes import InstallFailed
+                raise InstallFailed("install.sh failed")
         return tools

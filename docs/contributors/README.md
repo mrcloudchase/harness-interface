@@ -1,10 +1,8 @@
 # Contributor docs
 
-| Read | What |
+| Read | For |
 |---|---|
-| [Architecture](architecture.md) | The layers, what each knows, and the flow of one turn. |
-| [Development](development.md) | Running the tests, the Docker tests and the live script. |
-| [Conventions](conventions.md) | How the code is written. |
-| [Releasing](releasing.md) | A changelog section is a release. |
-
-[AGENTS.md](../../AGENTS.md) is the short version for anyone, person or agent, changing the code.
+| [Architecture](architecture.md) | The layers, the roles, the turn's path, the invariants |
+| [Conventions](conventions.md) | How the code is written and what is deliberately absent |
+| [Development](development.md) | Running the tests on both backends, with and without Docker |
+| [Releasing](releasing.md) | A changelog section is a release |

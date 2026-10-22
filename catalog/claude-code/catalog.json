@@ -1,0 +1,29 @@
+{
+ "title": "Claude Code",
+ "intro": "Claude Code, headless over `claude -p --output-format stream-json`, on any provider that speaks Anthropic Messages (Anthropic itself, DeepSeek's `/anthropic` endpoint, most aggregators). The conversation lives under `$HOME/.claude`, so `--continue` on later turns resumes it from the member's own home.",
+ "verified": {
+  "contract": 4,
+  "checks": {
+   "make": true,
+   "recall": true,
+   "archive": true,
+   "stream": true,
+   "interrupt accepted": true,
+   "steer": true,
+   "cancel": true,
+   "trace": true,
+   "stateless": true
+  },
+  "passed": 9,
+  "provider": "deepseek",
+  "model": "deepseek-chat"
+ },
+ "notes": [
+  "`ANTHROPIC_API_KEY` and `ANTHROPIC_BASE_URL` come from `provider_env`: the session token and the gateway URL. Claude appends `/v1/messages` itself, so the URL is passed without `/v1`.",
+  "`IS_SANDBOX=1` lets `--dangerously-skip-permissions` run as the sandbox user; `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC=1` keeps it to the provider, which is all the door allows anyway.",
+  "The two `ANTHROPIC_*_MODEL` variables make its background and fast calls use the same model, so a non-Anthropic provider never sees a Claude model id.",
+  "`seeds/org/.claude/CLAUDE.md` is where the org's standing instructions go; `HI_INSTRUCTIONS` becomes `--append-system-prompt`.",
+  "A steer is delivered after the running turn ends, as the next `--continue` message."
+ ],
+ "caveat": ""
+}

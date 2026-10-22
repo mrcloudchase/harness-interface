@@ -1,0 +1,29 @@
+{
+ "title": "goose",
+ "intro": "goose, headless over `goose run`, on an Anthropic-shaped provider through `GOOSE_PROVIDER`, `GOOSE_MODEL` and `ANTHROPIC_HOST`.",
+ "verified": {
+  "contract": 3,
+  "checks": {
+   "make": true,
+   "recall": true,
+   "archive": true,
+   "stream": true,
+   "interrupt accepted": true,
+   "steer": true,
+   "cancel": true,
+   "trace": true,
+   "stateless": true
+  },
+  "passed": 9,
+  "provider": "deepseek",
+  "model": "deepseek-chat"
+ },
+ "notes": [
+  "Sessions are named after the platform session (`-n $HI_SESSION`) and resumed with `-r`.",
+  "`ANTHROPIC_HOST` is the base without `/v1`; for an OpenAI provider set `GOOSE_PROVIDER=openai` and `OPENAI_BASE_URL` with `/v1`.",
+  "`GOOSE_MODE=auto` approves every tool call; `GOOSE_DISABLE_SESSION_NAMING=1` saves a model call per turn.",
+  "Its stream-json output starts with a three-line text banner; a program reading it should skip lines that are not JSON.",
+  "Assistant text arrives token-chunked across `message` events; join the `text` fields to read it."
+ ],
+ "caveat": ""
+}

@@ -1,0 +1,24 @@
+{
+  "contract": 4,
+  "description": "OpenCode 1.19.3, headless `opencode run --format json`; Anthropic-, Responses- or chat-shaped providers.",
+  "defaults": {
+    "provider": "deepseek",
+    "model": "deepseek-chat"
+  },
+  "provider_env": {
+    "key": "ANTHROPIC_API_KEY",
+    "url": ""
+  },
+  "interrupt": "SIGUSR1",
+  "install": {
+    "egress": [
+      "registry.npmjs.org"
+    ],
+    "timeout_s": 1200
+  },
+  "run": {
+    "egress": [],
+    "timeout_s": 1800,
+    "stop_timeout_s": 20
+  }
+}

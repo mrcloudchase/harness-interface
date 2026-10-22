@@ -1,0 +1,26 @@
+{
+  "contract": 4,
+  "description": "Kilo CLI 7.8.1 (an OpenCode fork), headless `kilo run --format json --auto`.",
+  "defaults": {
+    "provider": "deepseek",
+    "model": "deepseek-chat"
+  },
+  "provider_env": {
+    "key": "ANTHROPIC_API_KEY",
+    "url": ""
+  },
+  "interrupt": "SIGUSR1",
+  "install": {
+    "egress": [
+      "github.com",
+      "objects.githubusercontent.com",
+      "release-assets.githubusercontent.com"
+    ],
+    "timeout_s": 1200
+  },
+  "run": {
+    "egress": [],
+    "timeout_s": 1800,
+    "stop_timeout_s": 20
+  }
+}

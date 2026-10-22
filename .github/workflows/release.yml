@@ -1,59 +1,47 @@
 # A release is a CHANGELOG.md section merged to main. The newest section's heading is the version
 # (pyproject.toml reads it from there too); when it has no tag yet, this tests that commit, builds
-# it, tags it vX.Y.Z and publishes a GitHub release with the built package and the section as its
-# notes. Nothing else creates tags.
+# the wheel and the image, tags it vX.Y.Z, publishes a GitHub release with the wheel and the section
+# as its notes, and pushes the image to GitHub's registry. Nothing else creates tags.
 name: release
-
 on:
   push:
     branches: [main]
   workflow_dispatch:
-
 permissions:
   contents: write
-
+  packages: write
 jobs:
   release:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
+        with: {fetch-depth: 0}
       - uses: astral-sh/setup-uv@v5
-
       - name: Is this version released yet?
         id: version
         run: |
           version=$(sed -n 's/^## \[\([^]]*\)\].*/\1/p' CHANGELOG.md | head -n 1)
           echo "version=$version" >> "$GITHUB_OUTPUT"
-          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then
-            echo "new=false" >> "$GITHUB_OUTPUT"
-            echo "v$version is already released"
-          else
-            echo "new=true" >> "$GITHUB_OUTPUT"
-          fi
-
+          if git rev-parse -q --verify "refs/tags/v$version" >/dev/null; then echo "new=false" >> "$GITHUB_OUTPUT"; else echo "new=true" >> "$GITHUB_OUTPUT"; fi
       - name: Its notes
         if: steps.version.outputs.new == 'true'
         run: |
-          awk -v v="${{ steps.version.outputs.version }}" '
-            $0 ~ "^## \\[" v "\\]" { on = 1; next }
-            on && /^## \[/ { exit }
-            on { print }' CHANGELOG.md > notes.md
-          test -s notes.md || { echo "CHANGELOG.md has no section for ${{ steps.version.outputs.version }}"; exit 1; }
-
+          awk -v v="${{ steps.version.outputs.version }}" '$0 ~ "^## \\[" v "\\]" { on = 1; next } on && /^## \[/ { exit } on { print }' CHANGELOG.md > notes.md
+          test -s notes.md
       - name: Test
         if: steps.version.outputs.new == 'true'
         run: uv run --extra dev pytest
-
       - name: Build
         if: steps.version.outputs.new == 'true'
         run: uv build
-
+      - name: Image
+        if: steps.version.outputs.new == 'true'
+        run: |
+          echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          image=ghcr.io/${{ github.repository }}
+          docker build -f deploy/Dockerfile -t "$image:${{ steps.version.outputs.version }}" -t "$image:latest" .
+          docker push "$image:${{ steps.version.outputs.version }}" && docker push "$image:latest"
       - name: Tag and publish
         if: steps.version.outputs.new == 'true'
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          gh release create "v${{ steps.version.outputs.version }}" dist/* \
-            --target "$GITHUB_SHA" --title "v${{ steps.version.outputs.version }}" --notes-file notes.md
+        env: {GH_TOKEN: "${{ github.token }}"}
+        run: gh release create "v${{ steps.version.outputs.version }}" dist/* --target "$GITHUB_SHA" --title "v${{ steps.version.outputs.version }}" --notes-file notes.md

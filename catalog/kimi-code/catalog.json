@@ -1,0 +1,27 @@
+{
+ "title": "kimi-code",
+ "intro": "Kimi Code, headless over `kimi -p --output-format stream-json`, on an Anthropic- or OpenAI-chat-shaped provider through the `KIMI_MODEL_*` variables.",
+ "verified": {
+  "contract": 3,
+  "checks": {
+   "make": true,
+   "recall": true,
+   "archive": true,
+   "stream": true,
+   "interrupt accepted": true,
+   "steer": true,
+   "cancel": true,
+   "trace": true,
+   "stateless": true
+  },
+  "passed": 9,
+  "provider": "deepseek",
+  "model": "deepseek-chat"
+ },
+ "notes": [
+  "Installed from the GitHub release archive.",
+  "`-c` continues the last session for this directory.",
+  "`KIMI_MODEL_PROVIDER_TYPE=anthropic` with a base without `/v1`; `openai` with a `/v1` base for chat completions."
+ ],
+ "caveat": ""
+}

@@ -1,0 +1,25 @@
+{
+  "contract": 4,
+  "description": "aider 0.86.2, one turn per `--message`; Anthropic- or OpenAI chat-shaped providers.",
+  "defaults": {
+    "provider": "deepseek-openai",
+    "model": "deepseek-chat"
+  },
+  "provider_env": {
+    "key": "OPENAI_API_KEY",
+    "url": ""
+  },
+  "interrupt": "SIGUSR1",
+  "install": {
+    "egress": [
+      "pypi.org",
+      "files.pythonhosted.org"
+    ],
+    "timeout_s": 1500
+  },
+  "run": {
+    "egress": [],
+    "timeout_s": 1800,
+    "stop_timeout_s": 20
+  }
+}

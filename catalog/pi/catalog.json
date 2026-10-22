@@ -1,0 +1,27 @@
+{
+ "title": "pi",
+ "intro": "pi (earendil-works), headless over `pi -p --mode json`. pi reads no base-URL variable, so the folder writes `$HOME/.pi/agent/models.json` every turn with a custom provider pointing at the gateway and `apiKey: \"$ANTHROPIC_API_KEY\"`, which pi expands from the environment.",
+ "verified": {
+  "contract": 3,
+  "checks": {
+   "make": true,
+   "recall": true,
+   "archive": true,
+   "stream": true,
+   "interrupt accepted": true,
+   "steer": true,
+   "cancel": true,
+   "trace": true,
+   "stateless": true
+  },
+  "passed": 9,
+  "provider": "deepseek",
+  "model": "deepseek-chat"
+ },
+ "notes": [
+  "The session id is the platform's own (`--session-id $HI_SESSION`), so every later turn resumes the same pi session from the same workspace.",
+  "`api: anthropic-messages` in the custom provider; for an OpenAI-chat provider use `openai-completions` and a `/v1` base.",
+  "`PI_OFFLINE=1` keeps pi from calling its catalog and version check."
+ ],
+ "caveat": ""
+}

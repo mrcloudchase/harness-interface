@@ -1,0 +1,25 @@
+{
+  "contract": 4,
+  "description": "nanobot 0.3.5, headless `nanobot agent -m`; Anthropic-, OpenAI- or custom-shaped providers.",
+  "defaults": {
+    "provider": "deepseek",
+    "model": "deepseek-chat"
+  },
+  "provider_env": {
+    "key": "ANTHROPIC_API_KEY",
+    "url": "ANTHROPIC_BASE_URL"
+  },
+  "interrupt": "SIGUSR1",
+  "install": {
+    "egress": [
+      "pypi.org",
+      "files.pythonhosted.org"
+    ],
+    "timeout_s": 1500
+  },
+  "run": {
+    "egress": [],
+    "timeout_s": 1800,
+    "stop_timeout_s": 20
+  }
+}

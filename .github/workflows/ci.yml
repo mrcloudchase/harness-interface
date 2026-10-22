@@ -1,32 +1,35 @@
-# Every pull request and every push to main: the whole suite (no Docker, keys or network) on the
-# oldest Python we support and the newest; the Docker tests against a real daemon; and a check for
-# unused code.
+# Every pull request and every push to main: the suite on both backends (SQLite and a directory;
+# Postgres and MinIO as services), the Docker tests against a real daemon, the layer rule, and lint.
 name: ci
-
 on:
   push:
     branches: [main]
   pull_request:
-
 jobs:
   tests:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        python: ["3.11", "3.13", "3.14"]
+        python: ["3.11", "3.13"]
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env: {POSTGRES_USER: hi, POSTGRES_PASSWORD: hi, POSTGRES_DB: hi}
+        ports: ["5432:5432"]
+        options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
+    env:
+      HI_TEST_POSTGRES: postgresql://hi:hi@localhost:5432/hi
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
       - run: uv run --python ${{ matrix.python }} --extra dev pytest
-
   docker:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5
-      - run: docker pull -q python:3.12-alpine && docker pull -q python:3.12-slim   # the door's image and the tests'
+      - run: docker pull -q python:3.12-alpine && docker pull -q python:3.12-slim
       - run: uv run --extra dev pytest -m docker
-
   lint:
     runs-on: ubuntu-latest
     steps:

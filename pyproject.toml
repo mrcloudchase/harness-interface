@@ -25,7 +25,10 @@ pattern = '^## \[(?P<version>[^\]]+)\]'
 
 [tool.hatch.build.targets.wheel]
 packages = ["harness_interface"]
-artifacts = ["harness_interface/runtimes/door.py", "harness_interface/runtimes/turn.sh", "catalog/**"]
+
+[tool.hatch.build.targets.wheel.force-include]
+catalog = "harness_interface/catalog"
+console = "harness_interface/console"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

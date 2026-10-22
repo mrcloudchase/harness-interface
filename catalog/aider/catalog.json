@@ -1,0 +1,28 @@
+{
+ "title": "aider",
+ "intro": "aider, one turn per `--message`, on an OpenAI chat-shaped provider through `OPENAI_API_BASE` and `OPENAI_API_KEY`. The chat history file lives in `$HI_DIR`, and later turns pass `--restore-chat-history`.",
+ "verified": {
+  "contract": 3,
+  "checks": {
+   "make": true,
+   "recall": true,
+   "archive": true,
+   "stream": true,
+   "interrupt accepted": false,
+   "steer": false,
+   "cancel": true,
+   "trace": false,
+   "stateless": true
+  },
+  "passed": 6,
+  "provider": "deepseek-openai",
+  "model": "deepseek-chat"
+ },
+ "notes": [
+  "Installed with pip into its own venv.",
+  "`--no-git` because the workspace is not a repository; drop it when it is, and aider will stage what it edits.",
+  "`openai/<model>` routes through litellm's OpenAI path; `anthropic/<model>` with `ANTHROPIC_API_BASE` (no `/v1`) for an Anthropic-shaped provider.",
+  "The litellm model-price fetch it logs at start is refused by the door and harmless; DeepSeek's chat model edits reliably in its `whole` format, which is why it is the default here."
+ ],
+ "caveat": "aider has no shell tool: a task that asks it to run a command is answered with a script to run instead, so the turn ends at once and the steer finds nothing to interrupt. That is aider's shape, not a platform fault; cancel and the rest work."
+}

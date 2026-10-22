@@ -1,0 +1,26 @@
+{
+  "contract": 4,
+  "description": "Kimi Code 2.0.0, headless `kimi -p --output-format stream-json`; Anthropic- or OpenAI chat-shaped providers.",
+  "defaults": {
+    "provider": "deepseek",
+    "model": "deepseek-chat"
+  },
+  "provider_env": {
+    "key": "KIMI_MODEL_API_KEY",
+    "url": "KIMI_MODEL_BASE_URL"
+  },
+  "interrupt": "SIGUSR1",
+  "install": {
+    "egress": [
+      "github.com",
+      "objects.githubusercontent.com",
+      "release-assets.githubusercontent.com"
+    ],
+    "timeout_s": 1200
+  },
+  "run": {
+    "egress": [],
+    "timeout_s": 1800,
+    "stop_timeout_s": 20
+  }
+}

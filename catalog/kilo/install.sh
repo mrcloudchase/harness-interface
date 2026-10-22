@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+set -euo pipefail
+VERSION=7.8.1
+case "$(uname -m)" in x86_64) arch=x64 ;; aarch64|arm64) arch=arm64 ;; *) echo "unsupported arch" >&2; exit 1 ;; esac
+tmp=$(mktemp -d)
+curl -fsSL "https://github.com/Kilo-Org/kilocode/releases/download/v$VERSION/kilo-linux-$arch.tar.gz" -o "$tmp/kilo.tgz"
+mkdir -p "$tmp/x" && tar -xzf "$tmp/kilo.tgz" -C "$tmp/x"
+bin=$(find "$tmp/x" -type f -name kilo -perm -u+x | head -n 1)
+dir=$(dirname "$bin")
+rm -rf "$HI_TOOLS/kilo" && mkdir -p "$HI_TOOLS/bin" && cp -r "$dir" "$HI_TOOLS/kilo" && chmod -R a+rX "$HI_TOOLS/kilo"
+printf '#!/bin/sh\nexec "%s/kilo/kilo" "$@"\n' "$HI_TOOLS" > "$HI_TOOLS/bin/kilo" && chmod 755 "$HI_TOOLS/bin/kilo"
+"$HI_TOOLS/bin/kilo" --version

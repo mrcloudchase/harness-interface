@@ -375,6 +375,15 @@ class Sessions:
                     yield stream, text
         return replay() if r.final else live()
 
+    def with_live_streams(self, r: Record) -> Record:
+        """A running record with what has streamed so far in its stdout and stderr."""
+        if r.final:
+            return r
+        chunks = self.records.list("chunk", r.tenant, f"{r.id}:")
+        r.stdout = "".join(c["text"] for c in chunks if c["stream"] == "stdout")
+        r.stderr = "".join(c["text"] for c in chunks if c["stream"] == "stderr")
+        return r
+
     def cancel(self, who: Member, rid: str) -> Record:
         """Ask the worker to stop it; a queued turn ends at once."""
         r = self.response(who, rid)

@@ -1,0 +1,27 @@
+{
+ "title": "mimo",
+ "intro": "MiMo Code, an OpenCode-style CLI, headless over `mimo run --format json`, on an Anthropic-shaped provider through `MIMOCODE_CONFIG_CONTENT`.",
+ "verified": {
+  "contract": 3,
+  "checks": {
+   "make": true,
+   "recall": true,
+   "archive": true,
+   "stream": true,
+   "interrupt accepted": true,
+   "steer": true,
+   "cancel": true,
+   "trace": true,
+   "stateless": true
+  },
+  "passed": 9,
+  "provider": "deepseek",
+  "model": "deepseek-chat"
+ },
+ "notes": [
+  "`-c` continues the last session in this directory.",
+  "The `MIMOCODE_*` switches stop the model fetch, autoupdate and analytics.",
+  "Its first start migrates a local database, which can take a while; later turns are quick."
+ ],
+ "caveat": ""
+}

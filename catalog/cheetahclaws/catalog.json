@@ -1,0 +1,27 @@
+{
+ "title": "cheetahclaws",
+ "intro": "CheetahClaws, headless over `cheetahclaws -p`, on an OpenAI chat-shaped provider through `CUSTOM_BASE_URL` and `CUSTOM_API_KEY`.",
+ "verified": {
+  "contract": 3,
+  "checks": {
+   "make": true,
+   "recall": false,
+   "archive": true,
+   "stream": true,
+   "interrupt accepted": true,
+   "steer": true,
+   "cancel": true,
+   "trace": true,
+   "stateless": true
+  },
+  "passed": 8,
+  "provider": "openai",
+  "model": "gpt-5.4-mini"
+ },
+ "notes": [
+  "Installed with pip into its own venv.",
+  "`max_tokens: 0` in its config stops it sending a `max_tokens` value newer OpenAI models refuse; the three interactive tools are disabled because nobody is there to answer them.",
+  "Its output is terminal text rather than JSON."
+ ],
+ "caveat": "Headless CheetahClaws starts from an empty state every run (resume is a REPL command), so each turn is a fresh conversation in the same workspace."
+}

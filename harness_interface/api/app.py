@@ -30,7 +30,9 @@ from .auth import Principals
 from .config import Settings
 
 STATUS = {Invalid: 400, NotFound: 404, Conflict: 409}
-CONSOLE = Path(__file__).resolve().parents[1] / "console"
+CONSOLE = Path(__file__).resolve().parents[1] / "console"      # inside the wheel; a checkout has it at the repository root
+if not CONSOLE.is_dir():
+    CONSOLE = Path(__file__).resolve().parents[2] / "console"
 VERSION = version("harness-interface")
 
 
@@ -220,7 +222,7 @@ def create_app(service: Service) -> FastAPI:
     @app.get("/v1/responses/{rid}")
     def get_response(rid: str, stream: bool = False, detail: bool = False, who: Member = member) -> Any:
         r = sessions.response(who, rid)
-        return streamed(who, r) if stream else (wire.record_detail(r) if detail else wire.response(r))
+        return streamed(who, r) if stream else (wire.record_detail(sessions.with_live_streams(r)) if detail else wire.response(r))
 
     @app.post("/v1/responses/{rid}/cancel")
     async def cancel_response(rid: str, who: Member = member) -> dict:

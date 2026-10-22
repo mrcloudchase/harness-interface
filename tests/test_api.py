@@ -178,10 +178,12 @@ def test_cancel_steer_and_busy(platform):
         bg = (await c.post("/v1/responses", json={"model": "slow", "input": "x", "background": True}, headers=auth(dev))).json()
         sid = bg["metadata"]["session_id"]
         for _ in range(100):
-            if (await c.get(f"/v1/sessions/{sid}", headers=auth(dev))).json()["status"] == "running" and \
-                    "started" in (await c.get(f"/v1/responses/{bg['id']}?detail=true", headers=auth(dev))).json()["stdout"]:
+            if "started" in (await c.get(f"/v1/responses/{bg['id']}?detail=true", headers=auth(dev))).json()["stdout"]:
                 break
             await asyncio.sleep(0.2)
+        else:
+            raise AssertionError("the running turn's output was not visible on ?detail=true")
+        assert (await c.get(f"/v1/sessions/{sid}", headers=auth(dev))).json()["status"] == "running"
         assert (await c.post("/v1/responses", json={"model": "slow", "input": "y", "previous_response_id": bg["id"]}, headers=auth(dev))).status_code == 409
         assert (await c.delete(f"/v1/sessions/{sid}", headers=auth(dev))).status_code == 409
         assert (await c.post(f"/v1/sessions/{sid}/interrupt", json={"input": "left"}, headers=auth(dev))).status_code == 200
@@ -192,6 +194,8 @@ def test_cancel_steer_and_busy(platform):
             if "started" in (await c.get(f"/v1/responses/{bg['id']}?detail=true", headers=auth(dev))).json()["stdout"]:
                 break
             await asyncio.sleep(0.2)
+        else:
+            raise AssertionError("the running turn's output was not visible on ?detail=true")
         done = (await c.post(f"/v1/responses/{bg['id']}/cancel", headers=auth(dev))).json()
         assert done["status"] == "cancelled" and "stopping" in done["output"][0]["content"][0]["text"], done
         trace = [t["kind"] for t in (await c.get(f"/v1/sessions/{sid}/trace", headers=auth(dev))).json()["data"]]

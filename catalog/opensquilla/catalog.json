@@ -1,0 +1,27 @@
+{
+ "title": "opensquilla",
+ "intro": "OpenSquilla, headless over `opensquilla agent --json`, on an Anthropic-shaped provider through `$HOME/.opensquilla/config.toml`, where `api_key_env` names the credential's variable.",
+ "verified": {
+  "contract": 3,
+  "checks": {
+   "make": true,
+   "recall": true,
+   "archive": true,
+   "stream": true,
+   "interrupt accepted": true,
+   "steer": true,
+   "cancel": true,
+   "trace": true,
+   "stateless": true
+  },
+  "passed": 9,
+  "provider": "deepseek",
+  "model": "deepseek-chat"
+ },
+ "notes": [
+  "Needs Python 3.12, hence the `py312` sandbox; installed from the wheel its GitHub release publishes.",
+  "`--session-id $HI_SESSION` with a session database in the member's home resumes across turns.",
+  "`--stateless-keep-project-rules` stops it seeding persona files into the workspace."
+ ],
+ "caveat": ""
+}

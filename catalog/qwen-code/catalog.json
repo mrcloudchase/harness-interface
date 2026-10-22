@@ -1,0 +1,27 @@
+{
+ "title": "qwen-code",
+ "intro": "Qwen Code, headless over `qwen -o stream-json`, on an OpenAI chat-shaped provider through `OPENAI_BASE_URL`, `OPENAI_API_KEY` and `OPENAI_MODEL`.",
+ "verified": {
+  "contract": 3,
+  "checks": {
+   "make": true,
+   "recall": true,
+   "archive": true,
+   "stream": true,
+   "interrupt accepted": true,
+   "steer": true,
+   "cancel": true,
+   "trace": true,
+   "stateless": true
+  },
+  "passed": 9,
+  "provider": "deepseek-openai",
+  "model": "deepseek-chat"
+ },
+ "notes": [
+  "The session id is derived from the platform's session id as a UUID: `--session-id` on the first turn, `--resume` after.",
+  "Stdin is read into the prompt, so the CLI is run with `</dev/null` and the prompt as an argument.",
+  "`--auth-type openai` with a `/v1` base; `openai-responses` is also accepted for an OpenAI Responses provider."
+ ],
+ "caveat": ""
+}

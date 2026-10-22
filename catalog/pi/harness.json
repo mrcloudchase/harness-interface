@@ -1,0 +1,24 @@
+{
+  "contract": 4,
+  "description": "pi 1.3.0 (earendil-works), headless `pi -p --mode json`; Anthropic- or OpenAI-shaped providers.",
+  "defaults": {
+    "provider": "deepseek",
+    "model": "deepseek-chat"
+  },
+  "provider_env": {
+    "key": "ANTHROPIC_API_KEY",
+    "url": ""
+  },
+  "interrupt": "SIGUSR1",
+  "install": {
+    "egress": [
+      "registry.npmjs.org"
+    ],
+    "timeout_s": 1200
+  },
+  "run": {
+    "egress": [],
+    "timeout_s": 1800,
+    "stop_timeout_s": 20
+  }
+}

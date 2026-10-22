@@ -1,0 +1,26 @@
+{
+  "contract": 4,
+  "description": "jcode 0.90.0, headless `jcode run --ndjson`; an Anthropic-shaped provider.",
+  "defaults": {
+    "provider": "deepseek",
+    "model": ""
+  },
+  "provider_env": {
+    "key": "ANTHROPIC_API_KEY",
+    "url": ""
+  },
+  "interrupt": "SIGUSR1",
+  "install": {
+    "egress": [
+      "github.com",
+      "objects.githubusercontent.com",
+      "release-assets.githubusercontent.com"
+    ],
+    "timeout_s": 1200
+  },
+  "run": {
+    "egress": [],
+    "timeout_s": 1800,
+    "stop_timeout_s": 20
+  }
+}

@@ -1,0 +1,18 @@
+#cloud-config
+# A worker machine on any provider: Docker, the sandboxed runtime, and the worker role joining the
+# control plane. Fill in HI_CONTROL_URL, HI_JOIN_TOKEN, HI_GATEWAY_URL (the gateway as this machine's
+# doors reach it: a TLS address behind your load balancer) and, if the image is private, a pull.
+package_update: true
+packages: [ca-certificates, curl]
+runcmd:
+  - curl -fsSL https://get.docker.com | sh
+  - curl -fsSL https://github.com/google/gvisor/releases/latest/download/runsc -o /usr/local/bin/runsc || true
+  - chmod +x /usr/local/bin/runsc && /usr/local/bin/runsc install && systemctl restart docker || true
+  - mkdir -p /srv/hi/data
+  - >
+    docker run -d --name hi-worker --restart unless-stopped
+    -v /var/run/docker.sock:/var/run/docker.sock -v /srv/hi/data:/srv/hi/data
+    --add-host host.docker.internal:host-gateway
+    -e HI_DATA_DIR=/srv/hi/data -e HI_CONTROL_URL=https://hi.example.com -e HI_JOIN_TOKEN=CHANGE-ME
+    -e HI_GATEWAY_URL=https://gateway.hi.example.com -e HI_RUNTIME=runsc -e HI_WORKER_SLOTS=4
+    ghcr.io/mrcloudchase/harness-interface:4.0.0 serve --role worker

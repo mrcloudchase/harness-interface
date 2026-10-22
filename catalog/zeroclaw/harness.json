@@ -1,0 +1,26 @@
+{
+  "contract": 4,
+  "description": "zeroclaw 0.8.5, one-shot `zeroclaw agent -m`; an OpenAI chat-shaped provider.",
+  "defaults": {
+    "provider": "deepseek-openai",
+    "model": "deepseek-chat"
+  },
+  "provider_env": {
+    "key": "ZEROCLAW_providers__models__custom__hi__api_key",
+    "url": ""
+  },
+  "interrupt": "SIGUSR1",
+  "install": {
+    "egress": [
+      "github.com",
+      "objects.githubusercontent.com",
+      "release-assets.githubusercontent.com"
+    ],
+    "timeout_s": 1200
+  },
+  "run": {
+    "egress": [],
+    "timeout_s": 1800,
+    "stop_timeout_s": 20
+  }
+}

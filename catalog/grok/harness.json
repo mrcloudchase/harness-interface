@@ -1,0 +1,25 @@
+{
+  "contract": 4,
+  "description": "Grok Build 1.0.41, headless `grok -p --output-format streaming-json`; chat-, Responses- or Anthropic-shaped providers.",
+  "defaults": {
+    "provider": "deepseek-openai",
+    "model": "deepseek-chat"
+  },
+  "provider_env": {
+    "key": "OPENAI_API_KEY",
+    "url": ""
+  },
+  "interrupt": "SIGUSR1",
+  "install": {
+    "egress": [
+      "x.ai",
+      "storage.googleapis.com"
+    ],
+    "timeout_s": 1200
+  },
+  "run": {
+    "egress": [],
+    "timeout_s": 1800,
+    "stop_timeout_s": 20
+  }
+}

@@ -1,0 +1,25 @@
+{
+  "contract": 4,
+  "description": "CheetahClaws 3.5.88, headless `cheetahclaws -p`; any OpenAI chat-shaped provider.",
+  "defaults": {
+    "provider": "openai",
+    "model": "gpt-5.4-mini"
+  },
+  "provider_env": {
+    "key": "CUSTOM_API_KEY",
+    "url": ""
+  },
+  "interrupt": "SIGUSR1",
+  "install": {
+    "egress": [
+      "pypi.org",
+      "files.pythonhosted.org"
+    ],
+    "timeout_s": 1500
+  },
+  "run": {
+    "egress": [],
+    "timeout_s": 1800,
+    "stop_timeout_s": 20
+  }
+}

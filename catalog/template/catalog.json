@@ -1,0 +1,4 @@
+{"title": "Template", "intro": "A minimal package that runs a stand-in CLI; copy it to start a package of your own.",
+ "verified": {}, "notes": ["Set defaults.provider to a provider you registered and defaults.model to a model it serves.",
+ "install.sh runs unprivileged in the base image; put the CLI under $HI_TOOLS.",
+ "response.sh is optional: without it the response is request.sh's stdout and exit code."], "caveat": ""}

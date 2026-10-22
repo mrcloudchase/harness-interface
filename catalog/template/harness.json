@@ -1,0 +1,9 @@
+{
+  "contract": 4,
+  "description": "A starting point: replace the CLI in install.sh, the turn in request.sh, and what response.sh returns.",
+  "defaults": {"provider": "", "model": ""},
+  "provider_env": {"key": "OPENAI_API_KEY", "url": "OPENAI_BASE_URL"},
+  "interrupt": "SIGUSR1",
+  "install": {"egress": ["registry.npmjs.org", "pypi.org", "files.pythonhosted.org"], "timeout_s": 900},
+  "run": {"egress": [], "timeout_s": 1800, "stop_timeout_s": 20}
+}

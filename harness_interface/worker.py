@@ -59,18 +59,27 @@ class Worker:
         self.stopping = False
 
     # joining
-    async def join(self) -> None:
+    async def join(self, patience_s: float = 120) -> None:
+        """Present the saved credential, or join with the token; the control plane may still be starting."""
         saved = self.cache / "worker.json"
-        if saved.is_file():
-            self._http.headers["Authorization"] = f"Bearer {json.loads(saved.read_text())['secret']}"
-            r = await self._http.post("/internal/heartbeat", json={"running": []})
-            if r.status_code == 200:
-                return
-        if not self.join_token:
-            raise RuntimeError("no saved credential and no join token: give the worker HI_JOIN_TOKEN")
-        r = await self._http.post("/internal/join", json={"name": self.name, "slots": self.slots, "version": self.version},
-                                  headers={"Authorization": f"Bearer {self.join_token}"})
-        r.raise_for_status()
+        deadline = time.monotonic() + patience_s
+        while True:
+            try:
+                if saved.is_file():
+                    self._http.headers["Authorization"] = f"Bearer {json.loads(saved.read_text())['secret']}"
+                    r = await self._http.post("/internal/heartbeat", json={"running": []})
+                    if r.status_code == 200:
+                        return
+                if not self.join_token:
+                    raise RuntimeError("no saved credential and no join token: give the worker HI_JOIN_TOKEN")
+                r = await self._http.post("/internal/join", json={"name": self.name, "slots": self.slots, "version": self.version},
+                                          headers={"Authorization": f"Bearer {self.join_token}"})
+                r.raise_for_status()
+                break
+            except (httpx.HTTPError, OSError) as e:
+                if time.monotonic() > deadline:
+                    raise RuntimeError(f"could not reach the control plane at {self.control_url}: {e}") from None
+                await asyncio.sleep(2)
         secret = r.json()["secret"]
         saved.write_text(json.dumps({"secret": secret, "id": r.json()["id"]}))
         saved.chmod(0o600)
@@ -243,9 +252,9 @@ class Worker:
         files.write(rundir, "request.json", json.dumps(job["request"]).encode())
 
     async def _stream(self, rid: str, execution: Execution, door_log: io.BytesIO) -> Outcome:
+        """Relay the run's output as chunk records, a batch every quarter second, until it ends."""
         pending: list[dict[str, Any]] = []
         seq = 0
-        last = time.monotonic()
 
         async def flush() -> None:
             nonlocal pending
@@ -255,16 +264,23 @@ class Worker:
                     await self._http.post(f"/internal/turns/{rid}/chunks", json={"chunks": batch})
                 except (httpx.HTTPError, OSError):
                     pass
-        async for event in execution.events():
-            if event.stream == "door":
-                door_log.write(event.data)
-                continue
-            seq += 1
-            pending.append({"seq": seq, "stream": event.stream, "text": event.data.decode("utf-8", "replace")})
-            if time.monotonic() - last >= CHUNK_EVERY_S:
+
+        async def flusher() -> None:
+            while True:
+                await asyncio.sleep(CHUNK_EVERY_S)
                 await flush()
-                last = time.monotonic()
-        await flush()
+        ticker = asyncio.create_task(flusher())
+        try:
+            async for event in execution.events():
+                if event.stream == "door":
+                    door_log.write(event.data)
+                    continue
+                seq += 1
+                pending.append({"seq": seq, "stream": event.stream, "text": event.data.decode("utf-8", "replace")})
+        finally:
+            ticker.cancel()
+            await asyncio.gather(ticker, return_exceptions=True)
+            await flush()
         return await execution.wait()
 
     @staticmethod

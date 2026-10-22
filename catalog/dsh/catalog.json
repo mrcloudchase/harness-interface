@@ -1,8 +1,8 @@
 {
- "title": "dsh",
+ "title": "DeepSeek Harness",
  "intro": "The DeepSeek Harness (`dsh`), headless over `dsh --profile headless --json`, on DeepSeek's Anthropic-shaped endpoint through `DEEPSEEK_BASE_URL` and `DEEPSEEK_API_KEY`.",
  "verified": {
-  "contract": 3,
+  "contract": 4,
   "checks": {
    "make": true,
    "recall": true,

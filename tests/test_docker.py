@@ -132,14 +132,17 @@ def test_steer_and_stop(tmp_path, gateway):
 
     async def go():
         ex = await rt.start(spec(tmp_path, "wait", rt))
-        out = b""
+        out, err, sent = b"", b"", False
         async for e in ex.events():
+            if e.stream == "stderr":
+                err += e.data
             if e.stream == "stdout":
                 out += e.data
-                if b"rootfs=" in out and b"steer" not in out:
+                if b"rootfs=" in out and not sent:
+                    sent = True
+                    await asyncio.sleep(1)                   # let request.sh reach its wait, as a real steer would
                     (tmp_path / "run" / "interrupt").write_text("turn left")
-                    from harness_interface.runtimes.docker import signal
-                    assert await signal(ex.container, "SIGUSR1")
+                    assert await ex.interrupt("SIGUSR1")
         steered = await ex.wait()
         ex2 = await rt.start(spec(tmp_path, "wait", rt))
         out2 = b""
@@ -148,8 +151,8 @@ def test_steer_and_stop(tmp_path, gateway):
                 out2 += e.data
                 if b"rootfs=" in out2:
                     ex2.stop(10)
-        return out, steered, out2, await ex2.wait()
-    out, steered, out2, stopped = asyncio.run(go())
-    assert b"steer=turn left" in out and steered.kind == "exited" and steered.code == 0
+        return out, err, steered, out2, await ex2.wait()
+    out, err, steered, out2, stopped = asyncio.run(go())
+    assert b"steer=turn left" in out and steered.kind == "exited" and steered.code == 0, (steered, out, err)
     assert (tmp_path / "run" / "response").read_text().startswith("outcome=cancelled")
     assert stopped.kind == "stopped" and stopped.code == 0 and b"rootfs=" in out2

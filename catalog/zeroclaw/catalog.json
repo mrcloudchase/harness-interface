@@ -2,7 +2,7 @@
  "title": "zeroclaw",
  "intro": "zeroclaw, one-shot over `zeroclaw agent -m`, on an OpenAI chat-shaped provider through a `[providers.models.custom.hi]` entry in a config directory the folder writes each turn; the credential travels in the environment variable zeroclaw derives from that key path.",
  "verified": {
-  "contract": 3,
+  "contract": 4,
   "checks": {
    "make": true,
    "recall": false,

@@ -1,8 +1,8 @@
 {
- "title": "cline",
+ "title": "Cline",
  "intro": "Cline, headless over `cline --json`, on an OpenAI-compatible provider. Headless Cline ignores base-URL variables, so the folder writes `$HOME/.cline/data/settings/providers.json` with the gateway URL and the session token as the key.",
  "verified": {
-  "contract": 3,
+  "contract": 4,
   "checks": {
    "make": true,
    "recall": true,

@@ -17,10 +17,12 @@ and bytes out and says whether the turn ended well.
                                  read-only root, a door as its only route out
 ```
 
-Twenty-two harnesses ship in the catalog, each verified end to end: Claude Code, Codex, Hermes
-Agent, pi, OpenCode, Kilo CLI, Qwen Code, Cline, Oh My Pi, goose, Kimi Code, MiniMax Code, aider,
-OpenHands, Grok Build, CheetahClaws, MiMo Code, jcode, OpenSquilla, nanobot, zeroclaw and the
-DeepSeek Harness. A tenant forks one with one call and edits it, or uploads its own.
+Twenty-two harnesses ship in the catalog, each run through a nine-check live suite against the
+platform on DeepSeek or OpenAI: Claude Code, Codex, Hermes Agent, pi, OpenCode, Kilo CLI, Qwen
+Code, Cline, Oh My Pi, goose, Kimi Code, MiniMax Code, aider, OpenHands, Grok Build, CheetahClaws,
+MiMo Code, jcode, OpenSquilla, nanobot, zeroclaw and the DeepSeek Harness. Nineteen pass every
+check; three pass all but what their CLI cannot do, [documented on their pages](docs/users/harnesses/).
+A tenant forks one with one call and edits it, or uploads its own.
 
 The same image is the hosted platform and the self-hosted one: `HI_SIGNUP=open` puts a sign-up page
 on the front door; closed, the deployer creates tenants. One box runs every role over SQLite and a

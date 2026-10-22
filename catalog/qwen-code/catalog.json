@@ -1,8 +1,8 @@
 {
- "title": "qwen-code",
+ "title": "Qwen Code",
  "intro": "Qwen Code, headless over `qwen -o stream-json`, on an OpenAI chat-shaped provider through `OPENAI_BASE_URL`, `OPENAI_API_KEY` and `OPENAI_MODEL`.",
  "verified": {
-  "contract": 3,
+  "contract": 4,
   "checks": {
    "make": true,
    "recall": true,

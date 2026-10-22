@@ -1,8 +1,8 @@
 {
- "title": "opencode",
+ "title": "OpenCode",
  "intro": "OpenCode, headless over `opencode run --format json`. The provider is passed inline in `OPENCODE_CONFIG_CONTENT`: the gateway's base URL with `/v1`, the key as `{env:ANTHROPIC_API_KEY}` and the model declared, so an id outside its catalog works.",
  "verified": {
-  "contract": 3,
+  "contract": 4,
   "checks": {
    "make": true,
    "recall": true,

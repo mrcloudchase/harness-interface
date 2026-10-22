@@ -1,8 +1,8 @@
 {
- "title": "hermes",
+ "title": "Hermes Agent",
  "intro": "Nous Research's Hermes Agent, headless over `hermes chat -q`, on an Anthropic-shaped provider. The `Session:` line it prints at exit is kept in `$HI_DIR` and later turns pass `--resume`.",
  "verified": {
-  "contract": 3,
+  "contract": 4,
   "checks": {
    "make": true,
    "recall": true,

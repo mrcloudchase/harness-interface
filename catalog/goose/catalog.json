@@ -2,7 +2,7 @@
  "title": "goose",
  "intro": "goose, headless over `goose run`, on an Anthropic-shaped provider through `GOOSE_PROVIDER`, `GOOSE_MODEL` and `ANTHROPIC_HOST`.",
  "verified": {
-  "contract": 3,
+  "contract": 4,
   "checks": {
    "make": true,
    "recall": true,

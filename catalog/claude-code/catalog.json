@@ -1,8 +1,8 @@
 {
- "title": "claude-code",
+ "title": "Claude Code",
  "intro": "Claude Code, headless over `claude -p --output-format stream-json`, on any provider that speaks Anthropic Messages (Anthropic itself, DeepSeek's `/anthropic` endpoint, most aggregators). The conversation lives under `$HOME/.claude`, so `--continue` on later turns resumes it from the member's own home.",
  "verified": {
-  "contract": 3,
+  "contract": 4,
   "checks": {
    "make": true,
    "recall": true,

@@ -2,7 +2,7 @@
  "title": "pi",
  "intro": "pi (earendil-works), headless over `pi -p --mode json`. pi reads no base-URL variable, so the folder writes `$HOME/.pi/agent/models.json` every turn with a custom provider pointing at the gateway and `apiKey: \"$ANTHROPIC_API_KEY\"`, which pi expands from the environment.",
  "verified": {
-  "contract": 3,
+  "contract": 4,
   "checks": {
    "make": true,
    "recall": true,

@@ -2,19 +2,19 @@
  "title": "aider",
  "intro": "aider, one turn per `--message`, on an OpenAI chat-shaped provider through `OPENAI_API_BASE` and `OPENAI_API_KEY`. The chat history file lives in `$HI_DIR`, and later turns pass `--restore-chat-history`.",
  "verified": {
-  "contract": 3,
+  "contract": 4,
   "checks": {
    "make": true,
    "recall": true,
    "archive": true,
    "stream": true,
-   "interrupt accepted": false,
+   "interrupt accepted": true,
    "steer": false,
    "cancel": true,
-   "trace": false,
+   "trace": true,
    "stateless": true
   },
-  "passed": 6,
+  "passed": 8,
   "provider": "deepseek-openai",
   "model": "deepseek-chat"
  },

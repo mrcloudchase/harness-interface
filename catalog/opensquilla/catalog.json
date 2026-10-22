@@ -1,20 +1,20 @@
 {
- "title": "opensquilla",
+ "title": "OpenSquilla",
  "intro": "OpenSquilla, headless over `opensquilla agent --json`, on an Anthropic-shaped provider through `$HOME/.opensquilla/config.toml`, where `api_key_env` names the credential's variable.",
  "verified": {
-  "contract": 3,
+  "contract": 4,
   "checks": {
    "make": true,
    "recall": true,
    "archive": true,
-   "stream": true,
+   "stream": false,
    "interrupt accepted": true,
    "steer": true,
    "cancel": true,
    "trace": true,
    "stateless": true
   },
-  "passed": 9,
+  "passed": 8,
   "provider": "deepseek",
   "model": "deepseek-chat"
  },

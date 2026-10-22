@@ -2,7 +2,7 @@
  "title": "jcode",
  "intro": "jcode, headless over `jcode run --ndjson`, on an Anthropic-shaped provider through `ANTHROPIC_BASE_URL` (with `/v1`) and `ANTHROPIC_API_KEY`.",
  "verified": {
-  "contract": 3,
+  "contract": 4,
   "checks": {
    "make": true,
    "recall": true,

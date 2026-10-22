@@ -2,7 +2,7 @@
  "title": "nanobot",
  "intro": "nanobot, headless over `nanobot agent -m`, on an Anthropic-shaped provider through `$HOME/.nanobot/config.json`, where `${ANTHROPIC_API_KEY}` and `${ANTHROPIC_BASE_URL}` are expanded from the environment at load.",
  "verified": {
-  "contract": 3,
+  "contract": 4,
   "checks": {
    "make": true,
    "recall": true,

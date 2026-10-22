@@ -1,11 +1,11 @@
 {
- "title": "cheetahclaws",
+ "title": "CheetahClaws",
  "intro": "CheetahClaws, headless over `cheetahclaws -p`, on an OpenAI chat-shaped provider through `CUSTOM_BASE_URL` and `CUSTOM_API_KEY`.",
  "verified": {
-  "contract": 3,
+  "contract": 4,
   "checks": {
    "make": true,
-   "recall": false,
+   "recall": true,
    "archive": true,
    "stream": true,
    "interrupt accepted": true,
@@ -14,7 +14,7 @@
    "trace": true,
    "stateless": true
   },
-  "passed": 8,
+  "passed": 9,
   "provider": "openai",
   "model": "gpt-5.4-mini"
  },

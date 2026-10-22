@@ -18,6 +18,7 @@ IMAGE = "python:3.12-slim"
 CA = Path(os.environ["HI_CA_FILE"]) if os.environ.get("HI_CA_FILE") else None
 REQUEST = """#!/usr/bin/env bash
 set -u
+trap 'echo "steer=$(cat "$HI_DIR/interrupt")"; exit 0' USR1
 prompt=$(cat)
 echo "prompt=$prompt uid=$(id -u) caps=$(grep CapEff /proc/self/status | awk '{print $2}')"
 echo "user=$(id -un) home=$(python3 -c 'import os,pwd; print(pwd.getpwuid(os.getuid()).pw_dir)')"
@@ -30,7 +31,6 @@ echo "gateway=$(fetch "$HI_PROVIDER_URL/v1/models" "$HI_PROVIDER_KEY_FILE")"
 echo "private=$(fetch https://169.254.169.254/)"
 echo "rootfs=$(touch /x 2>/dev/null && echo writable || echo readonly)"
 echo "a warning" >&2
-trap 'echo "steer=$(cat "$HI_DIR/interrupt")"; exit 0' USR1
 if [ "$prompt" = "wait" ]; then sleep 60 & wait $!; fi
 exit 4
 """

@@ -23,5 +23,5 @@
   "The key written to `providers.json` is the session token, worthless outside the run; the real key never leaves the gateway.",
   "Each turn starts a fresh conversation in the same workspace, so the recall check passes by looking at the files, not by remembering; give a later turn the context it needs in the prompt."
  ],
- "caveat": "Headless Cline cannot resume a session (that needs its ACP mode)."
+ "caveat": "Headless Cline cannot resume a session (that needs its ACP mode); it answers recall by looking at the workspace, not by remembering."
 }

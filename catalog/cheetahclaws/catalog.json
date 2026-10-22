@@ -23,5 +23,5 @@
   "`max_tokens: 0` in its config stops it sending a `max_tokens` value newer OpenAI models refuse; the three interactive tools are disabled because nobody is there to answer them.",
   "Its output is terminal text rather than JSON."
  ],
- "caveat": "Headless CheetahClaws starts from an empty state every run (resume is a REPL command), so each turn is a fresh conversation in the same workspace."
+ "caveat": "Headless CheetahClaws starts from an empty conversation every run (resume is a REPL command); it answers recall by looking at the workspace, not by remembering."
 }

@@ -23,5 +23,5 @@
   "`--session-id $HI_SESSION` with a session database in the member's home resumes across turns.",
   "`--stateless-keep-project-rules` stops it seeding persona files into the workspace."
  ],
- "caveat": ""
+ "caveat": "OpenSquilla prints its answer as one JSON line at the end of the turn, so a streamed response arrives as one chunk rather than many."
 }

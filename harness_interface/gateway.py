@@ -23,9 +23,9 @@ from .store import Provider, Store
 END = b"\r\n\r\n"
 AUTH_HEADERS = {"x-api-key", "authorization", "api-key"}
 HOP_HEADERS = {"host", "connection", "proxy-connection", "keep-alive", "proxy-authorization", "te", "upgrade", "content-length", "transfer-encoding"}
+OPENAI = (r"/v1/chat/completions", r"/v1/responses(/[^/]+(/[a-z_]+)?)?", r"/v1/embeddings", r"/v1/models(/[^/]+)?")
 PATHS = {"anthropic-messages": (r"/v1/messages(/count_tokens)?", r"/v1/models(/[^/]+)?"),
-         "openai-chat": (r"/v1/chat/completions", r"/v1/models(/[^/]+)?", r"/v1/embeddings"),
-         "openai-responses": (r"/v1/responses(/[^/]+(/[a-z_]+)?)?", r"/v1/models(/[^/]+)?"),
+         "openai-chat": OPENAI, "openai-responses": OPENAI,          # one API, two header shapes; a CLI may use either endpoint
          "none": (r".*",)}
 CAPTURE_MAX = 4 * 1024 * 1024                         # per body kept in a capture
 FAILURES = (asyncio.IncompleteReadError, asyncio.LimitOverrunError, TimeoutError, OSError, ValueError)

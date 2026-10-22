@@ -22,6 +22,7 @@ def test_paths_and_credentials():
     assert allowed("anthropic-messages", "/anthropic/v1/messages", "/anthropic") and not allowed("anthropic-messages", "/v1/messages", "/anthropic")
     assert not allowed("anthropic-messages", "/v1/files") and not allowed("openai-chat", "/v1/fine_tuning/jobs")
     assert allowed("openai-responses", "/v1/responses") and allowed("openai-responses", "/v1/responses/resp_1/cancel")
+    assert allowed("openai-chat", "/v1/responses") and allowed("openai-responses", "/v1/chat/completions")
     assert allowed("none", "/anything/at/all")
     assert credential([("x-api-key", "tok")]) == "tok" and credential([("Authorization", "Bearer tok")]) == "tok"
     assert credential([("x-api-key", "tok"), ("authorization", "Bearer other")]) is None and credential([("accept", "*/*")]) is None

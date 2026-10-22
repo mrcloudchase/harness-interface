@@ -28,7 +28,7 @@ from .errors import Invalid
 from .execution import Execution, Outcome, Spec
 from .limits import Limits
 from .runtimes.docker import TURN_SCRIPT
-from .sandboxes import InstallFailed, Node, path_with
+from .sandboxes import InstallFailed, path_with
 
 CHUNK_EVERY_S = 0.25
 HEARTBEAT_S = 5

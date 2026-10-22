@@ -13,7 +13,6 @@ import asyncio
 import os
 import signal
 import sys
-from pathlib import Path
 
 from .api.config import Settings
 from .secrets import Vault

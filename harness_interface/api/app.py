@@ -6,7 +6,6 @@ is 400, 401, 403, 404 or 409 with `{"detail": …}`; a malformed body 422."""
 from __future__ import annotations
 
 import asyncio
-import json
 import secrets
 from contextlib import asynccontextmanager
 from dataclasses import asdict

@@ -6,7 +6,6 @@ import datetime
 import ipaddress
 import ssl
 
-import pytest
 from cryptography import x509
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa

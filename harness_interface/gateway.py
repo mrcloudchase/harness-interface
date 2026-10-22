@@ -10,7 +10,6 @@ It is a plain HTTP/1.1 server on its own port, standard library only, so the sam
 from __future__ import annotations
 
 import asyncio
-import hmac
 import json
 import re
 import ssl

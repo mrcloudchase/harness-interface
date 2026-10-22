@@ -3,9 +3,7 @@ A real base image with nothing of ours in it; the tenant's uid; no capabilities;
 container and only the token; provider calls relayed to the gateway through the door; private
 egress refused; response.sh deciding the response; a steer reaching request.sh alone; a stop."""
 import asyncio
-import json
 import os
-import socket
 import threading
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path

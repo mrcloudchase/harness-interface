@@ -1,11 +1,11 @@
-"""Layer 2: the harness package, contract 4. The only module that knows what is in one.
+"""Layer 2: the harness package, contract 5. The only module that knows what is in one.
 
 A package is uploaded as a tar (gzipped or not) and holds:
 - `harness.json`: what the platform needs to launch it, and nothing about the CLI's behaviour;
-- `install.sh`: puts the CLI into `$HI_TOOLS`, once per package version, with egress to `install.egress`;
+- `install.sh`: puts the CLI into `$HG_TOOLS`, once per package version, with egress to `install.egress`;
 - `request.sh`: runs one turn: the prompt on stdin, its stdout relayed live, both streams kept;
-- `response.sh` (optional): runs after request.sh, reads `$HI_STDOUT`, `$HI_STDERR`, `$HI_EXIT` and
-  `$HI_OUTCOME`, and prints the response; its exit code is the status. Without it the response is
+- `response.sh` (optional): runs after request.sh, reads `$HG_STDOUT`, `$HG_STDERR`, `$HG_EXIT` and
+  `$HG_OUTCOME`, and prints the response; its exit code is the status. Without it the response is
   request.sh's stdout and exit code;
 - `seeds/org/`, `seeds/user/`, `seeds/project/` (optional): files copied into `$HOME` every turn,
   into `$HOME` on first use only, and into the workspace when a session starts.
@@ -30,7 +30,7 @@ from typing import Any
 from . import files
 from .errors import Invalid
 
-CONTRACT = 4
+CONTRACT = 5
 REQUIRED = ("harness.json", "install.sh", "request.sh")
 SCRIPTS = ("install.sh", "request.sh", "response.sh")
 SEEDS = ("org", "user", "project")
@@ -157,7 +157,7 @@ def unpack(archive: bytes, into: Path) -> None:
 
 
 def validate(folder: Path) -> Config:
-    """The folder is a package on contract 4, or Invalid says what is missing. Its scripts are made
+    """The folder is a package on contract 5, or Invalid says what is missing. Its scripts are made
     executable: an upload may have lost the bit."""
     for name in REQUIRED:
         if not (folder / name).is_file():

@@ -5,10 +5,10 @@ import os
 import pytest
 
 from fakes import archive
-from harness_interface.blobs import DirBlobs
-from harness_interface.errors import Conflict, Invalid, NotFound
-from harness_interface.records import SqliteRecords
-from harness_interface.store import Store
+from harnessgateway.blobs import DirBlobs
+from harnessgateway.errors import Conflict, Invalid, NotFound
+from harnessgateway.records import SqliteRecords
+from harnessgateway.store import Store
 
 
 @pytest.fixture
@@ -32,8 +32,8 @@ def test_tenants_members_keys(store):
     with pytest.raises(NotFound):
         store.create_member("other", "x", "member")
     key, secret = store.mint_key("acme", "chase", "laptop")
-    assert secret.startswith("hi_") and store.resolve_key(secret) == owner
-    assert store.resolve_key("hi_nope") is None and store.resolve_key("") is None
+    assert secret.startswith("hg_") and store.resolve_key(secret) == owner
+    assert store.resolve_key("hg_nope") is None and store.resolve_key("") is None
     assert [k.id for k in store.keys("acme")] == [key.id]
     store.update_tenant("acme", status="suspended")
     assert store.resolve_key(secret) is None               # a suspended tenant's keys do not log in
@@ -87,20 +87,20 @@ def test_harness_versions_in_blobs(store):
 
 def test_workers_tokens_deployer(store):
     store.create_tenant("acme")
-    w, secret = store.register_worker("node-1", slots=4, version="4.0.0")
+    w, secret = store.register_worker("node-1", slots=4, version="5.0.0")
     assert store.worker_by_secret(secret).id == w.id and store.worker_by_secret("hw_nope") is None
     store.touch_worker(w, running=2)
     assert store.workers()[0].running == 2
     store.forget_worker(w.id)
     assert store.workers() == []
     tok = store.issue_token("acme", "prov", "sess_1", "resp_1", "openai-chat", ttl_s=60)
-    assert tok.startswith("sk-hi-") and store.resolve_token(tok)["provider"] == "prov"
-    assert store.issue_token("acme", "p", "s", "r", "anthropic-messages", 60).startswith("sk-ant-api03-hi-")
+    assert tok.startswith("sk-hg-") and store.resolve_token(tok)["provider"] == "prov"
+    assert store.issue_token("acme", "p", "s", "r", "anthropic-messages", 60).startswith("sk-ant-api03-hg-")
     assert store.resolve_token(store.issue_token("acme", "p", "s", "r", "openai-chat", ttl_s=-1)) is None
     store.revoke_token(tok)
     assert store.resolve_token(tok) is None
     dk = store.set_deployer_key()
-    assert dk.startswith("hd_") and store.is_deployer(dk) and not store.is_deployer("hd_other")
+    assert dk.startswith("hgd_") and store.is_deployer(dk) and not store.is_deployer("hd_other")
 
 
 def test_tenants_are_separate_and_deletable(store):

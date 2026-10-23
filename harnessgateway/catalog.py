@@ -18,7 +18,7 @@ if not DEFAULT.is_dir():
 
 class Catalog:
     def __init__(self, root: Path | None = None):
-        self.root = Path(root or os.environ.get("HI_CATALOG_DIR") or DEFAULT)
+        self.root = Path(root or os.environ.get("HG_CATALOG_DIR") or DEFAULT)
 
     def names(self) -> list[str]:
         return sorted(p.name for p in self.root.iterdir() if (p / "harness.json").is_file()) if self.root.is_dir() else []

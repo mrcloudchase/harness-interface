@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "OpenAI Codex CLI 0.163.0, headless over `codex exec --json`; any Responses-shaped provider.",
   "defaults": {
     "provider": "openai-responses",

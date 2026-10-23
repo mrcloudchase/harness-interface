@@ -71,7 +71,7 @@ class Worker:
                     if r.status_code == 200:
                         return
                 if not self.join_token:
-                    raise RuntimeError("no saved credential and no join token: give the worker HI_JOIN_TOKEN")
+                    raise RuntimeError("no saved credential and no join token: give the worker HG_JOIN_TOKEN")
                 r = await self._http.post("/internal/join", json={"name": self.name, "slots": self.slots, "version": self.version},
                                           headers={"Authorization": f"Bearer {self.join_token}"})
                 r.raise_for_status()
@@ -188,11 +188,11 @@ class Worker:
         self._stop_timeouts[rid], self._interrupts[rid], self._sessions[rid] = config.stop_timeout_s, config.interrupt, sid
         runtime = self.node.runtime_for(tenant, limits, read_only=(folder, tools), writable=(home, rundir),
                                         egress=config.run_egress, gateway_url=job["gateway_url"], token=job["token"])
-        env = {"HI_WORKSPACE": str(workspace), "HOME": str(home), "HI_DIR": str(rundir), "HI_SESSION": sid, "HI_RESPONSE": rid,
-               "HI_TURN": str(job["turn"]), "HI_MODEL": job["model"], "HI_INSTRUCTIONS": job["instructions"],
-               "HI_REQUEST": str(rundir / "request.json"), "HI_HARNESS_DIR": str(folder), "HI_TOOLS": str(tools),
-               "HI_INTERRUPT": config.interrupt, "PATH": path_with(tools), "HI_PROVIDER_URL": job["provider"]["url"],
-               "HI_PROVIDER_KEY_FILE": str(runtime.token_path or "")}
+        env = {"HG_WORKSPACE": str(workspace), "HOME": str(home), "HG_DIR": str(rundir), "HG_SESSION": sid, "HG_RESPONSE": rid,
+               "HG_TURN": str(job["turn"]), "HG_MODEL": job["model"], "HG_INSTRUCTIONS": job["instructions"],
+               "HG_REQUEST": str(rundir / "request.json"), "HG_HARNESS_DIR": str(folder), "HG_TOOLS": str(tools),
+               "HG_INTERRUPT": config.interrupt, "PATH": path_with(tools), "HG_PROVIDER_URL": job["provider"]["url"],
+               "HG_PROVIDER_KEY_FILE": str(runtime.token_path or "")}
         for name, value in ((config.key_env, job["token"]), (config.url_env, job["provider"]["url"])):
             if name:
                 env[name] = value
@@ -237,10 +237,10 @@ class Worker:
         files.unlink(rundir, "interrupt")
         if job["new_session"] and (project := harness.seed(folder, "project")):
             harness.copy_seed(project, workspace, overwrite=False)
-        if not files.exists(home, ".hi-seeded"):
+        if not files.exists(home, ".hg-seeded"):
             if user := harness.seed(folder, "user"):
                 harness.copy_seed(user, home, overwrite=False)
-            files.write(home, ".hi-seeded", job["harness"].encode())
+            files.write(home, ".hg-seeded", job["harness"].encode())
         if org := harness.seed(folder, "org"):
             harness.copy_seed(org, home, overwrite=True)
         if fetched["files"]:

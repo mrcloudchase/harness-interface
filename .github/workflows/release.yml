@@ -38,7 +38,7 @@ jobs:
         if: steps.version.outputs.new == 'true'
         run: |
           echo "${{ github.token }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          image=ghcr.io/${{ github.repository }}
+          image=ghcr.io/mrcloudchase/harnessgateway
           docker build -f deploy/Dockerfile -t "$image:${{ steps.version.outputs.version }}" -t "$image:latest" .
           docker push "$image:${{ steps.version.outputs.version }}" && docker push "$image:latest"
       - name: Tag and publish

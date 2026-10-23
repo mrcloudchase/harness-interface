@@ -4,13 +4,13 @@ A session is a chain of turns that share a workspace and the CLI's own conversat
 request opens one; each later request names the previous response to continue it.
 
 ```bash
-curl -s https://hi.example.com/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
+curl -s https://hg.example.com/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
   -d '{"model": "claude-code", "input": "Now add a test for it.", "previous_response_id": "resp_…"}'
 ```
 
 The continuation runs on the same harness, the same package version and the same provider as the
 session, with the workspace exactly as the last turn left it. The package's `request.sh` sees
-`HI_TURN` as 2, 3, and so on, and resumes the CLI's conversation the way that CLI does it: the
+`HG_TURN` as 2, 3, and so on, and resumes the CLI's conversation the way that CLI does it: the
 catalog's packages pass `--continue`, `resume <thread>` or a session file as appropriate.
 
 One turn at a time: a request against a session that is running a response is refused with 409.
@@ -30,6 +30,11 @@ session can be read but not continued.
 ## The session page
 
 <figure class="shot" markdown>
+![The sessions tab: a member's sessions, or every member's for an owner](assets/console/sessions.png){ loading=lazy }
+<figcaption>Owners see the whole tenant; members see their own.</figcaption>
+</figure>
+
+<figure class="shot" markdown>
 ![A session page: each turn with its response and raw streams, the steer field, the trace](assets/console/session.png){ loading=lazy }
 <figcaption>Every turn's response and raw stdout, the workspace download, the trace at the bottom.</figcaption>
 </figure>
@@ -37,8 +42,8 @@ session can be read but not continued.
 ## Read
 
 ```bash
-curl -s https://hi.example.com/v1/sessions -H "Authorization: Bearer $KEY"
-curl -s https://hi.example.com/v1/sessions/sess_… -H "Authorization: Bearer $KEY"
+curl -s https://hg.example.com/v1/sessions -H "Authorization: Bearer $KEY"
+curl -s https://hg.example.com/v1/sessions/sess_… -H "Authorization: Bearer $KEY"
 ```
 
 ```json
@@ -52,7 +57,7 @@ exist, as far as the API is concerned: every miss is a 404.
 ## The raw streams
 
 ```bash
-curl -s "https://hi.example.com/v1/responses/resp_…?detail=true" -H "Authorization: Bearer $KEY"
+curl -s "https://hg.example.com/v1/responses/resp_…?detail=true" -H "Authorization: Bearer $KEY"
 ```
 
 Adds `stdout` and `stderr`, `request.sh`'s streams as kept, plus the worker that ran it and the
@@ -61,7 +66,7 @@ start and end times. While the turn runs, the streams hold what has arrived so f
 ## The archive
 
 ```bash
-curl -s https://hi.example.com/v1/sessions/sess_…/archive -H "Authorization: Bearer $KEY" -o workspace.tgz
+curl -s https://hg.example.com/v1/sessions/sess_…/archive -H "Authorization: Bearer $KEY" -o workspace.tgz
 ```
 
 The workspace after the last turn, as a gzipped tar. The home and the package are not in it.

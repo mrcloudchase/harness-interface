@@ -153,10 +153,10 @@ class S3Blobs:
 
 def open_blobs(url: str, *, base_url: str = "", secret: bytes = b"") -> Blobs:
     """`dir:///path` (presigned URLs served at `base_url`, signed with `secret`) or
-    `s3://bucket` with `HI_S3_ENDPOINT` and AWS credentials in the environment."""
+    `s3://bucket` with `HG_S3_ENDPOINT` and AWS credentials in the environment."""
     if url.startswith("dir:///"):
         return DirBlobs(url[len("dir:///"):], base_url, secret)
     if url.startswith("s3://"):
         import os
-        return S3Blobs(url[len("s3://"):].strip("/"), os.environ.get("HI_S3_ENDPOINT") or None, os.environ.get("AWS_REGION") or None)
+        return S3Blobs(url[len("s3://"):].strip("/"), os.environ.get("HG_S3_ENDPOINT") or None, os.environ.get("AWS_REGION") or None)
     raise ValueError(f"blobs are dir:///path or s3://bucket, not {url!r}")

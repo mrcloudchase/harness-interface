@@ -3,7 +3,7 @@ two backend modules. A failure here is a design regression, not a bug."""
 import ast
 from pathlib import Path
 
-PACKAGE = Path(__file__).resolve().parents[1] / "harness_interface"
+PACKAGE = Path(__file__).resolve().parents[1] / "harnessgateway"
 LAYERS = {"errors": 0, "execution": 0, "secrets": 0, "files": 0,
           "runtimes": 1, "runtimes.process": 1, "runtimes.docker": 1, "runtimes.door": 1,
           "harness": 2,

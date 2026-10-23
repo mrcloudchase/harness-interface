@@ -8,11 +8,11 @@ import time
 import pytest
 
 from fakes import archive
-from harness_interface.blobs import DirBlobs
-from harness_interface.errors import Conflict, Invalid, NotFound
-from harness_interface.records import SqliteRecords
-from harness_interface.sessions import Ask, Sessions
-from harness_interface.store import Store
+from harnessgateway.blobs import DirBlobs
+from harnessgateway.errors import Conflict, Invalid, NotFound
+from harnessgateway.records import SqliteRecords
+from harnessgateway.sessions import Ask, Sessions
+from harnessgateway.store import Store
 
 
 @pytest.fixture
@@ -46,7 +46,7 @@ def test_queue_claim_run_end(sessions):
     assert r.status == "queued" and r.turn == 1 and r.files.endswith("files.tgz")
     w = worker(sessions)
     job = sessions.claim(w)
-    assert job and job["id"] == r.id and job["token"].startswith("sk-hi-") and job["provider"]["url"] == "http://hi-provider:8080/v1"
+    assert job and job["id"] == r.id and job["token"].startswith("sk-hg-") and job["provider"]["url"] == "http://hg-provider:8080/v1"
     assert job["urls"]["folder"].startswith("http://api.test/internal/blobs/") and job["urls"]["workspace"] == "" and job["urls"]["files"]
     assert job["config"]["run"]["egress"] == ["git.example"] and job["limits"]["max_runs"] == 1 and job["timeout_s"] == 60
     assert job["request"] == {"input": "hello"} and job["instructions"] == "be brief" and job["new_session"]
@@ -77,7 +77,7 @@ def test_continue_overrides_and_reach(sessions):
     r2 = sessions.create(ask("again", previous=r1.id, provider="other", model="m2"))
     assert r2.session == r1.session and r2.turn == 2 and (r2.provider, r2.model) == ("other", "m2")
     job = sessions.claim(w)
-    assert job["urls"]["workspace"] and job["snapshot"] == r1.id and not job["new_session"] and job["token"].startswith("sk-ant-api03-hi-")
+    assert job["urls"]["workspace"] and job["snapshot"] == r1.id and not job["new_session"] and job["token"].startswith("sk-ant-api03-hg-")
     with pytest.raises(Conflict):
         sessions.create(ask("busy", previous=r1.id))
     finish(sessions, w, r2.id)

@@ -2,7 +2,7 @@
  "title": "Kilo CLI",
  "intro": "Kilo CLI, an OpenCode fork, headless over `kilo run --format json --auto`, configured the same way through `KILO_CONFIG_CONTENT`.",
  "verified": {
-  "contract": 4,
+  "contract": 5,
   "checks": {
    "make": true,
    "recall": true,

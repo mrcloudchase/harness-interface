@@ -1,6 +1,7 @@
 """Layer 6: the HTTP routes a tenant uses. A member's key names a member of a tenant; owners register
 providers and packages and add members; every member reads them and makes requests.
 `POST /v1/responses` is the OpenAI Responses API; sessions are read, followed, steered, archived.
+The web surface is served too: the home page at `/`, the app at `/app`, the documentation at `/docs`.
 Each route validates, calls the layer below and shapes the reply with `wire`; nothing else. A refusal
 is 400, 401, 403, 404 or 409 with `{"detail": …}`; a malformed body 422."""
 from __future__ import annotations
@@ -30,11 +31,11 @@ from .auth import Principals
 from .config import Settings
 
 STATUS = {Invalid: 400, NotFound: 404, Conflict: 409}
-CONSOLE = Path(__file__).resolve().parents[1] / "console"      # inside the wheel; a checkout has it at the repository root
-if not CONSOLE.is_dir():
-    CONSOLE = Path(__file__).resolve().parents[2] / "console"
+WEB = Path(__file__).resolve().parents[1] / "web"              # inside the wheel; a checkout has it at the repository root
+if not WEB.is_dir():
+    WEB = Path(__file__).resolve().parents[2] / "web"
 DOCS = Path(__file__).resolve().parents[1] / "docs"            # the built documentation site (mkdocs build), when present
-VERSION = version("harness-interface")
+VERSION = version("harnessgateway")
 
 
 class SignupBody(BaseModel):
@@ -92,7 +93,7 @@ def create_app(service: Service) -> FastAPI:
         yield
         task.cancel()
 
-    app = FastAPI(title="harness-interface", version=VERSION, lifespan=lifespan, docs_url="/reference", redoc_url=None)
+    app = FastAPI(title="harnessgateway", version=VERSION, lifespan=lifespan, docs_url="/reference", redoc_url=None)
 
     for error, code in STATUS.items():
         @app.exception_handler(error)
@@ -274,15 +275,19 @@ def create_app(service: Service) -> FastAPI:
     app.include_router(deployer.router(store, sessions, principals))
     app.include_router(internal.router(store, sessions, principals, VERSION))
 
-    if (CONSOLE / "index.html").is_file():
+    if (WEB / "index.html").is_file():
         @app.get("/", include_in_schema=False)
-        def console() -> FileResponse:
-            return FileResponse(CONSOLE / "index.html")
+        def home() -> FileResponse:
+            return FileResponse(WEB / "index.html")
 
-        @app.get("/console/{path:path}", include_in_schema=False)
-        def console_file(path: str) -> FileResponse:
-            target = (CONSOLE / path).resolve()
-            if not target.is_file() or CONSOLE not in target.parents:
+        @app.get("/app", include_in_schema=False)
+        def application() -> FileResponse:
+            return FileResponse(WEB / "app.html")
+
+        @app.get("/web/{path:path}", include_in_schema=False)
+        def web_file(path: str) -> FileResponse:
+            target = (WEB / path).resolve()
+            if not target.is_file() or WEB not in target.parents:
                 raise HTTPException(404)
             return FileResponse(target)
 

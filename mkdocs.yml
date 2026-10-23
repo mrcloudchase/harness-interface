@@ -1,17 +1,17 @@
-site_name: harness-interface
+site_name: Harness Gateway
 site_description: A multi-tenant platform that runs coding-agent CLIs sandboxed behind the OpenAI Responses API.
-site_url: https://mrcloudchase.github.io/harness-interface/
-repo_url: https://github.com/mrcloudchase/harness-interface
-repo_name: mrcloudchase/harness-interface
+site_url: https://harnessgateway.ai/docs/
+repo_url: https://github.com/mrcloudchase/harnessgateway
+repo_name: mrcloudchase/harnessgateway
 edit_uri: edit/main/docs/
 docs_dir: docs
-site_dir: harness_interface/docs          # ships in the wheel; the API serves it at /docs
+site_dir: harnessgateway/docs          # ships in the wheel; the API serves it at /docs
 strict: true
 
 theme:
   name: material
-  logo: assets/picky.png
-  favicon: assets/picky.png
+  logo: assets/picky.svg
+  favicon: assets/picky.svg
   features:
     - navigation.sections
     - navigation.indexes
@@ -65,7 +65,7 @@ nav:
   - Get started:
       - Deploy: deploy.md
       - Initialize: initialize.md
-      - Sign in: sign-in.md
+      - The app: app.md
       - Providers: providers.md
       - Harnesses: harnesses.md
       - First request: first-request.md

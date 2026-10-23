@@ -4,21 +4,41 @@ Every release is a section here, newest first, and the newest section's heading 
 A merge to `main` that adds a section releases it: the release workflow tags that version, builds
 the wheel and the image, and publishes the section as its notes.
 
+## [5.0.0]
+
+The platform is **Harness Gateway** (harnessgateway.ai). Everything public is renamed, so this is
+a major: the package and command are `harnessgateway`, the variables are `HG_*`, keys are `hg_…`
+(members), `hgd_…` (the deployer) and `hgw_…` (workers), the image is
+`ghcr.io/mrcloudchase/harnessgateway`, the data directory is `~/.harnessgateway`. Nothing on disk
+from 4.x is read; a 4.x data directory is not migrated.
+
+- **Contract 5.** The same package contract as 4 with the platform's variables renamed: `HG_DIR`,
+  `HG_WORKSPACE`, `HG_REQUEST`, `HG_PROVIDER_URL`, `HG_PROVIDER_KEY_FILE`, `HG_STDOUT`, `HG_EXIT`,
+  `HG_OUTCOME` and the rest; the provider alias inside a sandbox is `hg-provider`, the token file
+  `/run/hg/token`. A package declares `"contract": 5`. The catalog is on it.
+- **The web surface.** A home page at `/`, the documentation at `/docs`, and the app at `/app`:
+  sign in or sign up, then providers, harnesses, requests, sessions and members. Members see their
+  own sessions; owners see the tenant's.
+- **The deployer's dashboard.** Tenants, workers and slots, and the platform's usage all time and
+  over the last 30, 60 and 90 days (turns, seconds, provider calls, bytes), charted per day and
+  per tenant, from `GET /v1/usage?days=N`. Usage records carry the time of the turn.
+- **Picky** is a scalable SVG.
+
 ## [4.0.0]
 
 A rebuild as a platform. Tenants bring providers and harness packages; the platform runs a package
 in a sandbox it owns and returns what the package decides. The same image is the hosted platform
 and the self-hosted one. Nothing of 3.x carries over on the wire or on disk.
 
-- **Tenants, not orgs.** `POST /v1/signup` creates a tenant when `HI_SIGNUP=open`; otherwise the
+- **Tenants, not orgs.** `POST /v1/signup` creates a tenant when `HG_SIGNUP=open`; otherwise the
   deployer does, with a deployer key, and sets each tenant's ceilings (cpus, memory, pids, timeouts,
   runs at once, disk, output, upload). A tenant configures two things: providers and harnesses.
 - **No sandboxes resource.** One platform-built base image for every turn; a package carries its
   own egress (`install.egress`, `run.egress`); the request's `model` is `harness` or
   `harness/provider/model`.
-- **Contract 4.** `response.sh` decides what the response carries, from `request.sh`'s captured
+- **Contract 5.** `response.sh` decides what the response carries, from `request.sh`'s captured
   streams, exit code and outcome; without it the response is `request.sh`'s stdout. The whole
-  request is in `$HI_REQUEST`. A steer reaches `request.sh` alone. `SIGTERM` is a stop, never a steer.
+  request is in `$HG_REQUEST`. A steer reaches `request.sh` alone. `SIGTERM` is a stop, never a steer.
 - **The catalog.** Twenty-two verified packages ship with the platform; `PUT /v1/harnesses/{name}`
   with `{"catalog": "<package>"}` forks one. A template package to start from.
 - **Roles.** `api`, `gateway`, `worker`, or `all`. Workers join with a token, pull turns over HTTPS,
@@ -29,7 +49,7 @@ and the self-hosted one. Nothing of 3.x carries over on the wire or on disk.
 - **The gateway as a service.** The one process where a provider key is in the clear; it swaps the
   per-turn session token for the key, relays only the API shape's endpoints, meters calls and bytes,
   and captures every exchange for the tenant (`GET /v1/responses/{id}/captures`).
-- **Containment.** A uid per tenant, cpu limits, an optional sandboxed runtime (`HI_RUNTIME`), a
+- **Containment.** A uid per tenant, cpu limits, an optional sandboxed runtime (`HG_RUNTIME`), a
   door that refuses private addresses after resolution and connects to the checked address, the
   platform's own writes into sandbox trees through a symlink-refusing helper, `install.sh`
   unprivileged, body and output caps, no tenant-chosen images or limits.

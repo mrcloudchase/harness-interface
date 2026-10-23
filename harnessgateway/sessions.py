@@ -6,7 +6,7 @@ a final status. A session is the chain of turns that share a workspace, kept as 
     session/<tenant>/<sid>       the chain: turns, the workspace snapshot, which turn runs now
     chunk/<tenant>/<rid>:<seq>   a running turn's output, as it arrives, for any number of followers
     trace/<tenant>/<sid>:<seq>   every request, response, steer and cancel, as sent
-    usage/<tenant>/<rid>         calls and bytes (the gateway's) and seconds (the worker's)
+    usage/<tenant>/<rid>         calls and bytes (the gateway's), seconds, the time, harness and status (the turn's)
 
     blobs tenants/<t>/sessions/<sid>/workspace.tgz           the workspace after the last turn
           tenants/<t>/members/<m>/harnesses/<h>/home.tgz    the member's home for that package
@@ -325,7 +325,8 @@ class Sessions:
         r.running = "0"
         self._put_record(r)
         usage = self.records.get("usage", r.tenant, rid) or {"calls": 0, "bytes_in": 0, "bytes_out": 0, "seconds": 0}
-        self.records.put("usage", r.tenant, rid, {**usage, "seconds": round(float(body.get("seconds", 0)), 1)})
+        self.records.put("usage", r.tenant, rid, {**usage, "seconds": round(float(body.get("seconds", 0)), 1), "at": r.ended,
+                                                  "harness": r.harness, "status": r.status})
         if r.store and body.get("snapshot"):
             s.workspace, s.snapshot = f"tenants/{r.tenant}/sessions/{s.id}/workspace.tgz", rid
         if not r.store:

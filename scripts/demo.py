@@ -1,10 +1,10 @@
 """Watch one harness take a streamed turn and a steer, from a terminal.
 
-    python scripts/demo.py --url http://127.0.0.1:8000 --key hi_… --harness claude-code
+    python scripts/demo.py --url http://127.0.0.1:8000 --key hg_… --harness claude-code
 
 It streams a turn that runs a slow shell loop, relays the package's live stdout as text, sends a
 steer while the turn is running, and prints what the package returned. The key is read from
-`--key` or `HI_KEY` and never printed, so the run can be recorded as it is.
+`--key` or `HG_KEY` and never printed, so the run can be recorded as it is.
 """
 from __future__ import annotations
 
@@ -92,13 +92,13 @@ def say(label: str, text: str = "", color: str = BOLD) -> None:
 
 def main() -> int:
     p = argparse.ArgumentParser()
-    p.add_argument("--url", default=os.environ.get("HI_URL", "http://127.0.0.1:8000"))
-    p.add_argument("--key", default=os.environ.get("HI_KEY", ""))
+    p.add_argument("--url", default=os.environ.get("HG_URL", "http://127.0.0.1:8000"))
+    p.add_argument("--key", default=os.environ.get("HG_KEY", ""))
     p.add_argument("--harness", required=True)
     p.add_argument("--steer-after", type=float, default=8, help="seconds of live output before the steer is sent")
     a = p.parse_args()
     if not a.key:
-        print("give --key or HI_KEY", file=sys.stderr)
+        print("give --key or HG_KEY", file=sys.stderr)
         return 2
     http = httpx.Client(base_url=a.url, headers={"Authorization": f"Bearer {a.key}"}, timeout=900)
 

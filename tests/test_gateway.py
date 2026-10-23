@@ -11,10 +11,10 @@ from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import rsa
 from cryptography.x509.oid import NameOID
 
-from harness_interface.blobs import DirBlobs
-from harness_interface.gateway import Gateway, allowed, credential
-from harness_interface.records import SqliteRecords
-from harness_interface.store import Store
+from harnessgateway.blobs import DirBlobs
+from harnessgateway.gateway import Gateway, allowed, credential
+from harnessgateway.records import SqliteRecords
+from harnessgateway.store import Store
 
 
 def test_paths_and_credentials():
@@ -72,13 +72,13 @@ def test_relay_capture_and_usage(tmp_path, vault):
 
         async def call(path, auth, body=b'{"q": 1}'):
             r, w = await asyncio.open_connection("127.0.0.1", gport)
-            w.write(f"POST {path} HTTP/1.1\r\nHost: hi-provider:8080\r\nAuthorization: Bearer {auth}\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n".encode() + body)
+            w.write(f"POST {path} HTTP/1.1\r\nHost: hg-provider:8080\r\nAuthorization: Bearer {auth}\r\nContent-Type: application/json\r\nContent-Length: {len(body)}\r\n\r\n".encode() + body)
             await w.drain()
             data = await r.read()
             w.close()
             return data
         ok = await call("/v1/chat/completions", token)
-        no = await call("/v1/chat/completions", "sk-hi-wrong")
+        no = await call("/v1/chat/completions", "sk-hg-wrong")
         forbidden = await call("/v1/files", token)
         server.close()
         gws.close()

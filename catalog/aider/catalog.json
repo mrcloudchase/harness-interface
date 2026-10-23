@@ -1,8 +1,8 @@
 {
  "title": "aider",
- "intro": "aider, one turn per `--message`, on an OpenAI chat-shaped provider through `OPENAI_API_BASE` and `OPENAI_API_KEY`. The chat history file lives in `$HI_DIR`, and later turns pass `--restore-chat-history`.",
+ "intro": "aider, one turn per `--message`, on an OpenAI chat-shaped provider through `OPENAI_API_BASE` and `OPENAI_API_KEY`. The chat history file lives in `$HG_DIR`, and later turns pass `--restore-chat-history`.",
  "verified": {
-  "contract": 4,
+  "contract": 5,
   "checks": {
    "make": true,
    "recall": true,

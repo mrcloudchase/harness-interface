@@ -1,4 +1,4 @@
-"""harness-interface: a multi-tenant harness platform. Tenants bring providers and harness packages;
+"""harnessgateway: a multi-tenant harness platform. Tenants bring providers and harness packages;
 members make OpenAI Responses requests; a worker runs the package in a sandbox the platform owns and
 returns what the package decided; the gateway relays provider calls and holds the keys."""
 from .errors import Conflict, Invalid, NotFound

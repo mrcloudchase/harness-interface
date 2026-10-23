@@ -40,7 +40,7 @@ fails CI.
 ## What the deployer sees
 
 Counts and sizes: tenants, workers, turns, seconds, calls, bytes, queued and running. Never a
-tenant's prompts, output, packages or keys. The member routes refuse the deployer key.
+tenant's prompts, output, packages or keys. The member routes refuse the deployer key, and the dashboard shows the same counts and nothing more.
 
 ## What a tenant should still do
 
@@ -50,7 +50,7 @@ tenant's prompts, output, packages or keys. The member routes refuse the deploye
 - Treat the trace and the captures as sensitive. They are the complete record of what the agent
   saw and said.
 - Where tenants are strangers, the deployer puts a sandboxed runtime on worker machines
-  (`HI_RUNTIME=runsc`).
+  (`HG_RUNTIME=runsc`).
 
 ## Reporting
 

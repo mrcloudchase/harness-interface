@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "aider 0.86.2, one turn per `--message`; Anthropic- or OpenAI chat-shaped providers.",
   "defaults": {
     "provider": "deepseek-openai",

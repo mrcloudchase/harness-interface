@@ -7,9 +7,9 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from harness_interface.api import wire
-from harness_interface.sessions import Record
-from harness_interface.store import Member
+from harnessgateway.api import wire
+from harnessgateway.sessions import Record
+from harnessgateway.store import Member
 
 DEV = Member("acme", "dev", "member", 0)
 

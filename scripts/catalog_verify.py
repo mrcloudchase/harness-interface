@@ -43,9 +43,9 @@ def page(name: str, meta: dict, folder: Path) -> str:
     elif meta.get("caveat"):
         lines += ["", meta["caveat"]]
     lines += ["", "## Use it", "", "```bash",
-              f"curl -s -X PUT $HI/v1/providers/{cfg['defaults']['provider']} -H \"Authorization: Bearer $KEY\" -H 'content-type: application/json' -d '{{\"url\": \"…\", \"api\": \"…\", \"key\": \"…\"}}'",
-              f"curl -s -X PUT $HI/v1/harnesses/{name} -H \"Authorization: Bearer $KEY\" -H 'content-type: application/json' -d '{{\"catalog\": \"{name}\"}}'",
-              f"curl -s $HI/v1/responses -H \"Authorization: Bearer $KEY\" -H 'content-type: application/json' -d '{{\"model\": \"{name}\", \"input\": \"Create hello.txt containing hello, then say done.\"}}'",
+              f"curl -s -X PUT $HG/v1/providers/{cfg['defaults']['provider']} -H \"Authorization: Bearer $KEY\" -H 'content-type: application/json' -d '{{\"url\": \"…\", \"api\": \"…\", \"key\": \"…\"}}'",
+              f"curl -s -X PUT $HG/v1/harnesses/{name} -H \"Authorization: Bearer $KEY\" -H 'content-type: application/json' -d '{{\"catalog\": \"{name}\"}}'",
+              f"curl -s $HG/v1/responses -H \"Authorization: Bearer $KEY\" -H 'content-type: application/json' -d '{{\"model\": \"{name}\", \"input\": \"Create hello.txt containing hello, then say done.\"}}'",
               "```", "", f"The package's default provider is `{cfg['defaults']['provider']}` and its default model `{cfg['defaults']['model'] or '(the provider decides)'}`; "
               f"name another with `{name}/<provider>/<model>`. The folder is `catalog/{name}/` in the repository.", ""]
     lines += ["## The folder", "", "`harness.json`:", "", "```json", (folder / "harness.json").read_text().rstrip(), "```", "",
@@ -66,7 +66,7 @@ def main(logs: Path) -> None:
         res = results(logs / f"{folder.name}.log")
         if res:
             cfg = json.loads((folder / "harness.json").read_text())
-            meta["verified"] = {"contract": 4, "checks": {c: res.get(c, False) for c in CHECKS}, "passed": sum(res.get(c, False) for c in CHECKS),
+            meta["verified"] = {"contract": 5, "checks": {c: res.get(c, False) for c in CHECKS}, "passed": sum(res.get(c, False) for c in CHECKS),
                                 "provider": cfg["defaults"]["provider"], "model": cfg["defaults"]["model"]}
             (folder / "catalog.json").write_text(json.dumps(meta, indent=1) + "\n")
         (DOCS / f"{folder.name}.md").write_text(page(folder.name, meta, folder))

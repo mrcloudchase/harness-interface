@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "OpenCode 1.19.3, headless `opencode run --format json`; Anthropic-, Responses- or chat-shaped providers.",
   "defaults": {
     "provider": "deepseek",

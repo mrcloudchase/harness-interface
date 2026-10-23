@@ -11,7 +11,7 @@ packages and nothing else: not the image its turns run in, not the limits they r
 ## Create
 
 ```bash
-curl -s -X POST https://hi.example.com/v1/tenants -H "Authorization: Bearer $HD_KEY" \
+curl -s -X POST https://hg.example.com/v1/tenants -H "Authorization: Bearer $HD_KEY" \
   -H 'content-type: application/json' \
   -d '{"name": "acme", "owner": "chase", "limits": {"max_runs": 8, "cpus": 4}}'
 ```
@@ -37,9 +37,9 @@ A package asks for a timeout and gets at most the ceiling. Everything else is ap
 ## Change
 
 ```bash
-curl -s -X PATCH https://hi.example.com/v1/tenants/acme -H "Authorization: Bearer $HD_KEY" \
+curl -s -X PATCH https://hg.example.com/v1/tenants/acme -H "Authorization: Bearer $HD_KEY" \
   -H 'content-type: application/json' -d '{"limits": {"max_runs": 2}}'
-curl -s -X PATCH https://hi.example.com/v1/tenants/acme -H "Authorization: Bearer $HD_KEY" \
+curl -s -X PATCH https://hg.example.com/v1/tenants/acme -H "Authorization: Bearer $HD_KEY" \
   -H 'content-type: application/json' -d '{"status": "suspended"}'
 ```
 
@@ -49,8 +49,8 @@ queued turns stay queued, and its running turns finish. `active` brings it back.
 ## Read
 
 ```bash
-curl -s https://hi.example.com/v1/tenants -H "Authorization: Bearer $HD_KEY"
-curl -s https://hi.example.com/v1/tenants/acme -H "Authorization: Bearer $HD_KEY"
+curl -s https://hg.example.com/v1/tenants -H "Authorization: Bearer $HD_KEY"
+curl -s https://hg.example.com/v1/tenants/acme -H "Authorization: Bearer $HD_KEY"
 ```
 
 Per tenant: its limits and status, its members, the names of its providers and harnesses, and its

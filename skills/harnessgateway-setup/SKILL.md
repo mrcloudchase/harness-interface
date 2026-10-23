@@ -1,11 +1,11 @@
 ---
-name: harness-interface-setup
-description: Set up harness-interface, the multi-tenant harness platform, end to end and prove it works. Use when asked to deploy or configure harness-interface, create a tenant, register a provider, fork or upload a harness package, add members and keys, or make a first OpenAI Responses request against it. Covers the one-box self-hosted platform and a tenant on a hosted one.
+name: harnessgateway-setup
+description: Set up harnessgateway, the multi-tenant harness platform, end to end and prove it works. Use when asked to deploy or configure harnessgateway, create a tenant, register a provider, fork or upload a harness package, add members and keys, or make a first OpenAI Responses request against it. Covers the one-box self-hosted platform and a tenant on a hosted one.
 ---
 
-# Set up harness-interface end to end
+# Set up harnessgateway end to end
 
-harness-interface runs harness packages (a CLI agent plus `install.sh`, `request.sh`, `response.sh`
+harnessgateway runs harness packages (a CLI agent plus `install.sh`, `request.sh`, `response.sh`
 and seeds) in sandboxes it owns, behind the OpenAI Responses API. A tenant registers **providers**
 (model endpoints and keys) and **harnesses** (packages, forked from the catalog or uploaded); members
 `POST /v1/responses` with `model` set to the harness name or `harness/provider/model`.
@@ -16,19 +16,19 @@ key, the deployer key or the master key: the platform shows each once and never 
 ## 0. Which path
 
 ```bash
-export HI="https://hi.example.com" KEY="…"
-curl -s -o /dev/null -w "%{http_code}\n" $HI/v1/me -H "Authorization: Bearer $KEY"
+export HG="https://hg.example.com" KEY="…"
+curl -s -o /dev/null -w "%{http_code}\n" $HG/v1/me -H "Authorization: Bearer $KEY"
 ```
 
 | Result | Meaning | Go to |
 |---|---|---|
 | connection refused | no platform yet; you are the operator | 1 |
-| `403` with an `hd_…` key | the deployer key: it creates tenants and sees the fleet | 2 |
+| `403` with an `hgd_…` key | the deployer key: it creates tenants and sees the fleet | 2 |
 | `200`, `"role": "owner"` | a tenant owner's key | 3 |
 | `200`, `"role": "member"` | a member's key: it can request, not register; ask an owner for 3 and 4 | 5 |
 | `401` | unknown, revoked, or a suspended tenant | stop and ask |
 
-`GET $HI/healthz` says whether sign-up is open; if it is and you have no key, `POST /v1/signup`
+`GET $HG/healthz` says whether sign-up is open; if it is and you have no key, `POST /v1/signup`
 with `{"tenant": "<name>", "owner": "<your name>"}` returns an owner key once. Then go to 3.
 
 ## 1. Start the platform (operator)
@@ -36,18 +36,18 @@ with `{"tenant": "<name>", "owner": "<your name>"}` returns an owner key once. T
 Docker on the box, the data directory at the same path inside and out:
 
 ```bash
-mkdir -p /srv/hi/data && cd deploy && docker compose --profile one-box up -d
-docker compose exec platform harness-interface init --tenant <tenant> --owner <owner>
+mkdir -p /srv/hg/data && cd deploy && docker compose --profile one-box up -d
+docker compose exec platform harnessgateway init --tenant <tenant> --owner <owner>
 ```
 
-`init` prints the deployer key and the owner's API key, once each. The console is at `https://<HI_DOMAIN>`.
-For many boxes, `docker compose --profile ha up -d` and workers that join with `HI_JOIN_TOKEN`;
-`docs/deploy.md` and `docs/configuration.md` have the variables. Check: `curl -s $HI/healthz` returns `"status": "ok"`.
+`init` prints the deployer key and the owner's API key, once each. The home page is at `https://<HG_DOMAIN>`, the app at `/app`.
+For many boxes, `docker compose --profile ha up -d` and workers that join with `HG_JOIN_TOKEN`;
+`docs/deploy.md` and `docs/configuration.md` have the variables. Check: `curl -s $HG/healthz` returns `"status": "ok"`.
 
 ## 2. Create a tenant (deployer)
 
 ```bash
-curl -s -X POST $HI/v1/tenants -H "Authorization: Bearer $HD_KEY" -H 'content-type: application/json' \
+curl -s -X POST $HG/v1/tenants -H "Authorization: Bearer $HD_KEY" -H 'content-type: application/json' \
   -d '{"name": "<tenant>", "owner": "<owner>", "limits": {"max_runs": 4}}'
 ```
 
@@ -58,7 +58,7 @@ deployer's to set, with `PATCH /v1/tenants/<name>`. Check: `GET /v1/tenants` lis
 ## 3. Register a provider (owner)
 
 ```bash
-curl -s -X PUT $HI/v1/providers/<name> -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
+curl -s -X PUT $HG/v1/providers/<name> -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
   -d "{\"url\": \"<https base url>\", \"api\": \"<shape>\", \"key\": \"$PROVIDER_KEY\"}"
 ```
 
@@ -78,13 +78,13 @@ name yours in the model path. Check: `GET /v1/providers/<name>` returns name, ur
 Fork from the catalog, the verified way:
 
 ```bash
-curl -s $HI/v1/catalog -H "Authorization: Bearer $KEY"        # names, checks passed, notes
-curl -s -X PUT $HI/v1/harnesses/<name> -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"catalog": "<package>"}'
+curl -s $HG/v1/catalog -H "Authorization: Bearer $KEY"        # names, checks passed, notes
+curl -s -X PUT $HG/v1/harnesses/<name> -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"catalog": "<package>"}'
 ```
 
-Or upload your own: a folder with `harness.json` (contract 4: `defaults` provider and model,
+Or upload your own: a folder with `harness.json` (contract 5: `defaults` provider and model,
 `provider_env` names, `interrupt`, `install.egress`, `run.egress`, timeouts), `install.sh` (puts the
-CLI under `$HI_TOOLS`), `request.sh` (the turn: prompt on stdin, prints the output), optional
+CLI under `$HG_TOOLS`), `request.sh` (the turn: prompt on stdin, prints the output), optional
 `response.sh` (prints the response, exits with the status), `seeds/`. `tar czf <name>.tgz -C <name> .`
 and `PUT /v1/harnesses/<name>` with the archive as the body; a `400` names what is wrong.
 `docs/packages.md` is the contract. Check: `GET /v1/harnesses/<name>` shows a `version`.
@@ -92,7 +92,7 @@ and `PUT /v1/harnesses/<name>` with the archive as the body; a `400` names what 
 ## 5. Make the first request
 
 ```bash
-curl -s $HI/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
+curl -s $HG/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
   -d '{"model": "<name>", "input": "Create hello.txt containing the word hello, then reply with the one word: done"}'
 ```
 
@@ -102,16 +102,16 @@ streams; `metadata.session_id` is the session. Continue with `previous_response_
 `"stream": true`, poll with `"background": true`. Then prove the session kept its work:
 
 ```bash
-curl -s $HI/v1/sessions/<sid>/archive -H "Authorization: Bearer $KEY" -o ws.tgz && tar tzf ws.tgz | grep hello.txt
+curl -s $HG/v1/sessions/<sid>/archive -H "Authorization: Bearer $KEY" -o ws.tgz && tar tzf ws.tgz | grep hello.txt
 ```
 
-With the repository, `python scripts/live.py --url $HI --key $KEY --harness <name>` runs all nine checks.
+With the repository, `python scripts/live.py --url $HG --key $KEY --harness <name>` runs all nine checks.
 
 ## 6. Members and keys (owner)
 
 ```bash
-curl -s -X POST $HI/v1/members -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"name": "<member>"}'
-curl -s -X POST $HI/v1/members/<member>/keys -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"label": "laptop"}'
+curl -s -X POST $HG/v1/members -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"name": "<member>"}'
+curl -s -X POST $HG/v1/members/<member>/keys -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"label": "laptop"}'
 ```
 
 Members request and see their own sessions; owners see everyone's. `DELETE /v1/keys/<id>` revokes.

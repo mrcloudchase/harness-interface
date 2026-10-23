@@ -10,7 +10,7 @@ are plain HTTP under the same base URL with the same key.
     ```python
     from openai import OpenAI
 
-    client = OpenAI(api_key="hi_…", base_url="https://hi.example.com/v1")
+    client = OpenAI(api_key="hg_…", base_url="https://hg.example.com/v1")
 
     r = client.responses.create(model="claude-code", input="Create hello.txt containing hello, then say done.")
     print(r.status, r.output_text)
@@ -29,7 +29,7 @@ are plain HTTP under the same base URL with the same key.
     ```ts
     import OpenAI from "openai";
 
-    const client = new OpenAI({ apiKey: "hi_…", baseURL: "https://hi.example.com/v1" });
+    const client = new OpenAI({ apiKey: "hg_…", baseURL: "https://hg.example.com/v1" });
 
     const r = await client.responses.create({ model: "claude-code", input: "Create hello.txt containing hello, then say done." });
     console.log(r.status, r.output_text);
@@ -43,7 +43,7 @@ are plain HTTP under the same base URL with the same key.
 === "curl"
 
     ```bash
-    curl -s https://hi.example.com/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
+    curl -s https://hg.example.com/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
       -d '{"model": "claude-code", "input": "Create hello.txt containing hello, then say done."}'
     ```
 
@@ -58,11 +58,11 @@ captures, the archive, and administration. Those are plain routes:
 ```python
 import httpx
 
-hi = httpx.Client(base_url="https://hi.example.com", headers={"Authorization": "Bearer hi_…"})
-hi.post(f"/v1/sessions/{session}/interrupt", json={"input": "Stop and summarize."})
-trace = hi.get(f"/v1/sessions/{session}/trace").json()["data"]
-captures = hi.get(f"/v1/responses/{r.id}/captures").json()["data"]
-hi.get(f"/v1/sessions/{session}/archive").content
+hg = httpx.Client(base_url="https://hg.example.com", headers={"Authorization": "Bearer hg_…"})
+hg.post(f"/v1/sessions/{session}/interrupt", json={"input": "Stop and summarize."})
+trace = hg.get(f"/v1/sessions/{session}/trace").json()["data"]
+captures = hg.get(f"/v1/responses/{r.id}/captures").json()["data"]
+hg.get(f"/v1/sessions/{session}/archive").content
 ```
 
 ## Python in one process
@@ -73,13 +73,13 @@ needs a port, since the sandboxes reach it over the network. Docker is still req
 
 ```python
 import asyncio, httpx
-from harness_interface.api.app import Service, create_app
-from harness_interface.api.config import Settings
-from harness_interface.gateway import Gateway, serve
-from harness_interface.runtimes.docker import owner_of
-from harness_interface.sandboxes import Node
-from harness_interface.sessions import Ask
-from harness_interface.worker import Worker
+from harnessgateway.api.app import Service, create_app
+from harnessgateway.api.config import Settings
+from harnessgateway.gateway import Gateway, serve
+from harnessgateway.runtimes.docker import owner_of
+from harnessgateway.sandboxes import Node
+from harnessgateway.sessions import Ask
+from harnessgateway.worker import Worker
 
 async def main():
     settings = Settings.from_env()
@@ -87,7 +87,7 @@ async def main():
     transport = httpx.ASGITransport(app=create_app(service))
     node = Node(settings.base_image, owner_of(settings.data_dir), settings.runtime, settings.ca_file)
     worker = Worker(settings.public_url, node, settings.data_dir / "worker", name="here", slots=2,
-                    version="4.0.0", join_token=service.join_token, transport=transport)
+                    version="5.0.0", join_token=service.join_token, transport=transport)
     gateway = asyncio.create_task(serve(Gateway(service.store, service.blobs), "0.0.0.0", settings.gateway_port))
     runner = asyncio.create_task(worker.run())
     r = service.sessions.create(Ask("acme", "chase", "claude-code", "Create hello.txt containing hello, then say done."))
@@ -106,8 +106,8 @@ and package must already exist in the store.
 Two scripts in the repository drive a running platform the way a client would:
 
 ```bash
-python scripts/live.py --url https://hi.example.com --key $KEY --harness claude-code   # the nine checks
-python scripts/demo.py --url https://hi.example.com --key $KEY --harness claude-code   # a streamed turn and a steer, in the terminal
+python scripts/live.py --url https://hg.example.com --key $KEY --harness claude-code   # the nine checks
+python scripts/demo.py --url https://hg.example.com --key $KEY --harness claude-code   # a streamed turn and a steer, in the terminal
 ```
 
 Next: [Tenants and limits](tenants.md).

@@ -5,5 +5,5 @@ case "$(uname -m)" in x86_64) arch=x86_64 ;; aarch64|arm64) arch=aarch64 ;; *) e
 tmp=$(mktemp -d)
 curl -fsSL "https://github.com/aaif-goose/goose/releases/download/v$VERSION/goose-$arch-unknown-linux-gnu.tar.gz" -o "$tmp/goose.tgz"
 tar -xzf "$tmp/goose.tgz" -C "$tmp"
-mkdir -p "$HI_TOOLS/bin" && install -m 755 "$tmp/goose" "$HI_TOOLS/bin/goose"
-"$HI_TOOLS/bin/goose" --version
+mkdir -p "$HG_TOOLS/bin" && install -m 755 "$tmp/goose" "$HG_TOOLS/bin/goose"
+"$HG_TOOLS/bin/goose" --version

@@ -9,9 +9,9 @@ Grok Build, headless over `grok -p --output-format streaming-json`, on any provi
 ## Use it
 
 ```bash
-curl -s -X PUT $HI/v1/providers/deepseek-openai -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"url": "…", "api": "…", "key": "…"}'
-curl -s -X PUT $HI/v1/harnesses/grok -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"catalog": "grok"}'
-curl -s $HI/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"model": "grok", "input": "Create hello.txt containing hello, then say done."}'
+curl -s -X PUT $HG/v1/providers/deepseek-openai -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"url": "…", "api": "…", "key": "…"}'
+curl -s -X PUT $HG/v1/harnesses/grok -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"catalog": "grok"}'
+curl -s $HG/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"model": "grok", "input": "Create hello.txt containing hello, then say done."}'
 ```
 
 The package's default provider is `deepseek-openai` and its default model `deepseek-chat`; name another with `grok/<provider>/<model>`. The folder is `catalog/grok/` in the repository.
@@ -22,7 +22,7 @@ The package's default provider is `deepseek-openai` and its default model `deeps
 
 ```json
 {
-  "contract": 4,
+  "contract": 5,
   "description": "Grok Build 1.0.41, headless `grok -p --output-format streaming-json`; chat-, Responses- or Anthropic-shaped providers.",
   "defaults": {
     "provider": "deepseek-openai",
@@ -55,11 +55,11 @@ The package's default provider is `deepseek-openai` and its default model `deeps
 set -euo pipefail
 VERSION=1.0.41
 case "$(uname -m)" in x86_64) arch=x86_64 ;; aarch64|arm64) arch=aarch64 ;; *) echo "unsupported arch" >&2; exit 1 ;; esac
-mkdir -p "$HI_TOOLS/bin"
-curl -fsSL "https://x.ai/cli/grok-$VERSION-linux-$arch" -o "$HI_TOOLS/bin/grok" \
-  || curl -fsSL "https://storage.googleapis.com/grok-build-public-artifacts/cli/grok-$VERSION-linux-$arch" -o "$HI_TOOLS/bin/grok"
-chmod 755 "$HI_TOOLS/bin/grok"
-"$HI_TOOLS/bin/grok" --version
+mkdir -p "$HG_TOOLS/bin"
+curl -fsSL "https://x.ai/cli/grok-$VERSION-linux-$arch" -o "$HG_TOOLS/bin/grok" \
+  || curl -fsSL "https://storage.googleapis.com/grok-build-public-artifacts/cli/grok-$VERSION-linux-$arch" -o "$HG_TOOLS/bin/grok"
+chmod 755 "$HG_TOOLS/bin/grok"
+"$HG_TOOLS/bin/grok" --version
 ```
 
 `request.sh`:
@@ -67,18 +67,18 @@ chmod 755 "$HI_TOOLS/bin/grok"
 ```bash
 #!/usr/bin/env bash
 # request.sh: one turn. The prompt is on stdin; stdout is relayed live and kept for response.sh.
-# A steer arrives as $HI_DIR/interrupt plus the package's signal, delivered to this script alone,
+# A steer arrives as $HG_DIR/interrupt plus the package's signal, delivered to this script alone,
 # so the trap below runs the steer as the next turn once the current one ends.
 set -uo pipefail
 prompt=$(cat)
-sid_uuid() { local h=${HI_SESSION#sess_}; echo "${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"; }
+sid_uuid() { local h=${HG_SESSION#sess_}; echo "${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"; }
 run_wait() {   # run a turn and wait for it, re-waiting after a signal interrupts the wait
   "$@" </dev/null & local pid=$! rc
   while :; do wait "$pid"; rc=$?; kill -0 "$pid" 2>/dev/null || break; done
   return $rc
 }
 steer=""
-trap 'steer=$(cat "$HI_DIR/interrupt" 2>/dev/null || true)' USR1
+trap 'steer=$(cat "$HG_DIR/interrupt" 2>/dev/null || true)' USR1
 export GROK_FOLDER_TRUST=0 GROK_DISABLE_AUTOUPDATER=1
 mkdir -p "$HOME/.grok"
 cat > "$HOME/.grok/config.toml" <<EOF
@@ -86,15 +86,15 @@ cat > "$HOME/.grok/config.toml" <<EOF
 session_summary = "hi"
 prompt_suggestion = "hi"
 [model.hi]
-model = "$HI_MODEL"
-base_url = "${HI_PROVIDER_URL%/}"
+model = "$HG_MODEL"
+base_url = "${HG_PROVIDER_URL%/}"
 env_key = "OPENAI_API_KEY"
 api_backend = "chat_completions"
 EOF
 turn() {
   local args=(-p "$1" -m hi --output-format streaming-json --permission-mode bypassPermissions)
-  if [ -f "$HI_DIR/turned" ]; then args+=(--resume "$(sid_uuid)"); else args+=(-s "$(sid_uuid)"); fi
-  touch "$HI_DIR/turned"
+  if [ -f "$HG_DIR/turned" ]; then args+=(--resume "$(sid_uuid)"); else args+=(-s "$(sid_uuid)"); fi
+  touch "$HG_DIR/turned"
   grok "${args[@]}"
 }
 

@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "goose 1.50.0, headless `goose run`; Anthropic- or OpenAI-shaped providers.",
   "defaults": {
     "provider": "deepseek",

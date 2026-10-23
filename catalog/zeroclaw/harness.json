@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "zeroclaw 0.8.5, one-shot `zeroclaw agent -m`; an OpenAI chat-shaped provider.",
   "defaults": {
     "provider": "deepseek-openai",

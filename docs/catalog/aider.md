@@ -1,6 +1,6 @@
 # aider
 
-aider, one turn per `--message`, on an OpenAI chat-shaped provider through `OPENAI_API_BASE` and `OPENAI_API_KEY`. The chat history file lives in `$HI_DIR`, and later turns pass `--restore-chat-history`.
+aider, one turn per `--message`, on an OpenAI chat-shaped provider through `OPENAI_API_BASE` and `OPENAI_API_KEY`. The chat history file lives in `$HG_DIR`, and later turns pass `--restore-chat-history`.
 
 ## Verified
 
@@ -11,9 +11,9 @@ Not passing: steer. aider has no shell tool: a task that asks it to run a comman
 ## Use it
 
 ```bash
-curl -s -X PUT $HI/v1/providers/deepseek-openai -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"url": "…", "api": "…", "key": "…"}'
-curl -s -X PUT $HI/v1/harnesses/aider -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"catalog": "aider"}'
-curl -s $HI/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"model": "aider", "input": "Create hello.txt containing hello, then say done."}'
+curl -s -X PUT $HG/v1/providers/deepseek-openai -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"url": "…", "api": "…", "key": "…"}'
+curl -s -X PUT $HG/v1/harnesses/aider -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"catalog": "aider"}'
+curl -s $HG/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"model": "aider", "input": "Create hello.txt containing hello, then say done."}'
 ```
 
 The package's default provider is `deepseek-openai` and its default model `deepseek-chat`; name another with `aider/<provider>/<model>`. The folder is `catalog/aider/` in the repository.
@@ -24,7 +24,7 @@ The package's default provider is `deepseek-openai` and its default model `deeps
 
 ```json
 {
-  "contract": 4,
+  "contract": 5,
   "description": "aider 0.86.2, one turn per `--message`; Anthropic- or OpenAI chat-shaped providers.",
   "defaults": {
     "provider": "deepseek-openai",
@@ -56,10 +56,10 @@ The package's default provider is `deepseek-openai` and its default model `deeps
 #!/usr/bin/env bash
 set -euo pipefail
 VERSION=0.86.2
-python3 -m venv "$HI_TOOLS/aider-venv"
-"$HI_TOOLS/aider-venv/bin/pip" install -q --disable-pip-version-check "aider-chat==$VERSION"
-mkdir -p "$HI_TOOLS/bin" && ln -sf ../aider-venv/bin/aider "$HI_TOOLS/bin/aider"
-"$HI_TOOLS/bin/aider" --version
+python3 -m venv "$HG_TOOLS/aider-venv"
+"$HG_TOOLS/aider-venv/bin/pip" install -q --disable-pip-version-check "aider-chat==$VERSION"
+mkdir -p "$HG_TOOLS/bin" && ln -sf ../aider-venv/bin/aider "$HG_TOOLS/bin/aider"
+"$HG_TOOLS/bin/aider" --version
 ```
 
 `request.sh`:
@@ -67,25 +67,25 @@ mkdir -p "$HI_TOOLS/bin" && ln -sf ../aider-venv/bin/aider "$HI_TOOLS/bin/aider"
 ```bash
 #!/usr/bin/env bash
 # request.sh: one turn. The prompt is on stdin; stdout is relayed live and kept for response.sh.
-# A steer arrives as $HI_DIR/interrupt plus the package's signal, delivered to this script alone,
+# A steer arrives as $HG_DIR/interrupt plus the package's signal, delivered to this script alone,
 # so the trap below runs the steer as the next turn once the current one ends.
 set -uo pipefail
 prompt=$(cat)
-sid_uuid() { local h=${HI_SESSION#sess_}; echo "${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"; }
+sid_uuid() { local h=${HG_SESSION#sess_}; echo "${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"; }
 run_wait() {   # run a turn and wait for it, re-waiting after a signal interrupts the wait
   "$@" </dev/null & local pid=$! rc
   while :; do wait "$pid"; rc=$?; kill -0 "$pid" 2>/dev/null || break; done
   return $rc
 }
 steer=""
-trap 'steer=$(cat "$HI_DIR/interrupt" 2>/dev/null || true)' USR1
-export OPENAI_API_BASE="${HI_PROVIDER_URL%/}" LITELLM_LOCAL_MODEL_COST_MAP=True AIDER_ANALYTICS_DISABLE=1
+trap 'steer=$(cat "$HG_DIR/interrupt" 2>/dev/null || true)' USR1
+export OPENAI_API_BASE="${HG_PROVIDER_URL%/}" LITELLM_LOCAL_MODEL_COST_MAP=True AIDER_ANALYTICS_DISABLE=1
 turn() {
-  local args=(--model "openai/$HI_MODEL" --message "$1" --yes-always --no-pretty --no-stream --no-git --no-fancy-input
+  local args=(--model "openai/$HG_MODEL" --message "$1" --yes-always --no-pretty --no-stream --no-git --no-fancy-input
               --no-show-model-warnings --no-check-update --no-show-release-notes --analytics-disable
-              --chat-history-file "$HI_DIR/chat.history.md" --input-history-file "$HI_DIR/input.history" --llm-history-file "$HI_DIR/llm.history")
-  [ -f "$HI_DIR/turned" ] && args+=(--restore-chat-history)
-  touch "$HI_DIR/turned"
+              --chat-history-file "$HG_DIR/chat.history.md" --input-history-file "$HG_DIR/input.history" --llm-history-file "$HG_DIR/llm.history")
+  [ -f "$HG_DIR/turned" ] && args+=(--restore-chat-history)
+  touch "$HG_DIR/turned"
   aider "${args[@]}" </dev/null
 }
 

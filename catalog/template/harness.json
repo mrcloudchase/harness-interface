@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "A starting point: replace the CLI in install.sh, the turn in request.sh, and what response.sh returns.",
   "defaults": {"provider": "", "model": ""},
   "provider_env": {"key": "OPENAI_API_KEY", "url": "OPENAI_BASE_URL"},

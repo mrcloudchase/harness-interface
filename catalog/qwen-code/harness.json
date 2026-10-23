@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "Qwen Code 0.25.2, headless `qwen -o stream-json`; any OpenAI chat-shaped provider.",
   "defaults": {
     "provider": "deepseek-openai",

@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "Claude Code 2.1.305, headless over stream-json; any Anthropic-shaped provider.",
   "defaults": {
     "provider": "deepseek",

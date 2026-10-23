@@ -40,16 +40,16 @@ from .process import ProcessExecution, host_env
 DOOR_IMAGE = "python:3.12-alpine"
 DOOR_SCRIPT = Path(__file__).with_name("door.py")
 TURN_SCRIPT = Path(__file__).with_name("turn.sh")
-DOOR_HOST, PROVIDER_HOST = "hi-door", "hi-provider"  # the door's aliases, the same on every run's network
+DOOR_HOST, PROVIDER_HOST = "hg-door", "hg-provider"  # the door's aliases, the same on every run's network
 PROVIDER_URL = f"http://{PROVIDER_HOST}:{GATEWAY_PORT}"  # where a run calls its provider; the gateway's path is appended
 PROXY = f"http://{DOOR_HOST}:{DOOR_PORT}"
 NO_PROXY = f"127.0.0.1,localhost,{DOOR_HOST},{PROVIDER_HOST}"
-TOKEN_PATH = Path("/run/hi/token")                   # where every run reads its session token
-CA_PATH = "/etc/hi/ca.pem"
+TOKEN_PATH = Path("/run/hg/token")                   # where every run reads its session token
+CA_PATH = "/etc/hg/ca.pem"
 CA_VARS = ("SSL_CERT_FILE", "NODE_EXTRA_CA_CERTS", "REQUESTS_CA_BUNDLE", "CURL_CA_BUNDLE", "GIT_SSL_CAINFO")
 SECRETS = Path("/dev/shm") if Path("/dev/shm").is_dir() else Path(tempfile.gettempdir())
-PREFIX = "hi-"
-LABEL = "hi.owner"
+PREFIX = "hg-"
+LABEL = "hg.owner"
 LOCKDOWN = ("--cap-drop", "ALL", "--security-opt", "no-new-privileges", "--read-only")
 HARDENING = (*LOCKDOWN, "--tmpfs", "/tmp:rw,exec,nosuid,nodev,size=512m")
 DOOR_LIMITS = ("--pids-limit", "64", "--memory", "256m")

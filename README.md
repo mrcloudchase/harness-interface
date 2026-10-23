@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/assets/picky.png" width="240" alt="Picky, the harness-interface mascot: a hermit crab with no shell of its own">
+  <img src="docs/assets/picky.svg" width="240" alt="Picky, the harnessgateway mascot: a hermit crab with no shell of its own">
 </p>
 
-<h1 align="center">harness-interface</h1>
+<h1 align="center">Harness Gateway</h1>
 
 <p align="center">
   <b>A multi-tenant platform that runs coding-agent CLIs sandboxed behind the OpenAI Responses API.</b>
@@ -13,7 +13,7 @@
   <img src="https://img.shields.io/badge/runs-sandboxed%20in%20Docker-2496ed" alt="Runs sandboxed in Docker">
   <img src="https://img.shields.io/badge/API-OpenAI%20Responses-412991" alt="OpenAI Responses API">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-Apache%202.0-blue" alt="License: Apache 2.0"></a>
-  <a href="https://github.com/mrcloudchase/harness-interface/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/mrcloudchase/harness-interface/ci.yml?branch=main&label=CI" alt="CI"></a>
+  <a href="https://github.com/mrcloudchase/harnessgateway/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/mrcloudchase/harnessgateway/ci.yml?branch=main&label=CI" alt="CI"></a>
 </p>
 
 A tenant brings its **providers** (model endpoints and keys, sealed on arrival) and its **harness
@@ -24,7 +24,7 @@ the output back, and returns exactly what the package decided. Twenty-two packag
 catalog, verified live.
 
 ```
-                 OpenAI Responses API (any SDK, curl, the console)
+                 OpenAI Responses API (any SDK, curl, the app)
                                   │
     api  ─── records (SQLite | Postgres) ─── blobs (directory | S3)
     gateway  holds the provider keys, relays provider calls, meters, captures
@@ -36,12 +36,12 @@ catalog, verified live.
 ## Run it
 
 ```bash
-mkdir -p /srv/hi/data
-docker run -d --name hi --restart unless-stopped -p 127.0.0.1:8000:8000 -p 127.0.0.1:8081:8081 \
-  -v /var/run/docker.sock:/var/run/docker.sock -v /srv/hi/data:/srv/hi/data -e HI_DATA_DIR=/srv/hi/data \
-  --add-host host.docker.internal:host-gateway ghcr.io/mrcloudchase/harness-interface:4.0.0
-docker exec hi harness-interface init --tenant acme --owner chase     # prints the deployer key and your key, once
-open http://127.0.0.1:8000                                            # the console; the docs are at /docs
+mkdir -p /srv/hg/data
+docker run -d --name hg --restart unless-stopped -p 127.0.0.1:8000:8000 -p 127.0.0.1:8081:8081 \
+  -v /var/run/docker.sock:/var/run/docker.sock -v /srv/hg/data:/srv/hg/data -e HG_DATA_DIR=/srv/hg/data \
+  --add-host host.docker.internal:host-gateway ghcr.io/mrcloudchase/harnessgateway:5.0.0
+docker exec hg harnessgateway init --tenant acme --owner chase     # prints the deployer key and your key, once
+open http://127.0.0.1:8000                                            # the home page; the app is at /app, the docs at /docs
 ```
 
 Add a provider, fork a package from the catalog, and send a request:
@@ -54,7 +54,7 @@ curl -s http://127.0.0.1:8000/v1/responses -H "Authorization: Bearer $KEY" -H 'c
 ## Watch it
 
 <p align="center">
-  <img src="docs/assets/casts/claude-code.gif" width="800" alt="Claude Code takes a streamed turn and a steer through harness-interface">
+  <img src="docs/assets/casts/claude-code.gif" width="800" alt="Claude Code takes a streamed turn and a steer through harnessgateway">
 </p>
 
 Claude Code taking a streamed turn and a steer, recorded as it ran. The documentation's
@@ -64,7 +64,7 @@ Claude Code taking a streamed turn and a steer, recorded as it ran. The document
 
 The documentation is served by the platform itself at `/docs`, and its source is in
 [`docs/`](docs/): [deploy](docs/deploy.md), [initialize](docs/initialize.md),
-[sign in](docs/sign-in.md), [providers](docs/providers.md), [harnesses](docs/harnesses.md),
+[the app](docs/app.md), [providers](docs/providers.md), [harnesses](docs/harnesses.md),
 [first request](docs/first-request.md), [sessions](docs/sessions.md),
 [steer and cancel](docs/steer-and-cancel.md), [traces and captures](docs/traces-and-captures.md),
 [members and keys](docs/members-and-keys.md), [clients](docs/clients.md),
@@ -78,7 +78,7 @@ The documentation is served by the platform itself at `/docs`, and its source is
 
 One image, four roles (`api`, `gateway`, `worker`, `all`), one compose file with a one-box
 profile and a fleet profile. Records in SQLite or Postgres, blobs in a directory or any S3-API
-store, and no cloud SDK anywhere else. `HI_SIGNUP=open` turns the sign-in page into a sign-up
+store, and no cloud SDK anywhere else. `HG_SIGNUP=open` turns the sign-in page into a sign-up
 page; closed, the deployer creates tenants and sets their ceilings.
 
 ## License

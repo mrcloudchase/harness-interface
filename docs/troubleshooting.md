@@ -41,15 +41,15 @@ gateway forward
 
 A `deny` names a host the package did not list under `run.egress` (or `install.egress` for an
 install). A refused private address is by design. A `gateway unreachable` line means
-`HI_GATEWAY_URL` is wrong for this worker machine.
+`HG_GATEWAY_URL` is wrong for this worker machine.
 
 ## The platform
 
 | Symptom | Fix |
 |---|---|
 | the first request to a package takes minutes | its install; the next one is fast |
-| `GET /healthz` works, requests sit `queued` | no worker is alive, or every slot is busy; the Fleet tab shows both |
-| the worker logs `could not reach the control plane` | `HI_CONTROL_URL` or the join token |
+| `GET /healthz` works, requests sit `queued` | no worker is alive, or every slot is busy; the dashboard shows both |
+| the worker logs `could not reach the control plane` | `HG_CONTROL_URL` or the join token |
 | a worker joined but its turns fail at once | the data directory is not at the same path inside and outside its container |
-| sandboxes fail TLS on a network that re-signs it | `HI_CA_FILE` with the network's bundle |
-| `set HI_MASTER_KEY (64 hex digits) or HI_MASTER_KEY_FILE` | run `init`, or pass the key the fleet shares |
+| sandboxes fail TLS on a network that re-signs it | `HG_CA_FILE` with the network's bundle |
+| `set HG_MASTER_KEY (64 hex digits) or HG_MASTER_KEY_FILE` | run `init`, or pass the key the fleet shares |

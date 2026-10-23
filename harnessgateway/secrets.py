@@ -2,8 +2,8 @@
 a run's egress door is started, in memory, for that one run. At rest the server holds ciphertext.
 
 AES-256-GCM under one master key, with the record's path as associated data, so a sealed value
-cannot be moved to another record. The master key comes from the environment (HI_MASTER_KEY, 64 hex
-digits) or a file (HI_MASTER_KEY_FILE); in a hosted deployment that is a secret a key service
+cannot be moved to another record. The master key comes from the environment (HG_MASTER_KEY, 64 hex
+digits) or a file (HG_MASTER_KEY_FILE); in a hosted deployment that is a secret a key service
 provides, on a self-hosted box a file `init` wrote with mode 600.
 """
 from __future__ import annotations
@@ -35,17 +35,17 @@ class Vault:
 
     @staticmethod
     def generate() -> str:
-        """A new master key, as the 64 hex digits HI_MASTER_KEY takes."""
+        """A new master key, as the 64 hex digits HG_MASTER_KEY takes."""
         return secrets.token_hex(32)
 
     @classmethod
     def from_env(cls, env: Mapping[str, str] | None = None) -> Vault:
         env = os.environ if env is None else env
-        if value := env.get("HI_MASTER_KEY"):
+        if value := env.get("HG_MASTER_KEY"):
             return cls(bytes.fromhex(value.strip()))
-        if path := env.get("HI_MASTER_KEY_FILE"):
+        if path := env.get("HG_MASTER_KEY_FILE"):
             return cls(bytes.fromhex(Path(path).read_text().strip()))
-        raise RuntimeError("set HI_MASTER_KEY (64 hex digits) or HI_MASTER_KEY_FILE (a file holding them)")
+        raise RuntimeError("set HG_MASTER_KEY (64 hex digits) or HG_MASTER_KEY_FILE (a file holding them)")
 
     def seal(self, value: str, aad: str) -> str:
         nonce = secrets.token_bytes(NONCE)

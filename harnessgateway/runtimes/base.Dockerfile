@@ -1,7 +1,7 @@
 # The platform's sandbox base image: Debian, Python 3.12, Node 22, git, curl, ripgrep, procps, tmux.
 # Nothing of the platform and nothing of any package is in it; packages install their CLI into the
-# tools layer at first use. Built once per node when HI_BASE_IMAGE is empty; a deployer may point
-# HI_BASE_IMAGE at an image built from this file elsewhere and scanned on a schedule.
+# tools layer at first use. Built once per node when HG_BASE_IMAGE is empty; a deployer may point
+# HG_BASE_IMAGE at an image built from this file elsewhere and scanned on a schedule.
 FROM python:3.12-slim-bookworm
 ARG NODE_VERSION=22.23.4
 ENV DEBIAN_FRONTEND=noninteractive

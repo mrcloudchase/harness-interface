@@ -21,7 +21,7 @@ from .harness import Config
 from .limits import Limits
 from .runtimes.docker import DockerRuntime, Resources, build_base, identity, pull, sweep, whole
 
-MARKER = ".hi-installed"
+MARKER = ".hg-installed"
 SYSTEM_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 UID_BASE, UID_RANGE = 100_000, 100_000
 
@@ -118,7 +118,7 @@ class Node:
 
     async def _install(self, tenant: str, limits: Limits, folder: Path, config: Config, tools: Path, log: Path) -> Outcome:
         runtime = self.runtime_for(tenant, limits, read_only=(folder,), writable=(tools,), egress=config.install_egress)
-        env = {"HI_TOOLS": str(tools), "HI_HARNESS_DIR": str(folder), "HOME": "/tmp", "PATH": path_with(tools)}
+        env = {"HG_TOOLS": str(tools), "HG_HARNESS_DIR": str(folder), "HOME": "/tmp", "PATH": path_with(tools)}
         execution = await runtime.start(Spec(("bash", str(folder / "install.sh")), env=env, workspace=tools,
                                              timeout_s=min(config.install_timeout_s, limits.install_timeout_s)))
         try:

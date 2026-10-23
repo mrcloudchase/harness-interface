@@ -155,7 +155,7 @@ class Gateway:
         """The exchange into the turn's capture and the turn's usage; a failure here never fails the call."""
         try:
             rid, tenant = grant["response"], grant["tenant"]
-            usage = self.store.records.get("usage", tenant, rid) or {"calls": 0, "bytes_in": 0, "bytes_out": 0, "seconds": 0}
+            usage = self.store.records.get("usage", tenant, rid) or {"calls": 0, "bytes_in": 0, "bytes_out": 0, "seconds": 0, "at": exchange.at}
             usage = {**usage, "calls": usage["calls"] + 1, "bytes_in": usage["bytes_in"] + exchange.bytes_in,
                      "bytes_out": usage["bytes_out"] + exchange.bytes_out}
             self.store.records.put("usage", tenant, rid, usage)

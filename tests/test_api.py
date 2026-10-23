@@ -11,13 +11,13 @@ import httpx
 import pytest
 
 from fakes import FakeNode, archive, RESPONSE_SH
-from harness_interface.api.app import Service, create_app
-from harness_interface.api.config import Settings
-from harness_interface.worker import Worker
+from harnessgateway.api.app import Service, create_app
+from harnessgateway.api.config import Settings
+from harnessgateway.worker import Worker
 
 SLOW = """#!/usr/bin/env bash
 echo started
-trap 'echo "steer=$(cat "$HI_DIR/interrupt")"; exit 0' USR1
+trap 'echo "steer=$(cat "$HG_DIR/interrupt")"; exit 0' USR1
 trap 'echo stopping; exit 0' TERM
 sleep 30 & wait $!
 """
@@ -25,8 +25,8 @@ sleep 30 & wait $!
 
 @pytest.fixture
 def platform(tmp_path, vault, monkeypatch):
-    monkeypatch.setenv("HI_CATALOG_DIR", str(tmp_path / "catalog"))
-    from harness_interface.harness import unpack
+    monkeypatch.setenv("HG_CATALOG_DIR", str(tmp_path / "catalog"))
+    from harnessgateway.harness import unpack
     unpack(archive(description="shipped"), tmp_path / "catalog" / "demo")
     settings = Settings(data_dir=tmp_path / "data", public_url="http://api.test", signup="open", join_token="jt",
                         deployer_key="hd_deployer")
@@ -86,7 +86,7 @@ def test_signup_auth_and_registration(platform):
         owner = await signup(c)
         assert (await c.post("/v1/signup", json={"tenant": "acme", "owner": "x"})).status_code == 409
         assert (await c.get("/v1/me")).status_code == 401
-        assert (await c.get("/v1/me", headers=auth("hi_nope"))).status_code == 401
+        assert (await c.get("/v1/me", headers=auth("hg_nope"))).status_code == 401
         assert (await c.get("/v1/me", headers=auth("hd_deployer"))).status_code == 403
         assert (await c.get("/v1/tenants", headers=auth(owner))).status_code == 403
         dev = await ready(c, owner)
@@ -119,8 +119,8 @@ def test_a_turn_and_its_session(platform):
         body = r.json()
         assert body["status"] == "completed" and body["model"] == "cc/prov/m9", body
         text = body["output"][0]["content"][0]["text"]
-        assert text.startswith("shaped: outcome=exited exit=0 prompt=hello turn=1 model=m9 key=sk-hi-")   # response.sh decided
-        assert "url=http://hi-provider:8080/v1 ins=be brief" in text
+        assert text.startswith("shaped: outcome=exited exit=0 prompt=hello turn=1 model=m9 key=sk-hg-")   # response.sh decided
+        assert "url=http://hg-provider:8080/v1 ins=be brief" in text
         assert body["metadata"]["team"] == "a" and body["metadata"]["exit_code"] == "0" and node.installs == 1
         sid = body["metadata"]["session_id"]
         detail = (await c.get(f"/v1/responses/{body['id']}?detail=true", headers=auth(dev))).json()
@@ -211,6 +211,11 @@ def test_deployer_and_tenants_apart(platform):
         d = auth("hd_deployer")
         tenants = (await c.get("/v1/tenants", headers=d)).json()["data"]
         assert tenants[0]["name"] == "acme" and tenants[0]["usage"]["turns"] == 1 and tenants[0]["usage"]["seconds"] >= 0  # a fast turn rounds to 0.0
+        usage = (await c.get("/v1/usage?days=30", headers=d)).json()
+        assert usage["totals"]["turns"] == 1 and len(usage["daily"]) == 30 and usage["daily"][-1]["turns"] == 1
+        assert usage["tenants"] == [{"tenant": "acme", **usage["totals"]}] and usage["harnesses"][0]["harness"] == "cc"
+        assert usage["statuses"]["completed"] == 1 and (await c.get("/v1/usage", headers=d)).json()["totals"]["turns"] == 1
+        assert (await c.get("/v1/usage", headers=auth(owner))).status_code == 403
         fleet = (await c.get("/v1/fleet", headers=d)).json()
         assert fleet["tenants"] == 1 and fleet["workers"] == 1 and fleet["slots"] == 2
         made = (await c.post("/v1/tenants", json={"name": "globex", "owner": "eve", "limits": {"max_runs": 1}}, headers=d)).json()

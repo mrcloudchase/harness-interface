@@ -1,10 +1,10 @@
 """The command line.
 
-    harness-interface init [--tenant NAME --owner NAME]
+    harnessgateway init [--tenant NAME --owner NAME]
         Writes a master key to <data>/master.key unless one is there, sets the deployer key and prints
         it once, and, with --tenant, creates that tenant with its owner and prints the owner's key once.
-    harness-interface serve [--role api,gateway,worker | all]
-        Runs the roles named in one process, as the environment configures them (HI_*).
+    harnessgateway serve [--role api,gateway,worker | all]
+        Runs the roles named in one process, as the environment configures them (HG_*).
 """
 from __future__ import annotations
 
@@ -19,8 +19,8 @@ from .secrets import Vault
 
 
 def master_key(settings: Settings) -> None:
-    """HI_MASTER_KEY or HI_MASTER_KEY_FILE from the environment, else the file under the data directory."""
-    if os.environ.get("HI_MASTER_KEY") or os.environ.get("HI_MASTER_KEY_FILE"):
+    """HG_MASTER_KEY or HG_MASTER_KEY_FILE from the environment, else the file under the data directory."""
+    if os.environ.get("HG_MASTER_KEY") or os.environ.get("HG_MASTER_KEY_FILE"):
         return
     settings.data_dir.mkdir(parents=True, exist_ok=True)
     key_file = settings.data_dir / "master.key"
@@ -29,7 +29,7 @@ def master_key(settings: Settings) -> None:
         with os.fdopen(fd, "w") as f:
             f.write(Vault.generate() + "\n")
         print(f"master key written to {key_file}", file=sys.stderr)
-    os.environ["HI_MASTER_KEY_FILE"] = str(key_file)
+    os.environ["HG_MASTER_KEY_FILE"] = str(key_file)
 
 
 def init(args: argparse.Namespace) -> None:
@@ -79,7 +79,7 @@ async def run(settings: Settings) -> None:
 
 def service_version() -> str:
     from importlib.metadata import version
-    return version("harness-interface")
+    return version("harnessgateway")
 
 
 def serve(args: argparse.Namespace) -> None:
@@ -89,7 +89,7 @@ def serve(args: argparse.Namespace) -> None:
 
 
 def main(argv: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(prog="harness-interface", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser = argparse.ArgumentParser(prog="harnessgateway", description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = parser.add_subparsers(dest="command", required=True)
     p = sub.add_parser("init", help="the master key, the deployer key, and optionally a first tenant")
     p.add_argument("--tenant")

@@ -11,9 +11,9 @@ Headless Cline cannot resume a session (that needs its ACP mode); it answers rec
 ## Use it
 
 ```bash
-curl -s -X PUT $HI/v1/providers/deepseek-openai -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"url": "…", "api": "…", "key": "…"}'
-curl -s -X PUT $HI/v1/harnesses/cline -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"catalog": "cline"}'
-curl -s $HI/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"model": "cline", "input": "Create hello.txt containing hello, then say done."}'
+curl -s -X PUT $HG/v1/providers/deepseek-openai -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"url": "…", "api": "…", "key": "…"}'
+curl -s -X PUT $HG/v1/harnesses/cline -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"catalog": "cline"}'
+curl -s $HG/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"model": "cline", "input": "Create hello.txt containing hello, then say done."}'
 ```
 
 The package's default provider is `deepseek-openai` and its default model `deepseek-chat`; name another with `cline/<provider>/<model>`. The folder is `catalog/cline/` in the repository.
@@ -24,7 +24,7 @@ The package's default provider is `deepseek-openai` and its default model `deeps
 
 ```json
 {
-  "contract": 4,
+  "contract": 5,
   "description": "Cline 3.0.73, headless `cline --json`; an OpenAI-compatible provider through providers.json.",
   "defaults": {
     "provider": "deepseek-openai",
@@ -55,9 +55,9 @@ The package's default provider is `deepseek-openai` and its default model `deeps
 #!/usr/bin/env bash
 set -euo pipefail
 VERSION=3.0.73
-mkdir -p "$HI_TOOLS/bin"
-npm install --global --prefix "$HI_TOOLS" --no-audit --no-fund "cline@$VERSION"
-"$HI_TOOLS/bin/cline" --version
+mkdir -p "$HG_TOOLS/bin"
+npm install --global --prefix "$HG_TOOLS" --no-audit --no-fund "cline@$VERSION"
+"$HG_TOOLS/bin/cline" --version
 ```
 
 `request.sh`:
@@ -65,23 +65,23 @@ npm install --global --prefix "$HI_TOOLS" --no-audit --no-fund "cline@$VERSION"
 ```bash
 #!/usr/bin/env bash
 # request.sh: one turn. The prompt is on stdin; stdout is relayed live and kept for response.sh.
-# A steer arrives as $HI_DIR/interrupt plus the package's signal, delivered to this script alone,
+# A steer arrives as $HG_DIR/interrupt plus the package's signal, delivered to this script alone,
 # so the trap below runs the steer as the next turn once the current one ends.
 set -uo pipefail
 prompt=$(cat)
-sid_uuid() { local h=${HI_SESSION#sess_}; echo "${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"; }
+sid_uuid() { local h=${HG_SESSION#sess_}; echo "${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"; }
 run_wait() {   # run a turn and wait for it, re-waiting after a signal interrupts the wait
   "$@" </dev/null & local pid=$! rc
   while :; do wait "$pid"; rc=$?; kill -0 "$pid" 2>/dev/null || break; done
   return $rc
 }
 steer=""
-trap 'steer=$(cat "$HI_DIR/interrupt" 2>/dev/null || true)' USR1
+trap 'steer=$(cat "$HG_DIR/interrupt" 2>/dev/null || true)' USR1
 export CLINE_SESSION_BACKEND_MODE=local CLINE_NO_AUTO_UPDATE=1
 mkdir -p "$HOME/.cline/data/settings"
 cat > "$HOME/.cline/data/settings/providers.json" <<EOF
 {"version": 1, "lastUsedProvider": "openai-compatible", "modes": {},
- "providers": {"openai-compatible": {"settings": {"provider": "openai-compatible", "apiKey": "$OPENAI_API_KEY", "model": "$HI_MODEL", "baseUrl": "${HI_PROVIDER_URL%/}"},
+ "providers": {"openai-compatible": {"settings": {"provider": "openai-compatible", "apiKey": "$OPENAI_API_KEY", "model": "$HG_MODEL", "baseUrl": "${HG_PROVIDER_URL%/}"},
                                      "updatedAt": "$(date -u +%Y-%m-%dT%H:%M:%SZ)", "tokenSource": "manual"}}}
 EOF
 turn() { cline --json -y "$1" </dev/null; }

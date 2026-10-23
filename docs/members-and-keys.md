@@ -11,7 +11,7 @@ requests, sees their own sessions, and mints keys for themselves.
 ## Add a member
 
 ```bash
-curl -s -X POST https://hi.example.com/v1/members -H "Authorization: Bearer $KEY" \
+curl -s -X POST https://hg.example.com/v1/members -H "Authorization: Bearer $KEY" \
   -H 'content-type: application/json' -d '{"name": "dana", "role": "member"}'
 ```
 
@@ -22,13 +22,13 @@ platform.
 ## Mint a key
 
 ```bash
-curl -s -X POST https://hi.example.com/v1/members/dana/keys -H "Authorization: Bearer $KEY" \
+curl -s -X POST https://hg.example.com/v1/members/dana/keys -H "Authorization: Bearer $KEY" \
   -H 'content-type: application/json' -d '{"label": "laptop"}'
 ```
 
 ```json
 {"id": "a1b2c3d4e5f6", "tenant": "acme", "member": "dana", "label": "laptop", "created": 1792713300.2,
- "revoked": false, "secret": "hi_…"}
+ "revoked": false, "secret": "hg_…"}
 ```
 
 A member mints keys for themselves; an owner for anyone. The secret is shown once. The platform
@@ -38,7 +38,7 @@ labelled, so the one that leaks is the one you revoke.
 ## Revoke
 
 ```bash
-curl -s -X DELETE https://hi.example.com/v1/keys/a1b2c3d4e5f6 -H "Authorization: Bearer $KEY"
+curl -s -X DELETE https://hg.example.com/v1/keys/a1b2c3d4e5f6 -H "Authorization: Bearer $KEY"
 ```
 
 Takes effect on the next request. A suspended tenant's keys all stop working until the deployer

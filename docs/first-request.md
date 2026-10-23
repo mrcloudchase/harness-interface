@@ -3,7 +3,7 @@
 A provider and a harness in place, a request is one call.
 
 ```bash
-curl -s https://hi.example.com/v1/responses -H "Authorization: Bearer $KEY" \
+curl -s https://hg.example.com/v1/responses -H "Authorization: Bearer $KEY" \
   -H 'content-type: application/json' \
   -d '{"model": "claude-code", "input": "Create hello.txt containing the word hello, then reply with the one word: done"}'
 ```
@@ -31,22 +31,22 @@ The reply is a standard response object:
 - `usage` is null: token counts belong to the provider calls the package made, and those are in
   the captures.
 
-## From the console
+## From the app
 
 <figure class="shot" markdown>
-![The sessions tab with a request running and stdout streaming](assets/console/sessions-running.png){ loading=lazy }
-<figcaption>Run streams the package's stdout as it is written.</figcaption>
+![The requests tab with a request running and stdout streaming](assets/console/requests-running.png){ loading=lazy }
+<figcaption>Run streams the package's stdout as it is written; the steer field is live while it runs.</figcaption>
 </figure>
 
 <figure class="shot" markdown>
-![The sessions tab after the run: the response and the session list](assets/console/sessions-done.png){ loading=lazy }
-<figcaption>The response below the live output; the session appears in the list.</figcaption>
+![The requests tab after the run: the response](assets/console/requests-done.png){ loading=lazy }
+<figcaption>The response below the live output, with the session to open and the id filled in for the next turn.</figcaption>
 </figure>
 
 ## Stream it
 
 ```bash
-curl -sN https://hi.example.com/v1/responses -H "Authorization: Bearer $KEY" \
+curl -sN https://hg.example.com/v1/responses -H "Authorization: Bearer $KEY" \
   -H 'content-type: application/json' \
   -d '{"model": "claude-code", "input": "Explain this repository in three sentences.", "stream": true}'
 ```
@@ -59,9 +59,9 @@ it arrives, then the text done, the part done, the item done, and `response.comp
 ## Run it in the background
 
 ```bash
-curl -s https://hi.example.com/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
+curl -s https://hg.example.com/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' \
   -d '{"model": "claude-code", "input": "Refactor the parser.", "background": true}'
-curl -s https://hi.example.com/v1/responses/resp_… -H "Authorization: Bearer $KEY"
+curl -s https://hg.example.com/v1/responses/resp_… -H "Authorization: Bearer $KEY"
 ```
 
 The first call returns at once with `status: in_progress`. Poll, or follow with `?stream=true`.
@@ -82,7 +82,7 @@ trace records the names and sizes, not the bytes.
 
 ## Instructions
 
-`instructions` reaches the package as `HI_INSTRUCTIONS`; the catalog's packages pass it to the
+`instructions` reaches the package as `HG_INSTRUCTIONS`; the catalog's packages pass it to the
 CLI as a system prompt where the CLI takes one.
 
 ## Keep nothing

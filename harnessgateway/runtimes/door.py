@@ -5,7 +5,7 @@ its own on the sandbox's internal network, standard library only:
   resolves names itself, so the sandbox needs no DNS, and it connects to the address it checked, so a
   name that resolves to a private address is refused and cannot be rebound past the check;
 - the provider forwarder relays bytes between the sandbox and the platform's gateway, which holds the
-  keys. The sandbox calls http://hi-provider:8080 with its session token; the forwarder opens the
+  keys. The sandbox calls http://hg-provider:8080 with its session token; the forwarder opens the
   gateway (TLS when its URL is https) and copies both ways. It reads nothing.
 
 It logs one line per decision (host, or the forward) on stderr, never a token or a body.

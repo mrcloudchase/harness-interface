@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "MiniMax Code 0.5.4, headless `mcode exec --output-format stream-json`; Anthropic- or OpenAI-shaped providers.",
   "defaults": {
     "provider": "deepseek",

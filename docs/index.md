@@ -1,7 +1,7 @@
-# harness-interface
+# Harness Gateway
 
 <figure class="shot" markdown>
-![Picky, the mascot: a hermit crab with no shell of its own](assets/picky.png){ width="200" }
+![Picky, the mascot: a hermit crab with no shell of its own](assets/picky.svg){ width="200" }
 </figure>
 
 A multi-tenant platform that runs coding-agent CLIs, the **harnesses**, one turn at a time in
@@ -11,7 +11,7 @@ packages** (how to install a CLI, how to run one turn, what to return). The plat
 nothing about the output. It carries bytes in and bytes out and says whether the turn ended well.
 
 ```
-                 OpenAI Responses API (any SDK, curl, the console)
+                 OpenAI Responses API (any SDK, curl, the app)
                                   │
     api  ─── records (SQLite | Postgres) ─── blobs (directory | S3)
     gateway  holds the provider keys, relays provider calls, meters, captures
@@ -28,7 +28,7 @@ process; a fleet runs them apart. Nothing in the package names a cloud.
 | You want to | Read |
 |---|---|
 | Stand the platform up | [Deploy](deploy.md), then [Initialize](initialize.md) |
-| Use a tenant: keys, providers, packages, a first request | [Sign in](sign-in.md) through [First request](first-request.md) |
+| Use a tenant: keys, providers, packages, a first request | [The app](app.md) through [First request](first-request.md) |
 | Drive sessions: continue, steer, cancel, read the record | [Sessions](sessions.md), [Steer and cancel](steer-and-cancel.md), [Traces and captures](traces-and-captures.md) |
 | Call it from code | [Clients](clients.md) |
 | Run it for others: tenants, limits, workers | [Tenants and limits](tenants.md), [Workers and scale](workers.md) |

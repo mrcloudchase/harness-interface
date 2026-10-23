@@ -34,7 +34,7 @@ from .secrets import Vault
 NAME = re.compile(r"[a-z0-9][a-z0-9._-]{0,62}")
 ROLES = ("owner", "member")
 APIS = ("anthropic-messages", "openai-responses", "openai-chat", "none")
-KEY_PREFIX = "hi_"
+KEY_PREFIX = "hg_"
 PLATFORM = ""                                        # the tenant of platform-level records
 
 
@@ -51,7 +51,7 @@ def digest_of(secret: str) -> str:
 
 def session_token(api: str) -> str:
     """A session's stand-in for its key under the gateway, shaped like a real one for CLIs that check."""
-    return ("sk-ant-api03-hi-" if api == "anthropic-messages" else "sk-hi-") + secrets.token_hex(24)
+    return ("sk-ant-api03-hg-" if api == "anthropic-messages" else "sk-hg-") + secrets.token_hex(24)
 
 
 @dataclass(frozen=True)
@@ -283,7 +283,7 @@ class Store:
         check_name(name, "harness")
         if len(archive) > t.ceilings.upload_mb * 1024 * 1024:
             raise Invalid(f"the package is over the tenant's upload limit of {t.ceilings.upload_mb} MB")
-        with tempfile.TemporaryDirectory(prefix="hi-upload-") as tmp:
+        with tempfile.TemporaryDirectory(prefix="hg-upload-") as tmp:
             folder = Path(tmp) / "folder"
             folder.mkdir()
             harness.unpack(archive, folder)
@@ -320,7 +320,7 @@ class Store:
     # the platform's own
     def set_deployer_key(self) -> str:
         """A new deployer key, shown once; replaces the previous one."""
-        secret = "hd_" + secrets.token_urlsafe(32)
+        secret = "hgd_" + secrets.token_urlsafe(32)
         self.records.put("deployer", PLATFORM, "key", {"digest": digest_of(secret), "created": time.time()})
         return secret
 
@@ -329,13 +329,13 @@ class Store:
         return bool(d) and secrets.compare_digest(d["digest"], digest_of(secret))
 
     def register_worker(self, name: str, slots: int, version: str) -> tuple[Worker, str]:
-        secret = "hw_" + secrets.token_urlsafe(32)
+        secret = "hgw_" + secrets.token_urlsafe(32)
         w = Worker(uuid.uuid4().hex[:12], name, time.time(), time.time(), slots, 0, version)
         self.records.put("worker", PLATFORM, w.id, {**asdict(w), "digest": digest_of(secret)})
         return w, secret
 
     def worker_by_secret(self, secret: str) -> Worker | None:
-        if not secret.startswith("hw_"):
+        if not secret.startswith("hgw_"):
             return None
         for d in self.records.list("worker", PLATFORM):
             if secrets.compare_digest(d["digest"], digest_of(secret)):

@@ -1,7 +1,7 @@
 """Prove a harness works end to end against a running platform, with any client's eyes: the OpenAI
 SDK for the requests, plain HTTP for the session routes.
 
-    python scripts/live.py --url http://127.0.0.1:8000 --key hi_… --harness claude-code[/provider/model]
+    python scripts/live.py --url http://127.0.0.1:8000 --key hg_… --harness claude-code[/provider/model]
 
 It makes a file in a stateful session, continues the session and checks the harness remembers,
 streams a turn, steers a long turn (the steer lands after the turn ends), cancels one, reads the

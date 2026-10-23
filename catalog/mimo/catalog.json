@@ -2,7 +2,7 @@
  "title": "MiMo Code",
  "intro": "MiMo Code, an OpenCode-style CLI, headless over `mimo run --format json`, on an Anthropic-shaped provider through `MIMOCODE_CONFIG_CONTENT`.",
  "verified": {
-  "contract": 4,
+  "contract": 5,
   "checks": {
    "make": true,
    "recall": true,

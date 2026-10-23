@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "CheetahClaws 3.5.88, headless `cheetahclaws -p`; any OpenAI chat-shaped provider.",
   "defaults": {
     "provider": "openai",

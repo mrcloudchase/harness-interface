@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "Cline 3.0.73, headless `cline --json`; an OpenAI-compatible provider through providers.json.",
   "defaults": {
     "provider": "deepseek-openai",

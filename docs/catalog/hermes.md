@@ -1,6 +1,6 @@
 # Hermes Agent
 
-Nous Research's Hermes Agent, headless over `hermes chat -q`, on an Anthropic-shaped provider. The `Session:` line it prints at exit is kept in `$HI_DIR` and later turns pass `--resume`.
+Nous Research's Hermes Agent, headless over `hermes chat -q`, on an Anthropic-shaped provider. The `Session:` line it prints at exit is kept in `$HG_DIR` and later turns pass `--resume`.
 
 ## Verified
 
@@ -9,9 +9,9 @@ Nous Research's Hermes Agent, headless over `hermes chat -q`, on an Anthropic-sh
 ## Use it
 
 ```bash
-curl -s -X PUT $HI/v1/providers/deepseek -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"url": "…", "api": "…", "key": "…"}'
-curl -s -X PUT $HI/v1/harnesses/hermes -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"catalog": "hermes"}'
-curl -s $HI/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"model": "hermes", "input": "Create hello.txt containing hello, then say done."}'
+curl -s -X PUT $HG/v1/providers/deepseek -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"url": "…", "api": "…", "key": "…"}'
+curl -s -X PUT $HG/v1/harnesses/hermes -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"catalog": "hermes"}'
+curl -s $HG/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"model": "hermes", "input": "Create hello.txt containing hello, then say done."}'
 ```
 
 The package's default provider is `deepseek` and its default model `deepseek-chat`; name another with `hermes/<provider>/<model>`. The folder is `catalog/hermes/` in the repository.
@@ -22,7 +22,7 @@ The package's default provider is `deepseek` and its default model `deepseek-cha
 
 ```json
 {
-  "contract": 4,
+  "contract": 5,
   "description": "Hermes Agent 0.19.0, headless `hermes chat -q`; any Anthropic-shaped provider.",
   "defaults": {
     "provider": "deepseek",
@@ -54,11 +54,11 @@ The package's default provider is `deepseek` and its default model `deepseek-cha
 #!/usr/bin/env bash
 set -euo pipefail
 VERSION=0.19.0
-mkdir -p "$HI_TOOLS/bin"
-python3 -m venv "$HI_TOOLS/hermes-venv"
-"$HI_TOOLS/hermes-venv/bin/pip" install -q --disable-pip-version-check "hermes-agent[anthropic]==$VERSION"
-ln -sf ../hermes-venv/bin/hermes "$HI_TOOLS/bin/hermes"
-"$HI_TOOLS/bin/hermes" --version
+mkdir -p "$HG_TOOLS/bin"
+python3 -m venv "$HG_TOOLS/hermes-venv"
+"$HG_TOOLS/hermes-venv/bin/pip" install -q --disable-pip-version-check "hermes-agent[anthropic]==$VERSION"
+ln -sf ../hermes-venv/bin/hermes "$HG_TOOLS/bin/hermes"
+"$HG_TOOLS/bin/hermes" --version
 ```
 
 `request.sh`:
@@ -66,18 +66,18 @@ ln -sf ../hermes-venv/bin/hermes "$HI_TOOLS/bin/hermes"
 ```bash
 #!/usr/bin/env bash
 # request.sh: one turn. The prompt is on stdin; stdout is relayed live and kept for response.sh.
-# A steer arrives as $HI_DIR/interrupt plus the package's signal, delivered to this script alone,
+# A steer arrives as $HG_DIR/interrupt plus the package's signal, delivered to this script alone,
 # so the trap below runs the steer as the next turn once the current one ends.
 set -uo pipefail
 prompt=$(cat)
-sid_uuid() { local h=${HI_SESSION#sess_}; echo "${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"; }
+sid_uuid() { local h=${HG_SESSION#sess_}; echo "${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"; }
 run_wait() {   # run a turn and wait for it, re-waiting after a signal interrupts the wait
   "$@" </dev/null & local pid=$! rc
   while :; do wait "$pid"; rc=$?; kill -0 "$pid" 2>/dev/null || break; done
   return $rc
 }
 steer=""
-trap 'steer=$(cat "$HI_DIR/interrupt" 2>/dev/null || true)' USR1
+trap 'steer=$(cat "$HG_DIR/interrupt" 2>/dev/null || true)' USR1
 export HERMES_HOME="$HOME/.hermes" TIRITH_ENABLED=0 HERMES_YOLO_MODE=1 HERMES_INFERENCE_PROVIDER=anthropic
 export ANTHROPIC_BASE_URL="${ANTHROPIC_BASE_URL%/v1}"
 mkdir -p "$HERMES_HOME"
@@ -85,7 +85,7 @@ cat > "$HERMES_HOME/config.yaml" <<EOF
 model:
   provider: anthropic
   base_url: ${ANTHROPIC_BASE_URL}
-  default: ${HI_MODEL}
+  default: ${HG_MODEL}
   context_length: 128000
 security:
   tirith_enabled: false
@@ -97,11 +97,11 @@ agent:
   verify_on_stop: false
 EOF
 turn() {
-  local args=(chat -q "$1" --yolo --provider anthropic -m "$HI_MODEL" --no-restore-cwd)
-  [ -s "$HI_DIR/session" ] && args+=(--resume "$(cat "$HI_DIR/session")")
-  hermes "${args[@]}" | tee "$HI_DIR/out"
+  local args=(chat -q "$1" --yolo --provider anthropic -m "$HG_MODEL" --no-restore-cwd)
+  [ -s "$HG_DIR/session" ] && args+=(--resume "$(cat "$HG_DIR/session")")
+  hermes "${args[@]}" | tee "$HG_DIR/out"
   local rc=${PIPESTATUS[0]}
-  sed -n 's/^Session: *//p' "$HI_DIR/out" | tail -1 > "$HI_DIR/session.new" && [ -s "$HI_DIR/session.new" ] && mv "$HI_DIR/session.new" "$HI_DIR/session"
+  sed -n 's/^Session: *//p' "$HG_DIR/out" | tail -1 > "$HG_DIR/session.new" && [ -s "$HG_DIR/session.new" ] && mv "$HG_DIR/session.new" "$HG_DIR/session"
   return $rc
 }
 

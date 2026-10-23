@@ -9,9 +9,9 @@ goose, headless over `goose run`, on an Anthropic-shaped provider through `GOOSE
 ## Use it
 
 ```bash
-curl -s -X PUT $HI/v1/providers/deepseek -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"url": "…", "api": "…", "key": "…"}'
-curl -s -X PUT $HI/v1/harnesses/goose -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"catalog": "goose"}'
-curl -s $HI/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"model": "goose", "input": "Create hello.txt containing hello, then say done."}'
+curl -s -X PUT $HG/v1/providers/deepseek -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"url": "…", "api": "…", "key": "…"}'
+curl -s -X PUT $HG/v1/harnesses/goose -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"catalog": "goose"}'
+curl -s $HG/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"model": "goose", "input": "Create hello.txt containing hello, then say done."}'
 ```
 
 The package's default provider is `deepseek` and its default model `deepseek-chat`; name another with `goose/<provider>/<model>`. The folder is `catalog/goose/` in the repository.
@@ -22,7 +22,7 @@ The package's default provider is `deepseek` and its default model `deepseek-cha
 
 ```json
 {
-  "contract": 4,
+  "contract": 5,
   "description": "goose 1.50.0, headless `goose run`; Anthropic- or OpenAI-shaped providers.",
   "defaults": {
     "provider": "deepseek",
@@ -59,8 +59,8 @@ case "$(uname -m)" in x86_64) arch=x86_64 ;; aarch64|arm64) arch=aarch64 ;; *) e
 tmp=$(mktemp -d)
 curl -fsSL "https://github.com/aaif-goose/goose/releases/download/v$VERSION/goose-$arch-unknown-linux-gnu.tar.gz" -o "$tmp/goose.tgz"
 tar -xzf "$tmp/goose.tgz" -C "$tmp"
-mkdir -p "$HI_TOOLS/bin" && install -m 755 "$tmp/goose" "$HI_TOOLS/bin/goose"
-"$HI_TOOLS/bin/goose" --version
+mkdir -p "$HG_TOOLS/bin" && install -m 755 "$tmp/goose" "$HG_TOOLS/bin/goose"
+"$HG_TOOLS/bin/goose" --version
 ```
 
 `request.sh`:
@@ -68,24 +68,24 @@ mkdir -p "$HI_TOOLS/bin" && install -m 755 "$tmp/goose" "$HI_TOOLS/bin/goose"
 ```bash
 #!/usr/bin/env bash
 # request.sh: one turn. The prompt is on stdin; stdout is relayed live and kept for response.sh.
-# A steer arrives as $HI_DIR/interrupt plus the package's signal, delivered to this script alone,
+# A steer arrives as $HG_DIR/interrupt plus the package's signal, delivered to this script alone,
 # so the trap below runs the steer as the next turn once the current one ends.
 set -uo pipefail
 prompt=$(cat)
-sid_uuid() { local h=${HI_SESSION#sess_}; echo "${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"; }
+sid_uuid() { local h=${HG_SESSION#sess_}; echo "${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"; }
 run_wait() {   # run a turn and wait for it, re-waiting after a signal interrupts the wait
   "$@" </dev/null & local pid=$! rc
   while :; do wait "$pid"; rc=$?; kill -0 "$pid" 2>/dev/null || break; done
   return $rc
 }
 steer=""
-trap 'steer=$(cat "$HI_DIR/interrupt" 2>/dev/null || true)' USR1
-export GOOSE_PROVIDER=anthropic GOOSE_MODEL="$HI_MODEL" ANTHROPIC_HOST="${HI_PROVIDER_URL%/v1}" GOOSE_DISABLE_SESSION_NAMING=1 RUST_BACKTRACE=0
+trap 'steer=$(cat "$HG_DIR/interrupt" 2>/dev/null || true)' USR1
+export GOOSE_PROVIDER=anthropic GOOSE_MODEL="$HG_MODEL" ANTHROPIC_HOST="${HG_PROVIDER_URL%/v1}" GOOSE_DISABLE_SESSION_NAMING=1 RUST_BACKTRACE=0
 export GOOSE_MODE=auto
 turn() {
-  local args=(run -t "$1" --output-format stream-json -n "$HI_SESSION")
-  [ -f "$HI_DIR/turned" ] && args+=(-r)
-  touch "$HI_DIR/turned"
+  local args=(run -t "$1" --output-format stream-json -n "$HG_SESSION")
+  [ -f "$HG_DIR/turned" ] && args+=(-r)
+  touch "$HG_DIR/turned"
   goose "${args[@]}"
 }
 
@@ -96,7 +96,7 @@ exit $rc
 
 ## Notes
 
-- Sessions are named after the platform session (`-n $HI_SESSION`) and resumed with `-r`.
+- Sessions are named after the platform session (`-n $HG_SESSION`) and resumed with `-r`.
 - `ANTHROPIC_HOST` is the base without `/v1`; for an OpenAI provider set `GOOSE_PROVIDER=openai` and `OPENAI_BASE_URL` with `/v1`.
 - `GOOSE_MODE=auto` approves every tool call; `GOOSE_DISABLE_SESSION_NAMING=1` saves a model call per turn.
 - Its stream-json output starts with a three-line text banner; a program reading it should skip lines that are not JSON.

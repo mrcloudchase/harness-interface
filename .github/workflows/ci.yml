@@ -15,11 +15,11 @@ jobs:
     services:
       postgres:
         image: postgres:16-alpine
-        env: {POSTGRES_USER: hi, POSTGRES_PASSWORD: hi, POSTGRES_DB: hi}
+        env: {POSTGRES_USER: hg, POSTGRES_PASSWORD: hg, POSTGRES_DB: hg}
         ports: ["5432:5432"]
         options: --health-cmd pg_isready --health-interval 5s --health-timeout 5s --health-retries 10
     env:
-      HI_TEST_POSTGRES: postgresql://hi:hi@localhost:5432/hi
+      HG_TEST_POSTGRES: postgresql://hg:hg@localhost:5432/hg
     steps:
       - uses: actions/checkout@v4
       - uses: astral-sh/setup-uv@v5

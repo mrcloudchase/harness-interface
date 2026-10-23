@@ -9,9 +9,9 @@ The OpenHands CLI, headless over `openhands --headless --json`, on any litellm p
 ## Use it
 
 ```bash
-curl -s -X PUT $HI/v1/providers/openai -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"url": "…", "api": "…", "key": "…"}'
-curl -s -X PUT $HI/v1/harnesses/openhands -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"catalog": "openhands"}'
-curl -s $HI/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"model": "openhands", "input": "Create hello.txt containing hello, then say done."}'
+curl -s -X PUT $HG/v1/providers/openai -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"url": "…", "api": "…", "key": "…"}'
+curl -s -X PUT $HG/v1/harnesses/openhands -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"catalog": "openhands"}'
+curl -s $HG/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"model": "openhands", "input": "Create hello.txt containing hello, then say done."}'
 ```
 
 The package's default provider is `openai` and its default model `gpt-5.4-mini`; name another with `openhands/<provider>/<model>`. The folder is `catalog/openhands/` in the repository.
@@ -22,7 +22,7 @@ The package's default provider is `openai` and its default model `gpt-5.4-mini`;
 
 ```json
 {
-  "contract": 4,
+  "contract": 5,
   "description": "OpenHands CLI 1.16.0, headless `openhands --headless --json`; any litellm provider.",
   "defaults": {
     "provider": "openai",
@@ -54,10 +54,10 @@ The package's default provider is `openai` and its default model `gpt-5.4-mini`;
 #!/usr/bin/env bash
 set -euo pipefail
 VERSION=1.16.0
-python3 -m venv "$HI_TOOLS/oh-venv"
-"$HI_TOOLS/oh-venv/bin/pip" install -q --disable-pip-version-check "openhands==$VERSION"
-mkdir -p "$HI_TOOLS/bin" && ln -sf ../oh-venv/bin/openhands "$HI_TOOLS/bin/openhands"
-"$HI_TOOLS/bin/openhands" --version || true
+python3 -m venv "$HG_TOOLS/oh-venv"
+"$HG_TOOLS/oh-venv/bin/pip" install -q --disable-pip-version-check "openhands==$VERSION"
+mkdir -p "$HG_TOOLS/bin" && ln -sf ../oh-venv/bin/openhands "$HG_TOOLS/bin/openhands"
+"$HG_TOOLS/bin/openhands" --version || true
 ```
 
 `request.sh`:
@@ -65,19 +65,19 @@ mkdir -p "$HI_TOOLS/bin" && ln -sf ../oh-venv/bin/openhands "$HI_TOOLS/bin/openh
 ```bash
 #!/usr/bin/env bash
 # request.sh: one turn. The prompt is on stdin; stdout is relayed live and kept for response.sh.
-# A steer arrives as $HI_DIR/interrupt plus the package's signal, delivered to this script alone,
+# A steer arrives as $HG_DIR/interrupt plus the package's signal, delivered to this script alone,
 # so the trap below runs the steer as the next turn once the current one ends.
 set -uo pipefail
 prompt=$(cat)
-sid_uuid() { local h=${HI_SESSION#sess_}; echo "${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"; }
+sid_uuid() { local h=${HG_SESSION#sess_}; echo "${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"; }
 run_wait() {   # run a turn and wait for it, re-waiting after a signal interrupts the wait
   "$@" </dev/null & local pid=$! rc
   while :; do wait "$pid"; rc=$?; kill -0 "$pid" 2>/dev/null || break; done
   return $rc
 }
 steer=""
-trap 'steer=$(cat "$HI_DIR/interrupt" 2>/dev/null || true)' USR1
-export LLM_MODEL="openai/$HI_MODEL" LLM_BASE_URL="${HI_PROVIDER_URL%/}" PYTHONUNBUFFERED=1 TERM=dumb OPENHANDS_SUPPRESS_BANNER=1
+trap 'steer=$(cat "$HG_DIR/interrupt" 2>/dev/null || true)' USR1
+export LLM_MODEL="openai/$HG_MODEL" LLM_BASE_URL="${HG_PROVIDER_URL%/}" PYTHONUNBUFFERED=1 TERM=dumb OPENHANDS_SUPPRESS_BANNER=1
 export LITELLM_LOCAL_MODEL_COST_MAP=True
 turn() { openhands --headless --json --override-with-envs --resume "$(sid_uuid)" -t "$1" </dev/null; }
 

@@ -2,7 +2,7 @@
  "title": "CheetahClaws",
  "intro": "CheetahClaws, headless over `cheetahclaws -p`, on an OpenAI chat-shaped provider through `CUSTOM_BASE_URL` and `CUSTOM_API_KEY`.",
  "verified": {
-  "contract": 4,
+  "contract": 5,
   "checks": {
    "make": true,
    "recall": true,

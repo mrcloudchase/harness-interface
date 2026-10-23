@@ -2,12 +2,12 @@
 import pytest
 
 from fakes import archive
-from harness_interface.blobs import DirBlobs
-from harness_interface.catalog import Catalog
-from harness_interface.errors import NotFound
-from harness_interface.harness import unpack
-from harness_interface.records import SqliteRecords
-from harness_interface.store import Store
+from harnessgateway.blobs import DirBlobs
+from harnessgateway.catalog import Catalog
+from harnessgateway.errors import NotFound
+from harnessgateway.harness import unpack
+from harnessgateway.records import SqliteRecords
+from harnessgateway.store import Store
 
 
 def test_list_info_fork(tmp_path, vault):

@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "MiMo Code 0.1.15, headless `mimo run --format json`; any Anthropic-shaped provider.",
   "defaults": {
     "provider": "deepseek",

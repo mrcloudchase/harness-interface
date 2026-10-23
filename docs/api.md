@@ -1,18 +1,33 @@
 # API
 
 Every route takes `Authorization: Bearer <key>`: a member's `hg_…` key, the deployer's `hgd_…`
-key, or a worker's credential, as the row says. Refusals are `{"detail": …}` with 400 (cannot be
-done), 401, 403, 404 (unknown), 409 (busy) or 422 (malformed). The interactive reference, with
-every body's schema, is at `/reference` on your platform.
+key, or a worker's credential, as the row says. A member route also takes the app's session
+cookie in place of the key. Refusals are `{"detail": …}` with 400 (cannot be done), 401, 403,
+404 (unknown), 409 (busy) or 422 (malformed). The interactive reference, with every body's
+schema, is at `/reference` on your platform.
+
+## Accounts
+
+| Route | Who | What |
+|---|---|---|
+| `GET /auth/providers` | anyone | what sign-in offers: whether sign-up is open, mail, GitHub, Google |
+| `POST /auth/signup` | anyone when sign-up is open; an invited email always | `{email, password, name?}` → signed in, or `{verify: true}` when mail is configured |
+| `POST /auth/login`, `POST /auth/logout` | account | `{email, password}` → signed in (the cookie); end the session |
+| `GET /auth/me` | account | the account, its tenants, the current tenant and your role in it |
+| `GET /auth/verify?token=` | the link in the mail | verifies the email and signs in |
+| `POST /auth/resend`, `POST /auth/reset`, `POST /auth/reset/confirm` | anyone / the link | `{email}`; `{token, password}` |
+| `POST /auth/password`, `PATCH /auth/account` | account | `{current?, password}`; `{name}` |
+| `POST /auth/tenants`, `POST /auth/switch` | account | `{name}`: a tenant of your own; `{tenant}`: open another of yours |
+| `GET /auth/github`, `GET /auth/google` | anyone | start a sign-in with that provider, when configured |
 
 ## Members
 
 | Route | Who | What |
 |---|---|---|
 | `GET /healthz` | anyone | status, version, roles, whether sign-up is open |
-| `POST /v1/signup` | anyone, when `HG_SIGNUP=open` | `{tenant, owner}` → the owner's key, once |
 | `GET /v1/me` | member | who you are, your tenant's ceilings and status |
-| `POST /v1/members`, `GET /v1/members` | owner | add a member (`{name, role}`), list them |
+| `POST /v1/members`, `GET /v1/members` | owner | add a member without an account (`{name, role}`), list them |
+| `POST /v1/invites`, `GET /v1/invites`, `DELETE /v1/invites/{email}` | owner | invite an email (`{email, role}`); its account joins on sign-in |
 | `POST /v1/members/{name}/keys` | member (self) or owner | mint a key (`{label}`) → the secret, once |
 | `GET /v1/keys`, `DELETE /v1/keys/{id}` | member (own) or owner | list, revoke |
 | `PUT /v1/providers/{name}` | owner | `{url, api, key}`; the key is sealed |
@@ -26,7 +41,10 @@ every body's schema, is at `/reference` on your platform.
 | `GET /v1/responses/{id}/captures`, `…/captures/{name}` | member | the door log and the provider exchanges |
 | `GET /v1/sessions`, `GET /v1/sessions/{id}` | member | sessions, one session |
 | `POST /v1/sessions/{id}/interrupt` | member | `{input}`: steer the running turn |
+| `GET /v1/sessions/{id}/files`, `…/files/{path}` | member | the workspace's files after the last turn; one of them |
 | `GET /v1/sessions/{id}/trace`, `GET /v1/sessions/{id}/archive`, `DELETE /v1/sessions/{id}` | member | the record, the workspace, removal |
+| `POST /v1/arenas`, `GET /v1/arenas`, `GET /v1/arenas/{id}` | member | `{prompt, entries: [{response}]}`; the list with its leaderboard; one |
+| `PATCH /v1/arenas/{id}`, `DELETE /v1/arenas/{id}` | member | `{winner}`; removal |
 
 ## The request
 

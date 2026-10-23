@@ -1,5 +1,6 @@
 """Layer 6: who is asking. A Bearer secret is a member's API key, the deployer's key, or a worker's
-credential; each route says which it takes. Nothing else logs in."""
+credential; each route says which it takes. The app signs in with an account instead, and its
+session cookie names the member the account is in one tenant. Nothing else logs in."""
 from __future__ import annotations
 
 import hmac
@@ -7,9 +8,11 @@ from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, Request
 
+from ..accounts import Account, Accounts
 from ..store import Member, Store, Worker
 
 DEPLOYER = Member("", "", "deployer", 0)
+COOKIE = "hg_session"
 
 
 @dataclass(frozen=True)
@@ -17,6 +20,7 @@ class Principals:
     store: Store
     deployer_key: str = ""                           # from the environment; wins over the stored one
     join_token: str = ""
+    accounts: Accounts | None = None                 # the app's sessions, when accounts are served
 
     @staticmethod
     def bearer(request: Request) -> str:
@@ -30,7 +34,23 @@ class Principals:
             return True
         return self.store.is_deployer(secret)
 
+    def session(self, request: Request) -> tuple[Account, Member] | None:
+        """The account and member behind the app's cookie, if there is one and it still stands."""
+        token = request.cookies.get(COOKIE, "")
+        return self.accounts.resolve_session(token) if self.accounts and token else None
+
+    def account(self, request: Request) -> tuple[Account, Member]:
+        found = self.session(request)
+        if found is None:
+            raise HTTPException(401, "sign in")
+        return found
+
     def member(self, request: Request) -> Member:
+        if not request.headers.get("authorization"):
+            found = self.session(request)
+            if found is None:
+                raise HTTPException(401, "a Bearer API key is required, or the app's sign-in")
+            return found[1]
         secret = self.bearer(request)
         if self.is_deployer(secret):
             raise HTTPException(403, "the deployer key manages tenants; a member's key does this")

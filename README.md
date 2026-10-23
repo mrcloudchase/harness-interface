@@ -1,8 +1,8 @@
 <p align="center">
-  <img src="docs/assets/picky.svg" width="220" alt="Picky, the Harness Gateway mascot: a hermit crab with no shell of its own">
+  <img src="docs/assets/picky.svg" width="220" alt="Picky, the HarnessGateway mascot: a hermit crab with no shell of its own">
 </p>
 
-<h1 align="center">Harness Gateway</h1>
+<h1 align="center">HarnessGateway</h1>
 
 <p align="center">
   <b>Run any coding-agent CLI, sandboxed, behind the OpenAI Responses API.</b>
@@ -20,7 +20,7 @@ Every coding agent is a CLI with its own flags, its own config directory and its
 where the API key goes. Teams that want to use several of them end up with keys scattered across
 agent environments, no shared record of what the agents did, and a new integration for each one.
 
-Harness Gateway is the execution layer that fixes that. A tenant brings its **providers** (model
+HarnessGateway is the execution layer that fixes that. A tenant brings its **providers** (model
 endpoints and keys, sealed on arrival) and its **harness packages** (how to install a CLI, how to
 run one turn, what to return). Members send `POST /v1/responses` with `model` naming a harness.
 The platform runs the package in a fresh sandbox it owns, relays the CLI's provider calls
@@ -79,13 +79,20 @@ r2 = client.responses.create(model="claude-code", input="Now fix what failed.", 
 
 `model` names a harness, or `harness/provider/model` to choose all three. `previous_response_id`
 continues the session in the same workspace. `stream=True` relays the agent's output as it is
-written. Steering a running turn, the trace, the provider captures and the workspace archive are
-plain routes under the same key. [Clients](docs/clients.md) has the rest.
+written. Steering a running turn, the trace, the provider captures, the workspace's files and
+the archive are plain routes under the same key. [Clients](docs/clients.md) has the rest.
+
+## The app
+
+Accounts sign in with email and password, GitHub or Google. Owners invite their team by email.
+The app streams a request, shows the workspace's files after each turn, runs an **arena** (one
+task, several harnesses side by side, pick the winner) and keeps the record of every session.
+[The app](docs/app.md).
 
 ## Watch it
 
 <p align="center">
-  <img src="docs/assets/casts/claude-code.gif" width="800" alt="Claude Code takes a streamed turn and a steer through Harness Gateway">
+  <img src="docs/assets/casts/claude-code.gif" width="800" alt="Claude Code takes a streamed turn and a steer through HarnessGateway">
 </p>
 
 Claude Code taking a streamed turn and a steer, recorded as it ran. [Six harnesses](docs/demos.md)
@@ -136,7 +143,7 @@ Served by the platform at `/docs`, written from the code, in the order you meet 
 | | Start here |
 |---|---|
 | Run it | [Deploy](docs/deploy.md), [Initialize](docs/initialize.md), [The app](docs/app.md) |
-| Use it | [Providers](docs/providers.md), [Harnesses](docs/harnesses.md), [First request](docs/first-request.md), [Sessions](docs/sessions.md), [Steer and cancel](docs/steer-and-cancel.md), [Traces and captures](docs/traces-and-captures.md), [Clients](docs/clients.md) |
+| Use it | [Providers](docs/providers.md), [Harnesses](docs/harnesses.md), [First request](docs/first-request.md), [Arena](docs/arena.md), [Sessions](docs/sessions.md), [Steer and cancel](docs/steer-and-cancel.md), [Traces and captures](docs/traces-and-captures.md), [Clients](docs/clients.md) |
 | Operate it | [Tenants and limits](docs/tenants.md), [Workers and scale](docs/workers.md), [Configuration](docs/configuration.md), [Security](docs/security.md), [Troubleshooting](docs/troubleshooting.md) |
 | Build on it | [Write a package](docs/packages.md), [The catalog](docs/catalog/index.md), [API](docs/api.md), [Architecture](docs/architecture.md) |
 

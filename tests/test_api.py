@@ -58,7 +58,8 @@ def auth(key):
 
 
 async def signup(c, tenant="acme", owner="chase"):
-    r = await c.post("/v1/signup", json={"tenant": tenant, "owner": owner})
+    """A tenant with its owner's key, the deployer's way (sign-up proper is an account: test_accounts)."""
+    r = await c.post("/v1/tenants", json={"name": tenant, "owner": owner}, headers=auth("hd_deployer"))
     assert r.status_code == 200, r.text
     return r.json()["key"]["secret"]
 
@@ -84,7 +85,7 @@ def test_signup_auth_and_registration(platform):
     async def scenario(c, node):
         assert (await c.get("/healthz")).json()["signup"] == "open"
         owner = await signup(c)
-        assert (await c.post("/v1/signup", json={"tenant": "acme", "owner": "x"})).status_code == 409
+        assert (await c.post("/v1/tenants", json={"name": "acme", "owner": "x"}, headers=auth("hd_deployer"))).status_code == 409
         assert (await c.get("/v1/me")).status_code == 401
         assert (await c.get("/v1/me", headers=auth("hg_nope"))).status_code == 401
         assert (await c.get("/v1/me", headers=auth("hd_deployer"))).status_code == 403
@@ -249,4 +250,120 @@ def test_openai_sdk_client(platform):
         async for ev in await sdk.responses.create(model="cc", input="streamed", stream=True):
             last = ev
         assert last.type == "response.completed" and last.response.status == "completed"
+    run(platform, scenario)
+
+
+# accounts: the app's sign-in, over the same routes
+def test_accounts_sign_up_invite_switch_and_the_cookie_on_member_routes(platform):
+    async def scenario(c, node):
+        assert (await c.get("/auth/providers")).json() == {"signup": "open", "password": True, "mail": False, "github": False, "google": False}
+        assert (await c.get("/auth/me")).status_code == 401
+        assert (await c.post("/auth/signup", json={"email": "chase@example.com", "password": "short"})).status_code == 400
+        r = await c.post("/auth/signup", json={"email": "Chase@Example.com", "password": "correct horse", "name": "Chase"})
+        assert r.status_code == 201, r.text
+        me = r.json()
+        assert me["account"]["email"] == "chase@example.com" and me["account"]["verified"] and me["account"]["has_password"]
+        assert me["current"] == {**me["current"], "tenant": "chase", "member": "chase", "role": "owner"}   # a tenant of its own, named after it
+        assert "hg_session" in c.cookies
+        assert (await c.post("/auth/signup", json={"email": "chase@example.com", "password": "correct horse"})).status_code == 409
+        # the cookie is a member's credential on every member route; the deployer's routes still want the key
+        assert (await c.get("/v1/me")).json()["name"] == "chase"
+        assert (await c.put("/v1/providers/prov", json={"url": "https://api.example/v1", "api": "openai-chat", "key": "sk-real"})).status_code == 200
+        assert (await c.get("/v1/fleet")).status_code == 401
+        # an owner invites an email; the account that signs up with it joins as a member, not with a tenant of its own
+        assert (await c.post("/v1/invites", json={"email": "dev@example.com", "role": "member"})).status_code == 200
+        assert [i["email"] for i in (await c.get("/v1/invites")).json()["data"]] == ["dev@example.com"]
+        dev = httpx.AsyncClient(transport=c._transport, base_url="http://api.test")
+        async with dev:
+            r = await dev.post("/auth/signup", json={"email": "dev@example.com", "password": "another horse"})
+            assert r.status_code == 201, r.text
+            assert r.json()["current"] == {**r.json()["current"], "tenant": "chase", "member": "dev", "role": "member"}
+            assert (await dev.get("/v1/members")).status_code == 200
+            assert (await dev.post("/v1/invites", json={"email": "x@example.com"})).status_code == 403   # a member, not an owner
+            # a tenant of their own, and switching between the two
+            assert (await dev.post("/auth/tenants", json={"name": "devs"})).json()["current"]["tenant"] == "devs"
+            assert sorted(t["tenant"] for t in (await dev.get("/auth/me")).json()["tenants"]) == ["chase", "devs"]
+            assert (await dev.post("/auth/switch", json={"tenant": "chase"})).json()["current"]["role"] == "member"
+            assert (await dev.post("/auth/switch", json={"tenant": "acme"})).status_code == 404
+            assert (await dev.post("/auth/logout")).status_code == 200
+            assert (await dev.get("/auth/me")).status_code == 401
+        assert (await c.get("/v1/invites")).json()["data"] == []            # spent
+        # wrong password, then the right one; a changed password
+        assert (await c.post("/auth/login", json={"email": "chase@example.com", "password": "wrong"})).status_code == 401
+        assert (await c.post("/auth/login", json={"email": "chase@example.com", "password": "correct horse"})).status_code == 200
+        assert (await c.post("/auth/password", json={"current": "wrong", "password": "new horse 2"})).status_code == 403
+        assert (await c.post("/auth/password", json={"current": "correct horse", "password": "new horse 2"})).status_code == 200
+        assert (await c.post("/auth/login", json={"email": "chase@example.com", "password": "new horse 2"})).status_code == 200
+        assert (await c.patch("/auth/account", json={"name": "C. Dovey"})).json()["name"] == "C. Dovey"
+        # the identity providers are not configured here
+        assert (await c.get("/auth/github")).status_code == 404
+    run(platform, scenario)
+
+
+def test_sign_up_is_closed_but_an_invitation_opens_it(tmp_path, vault):
+    settings = Settings(data_dir=tmp_path / "data", public_url="http://api.test", signup="closed", deployer_key="hd_deployer")
+    app = create_app(Service(settings, vault))
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api.test") as c:
+            assert (await c.post("/auth/signup", json={"email": "a@example.com", "password": "correct horse"})).status_code == 403
+            key = (await c.post("/v1/tenants", json={"name": "acme", "owner": "ops"}, headers=auth("hd_deployer"))).json()["key"]["secret"]
+            assert (await c.post("/v1/invites", json={"email": "a@example.com", "role": "owner"}, headers=auth(key))).status_code == 200
+            r = await c.post("/auth/signup", json={"email": "a@example.com", "password": "correct horse"})
+            assert r.status_code == 201 and r.json()["current"]["tenant"] == "acme" and r.json()["current"]["role"] == "owner"
+    asyncio.run(go())
+
+
+def test_sign_up_with_mail_verifies_first(tmp_path, vault, monkeypatch):
+    sent = []
+    from harnessgateway.api import accounts as auth_routes
+    monkeypatch.setattr(auth_routes.Mail, "send", lambda self, to, subject, text: sent.append((to, subject, text)))
+    settings = Settings(data_dir=tmp_path / "data", public_url="http://api.test", signup="open", smtp_url="smtp://mail.test:587", mail_from="hg@test")
+    app = create_app(Service(settings, vault))
+
+    async def go():
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app=app), base_url="http://api.test") as c:
+            r = await c.post("/auth/signup", json={"email": "a@example.com", "password": "correct horse"})
+            assert r.status_code == 200 and r.json() == {"verify": True, "email": "a@example.com"} and "hg_session" not in c.cookies
+            assert (await c.post("/auth/login", json={"email": "a@example.com", "password": "correct horse"})).status_code == 403
+            assert len(sent) == 1 and sent[0][0] == "a@example.com"
+            token = sent[0][2].split("token=")[1].split()[0]
+            r = await c.get("/auth/verify", params={"token": token})
+            assert r.status_code == 303 and r.headers["location"] == "/app" and "hg_session" in c.cookies
+            assert (await c.get("/auth/me")).json()["account"]["verified"]
+            assert (await c.get("/auth/verify", params={"token": "nope"})).status_code == 400
+            # a reset link, then a new password
+            assert (await c.post("/auth/reset", json={"email": "a@example.com"})).status_code == 200
+            token = sent[-1][2].split("#reset=")[1].split()[0]
+            assert (await c.post("/auth/reset/confirm", json={"token": token, "password": "a new horse"})).status_code == 200
+            assert (await c.post("/auth/login", json={"email": "a@example.com", "password": "a new horse"})).status_code == 200
+    asyncio.run(go())
+
+
+def test_workspace_files_and_an_arena(platform):
+    async def scenario(c, node):
+        owner = await signup(c)
+        key = await ready(c, owner)
+        assert (await c.put("/v1/harnesses/cc2", content=archive({"response.sh": RESPONSE_SH}), headers=auth(owner))).status_code == 200
+        runs = [await c.post("/v1/responses", json={"model": m, "input": "write out.txt"}, headers=auth(key)) for m in ("cc", "cc2")]
+        assert all(r.status_code == 200 and r.json()["status"] == "completed" for r in runs), [r.text for r in runs]
+        sid = runs[0].json()["metadata"]["session_id"]
+        files = (await c.get(f"/v1/sessions/{sid}/files", headers=auth(key))).json()["data"]
+        assert [f["path"] for f in files] == ["README.md", "out.txt"]
+        assert (await c.get(f"/v1/sessions/{sid}/files/out.txt", headers=auth(key))).content == b"write out.txt\n"
+        assert (await c.get(f"/v1/sessions/{sid}/files/nope.txt", headers=auth(key))).status_code == 404
+        assert (await c.get(f"/v1/sessions/{sid}/files/../x", headers=auth(key))).status_code == 404
+        entries = [{"response": r.json()["id"]} for r in runs]
+        assert (await c.post("/v1/arenas", json={"prompt": "p", "entries": entries[:1]}, headers=auth(key))).status_code == 400
+        a = (await c.post("/v1/arenas", json={"prompt": "write out.txt", "entries": entries}, headers=auth(key))).json()
+        assert [e["harness"] for e in a["entries"]] == ["cc", "cc2"] and a["winner"] == ""
+        assert (await c.patch(f"/v1/arenas/{a['id']}", json={"winner": "zz"}, headers=auth(key))).status_code == 400
+        assert (await c.patch(f"/v1/arenas/{a['id']}", json={"winner": "cc2"}, headers=auth(key))).json()["winner"] == "cc2"
+        board = (await c.get("/v1/arenas", headers=auth(key))).json()
+        assert len(board["data"]) == 1 and board["leaderboard"] == [{"harness": "cc2", "runs": 1, "wins": 1}, {"harness": "cc", "runs": 1, "wins": 0}]
+        assert (await c.get(f"/v1/arenas/{a['id']}", headers=auth(owner))).status_code == 200    # the owner sees the member's
+        other = await signup(c, "other", "o")
+        assert (await c.get(f"/v1/arenas/{a['id']}", headers=auth(other))).status_code == 404
+        assert (await c.delete(f"/v1/arenas/{a['id']}", headers=auth(key))).status_code == 200
+        assert (await c.get("/v1/arenas", headers=auth(key))).json()["data"] == []
     run(platform, scenario)

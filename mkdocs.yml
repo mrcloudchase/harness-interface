@@ -1,4 +1,4 @@
-site_name: Harness Gateway
+site_name: HarnessGateway
 site_description: A multi-tenant platform that runs coding-agent CLIs sandboxed behind the OpenAI Responses API.
 site_url: https://harnessgateway.ai/docs/
 repo_url: https://github.com/mrcloudchase/harnessgatewayai
@@ -21,20 +21,9 @@ theme:
     - content.code.copy
     - content.tabs.link
   palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      primary: teal
-      accent: teal
-      toggle:
-        icon: material/weather-night
-        name: Dark mode
-    - media: "(prefers-color-scheme: dark)"
-      scheme: slate
-      primary: teal
-      accent: teal
-      toggle:
-        icon: material/weather-sunny
-        name: Light mode
+    - scheme: default
+      primary: custom
+      accent: custom
 
 extra_css:
   - assets/asciinema-player.css
@@ -70,6 +59,7 @@ nav:
       - Harnesses: harnesses.md
       - First request: first-request.md
   - Use it:
+      - Arena: arena.md
       - Sessions: sessions.md
       - Steer and cancel: steer-and-cancel.md
       - Traces and captures: traces-and-captures.md

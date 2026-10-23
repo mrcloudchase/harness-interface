@@ -1,6 +1,6 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="t d">
   <title id="t">Picky</title>
-  <desc id="d">Picky, the Harness Gateway mascot: a hermit crab with no shell of its own.</desc>
+  <desc id="d">Picky, the HarnessGateway mascot: a hermit crab with no shell of its own.</desc>
   <defs>
     <radialGradient id="body" cx="42%" cy="38%" r="70%">
       <stop offset="0" stop-color="#FF9A4D"/>

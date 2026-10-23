@@ -4,6 +4,28 @@ Every release is a section here, newest first, and the newest section's heading 
 A merge to `main` that adds a section releases it: the release workflow tags that version, builds
 the wheel and the image, and publishes the section as its notes.
 
+## [6.0.0]
+
+**HarnessGateway** has accounts, and the app is new. A major because `POST /v1/signup` is gone:
+sign-up is an account now.
+
+- **Accounts.** A person signs up with an email and a password, or arrives from GitHub or Google
+  (`HG_GITHUB_CLIENT_ID`/`_SECRET`, `HG_GOOGLE_CLIENT_ID`/`_SECRET`). With `HG_SMTP_URL` set, a
+  sign-up verifies its email and a password can be reset by mail. Sign-up is open to everyone
+  with `HG_SIGNUP=open` and to invited emails always; an account with no tenant gets one of its
+  own. Owners invite by email (`/v1/invites`). The app's session is a signed cookie, accepted by
+  every member route in place of a key. Routes under `/auth`.
+- **The workspace in the app.** `GET /v1/sessions/{id}/files` and `…/files/{path}` read the
+  workspace's files from its last snapshot; the Requests and Sessions pages show them as a tree
+  with a viewer.
+- **The arena.** `POST /v1/arenas` records one task run by several harnesses and the winner you
+  pick (`PATCH`); `GET /v1/arenas` lists them with a leaderboard. The Arena page runs the turns
+  side by side as they stream.
+- **The app and the home page, redesigned.** Off-white, navy, orange and blue; a sidebar; the
+  name is HarnessGateway. The documentation wears the same.
+- The release and base-image workflows name the image after the repository, so a transfer to an
+  organization needs no edit.
+
 ## [5.2.0]
 
 - **The first boot makes the keys.** An `api` that starts with no deployer key sets one; with

@@ -1,6 +1,7 @@
-"""Layer 6: the HTTP routes a tenant uses. A member's key names a member of a tenant; owners register
-providers and packages and add members; every member reads them and makes requests.
-`POST /v1/responses` is the OpenAI Responses API; sessions are read, followed, steered, archived.
+"""Layer 6: the HTTP routes a tenant uses. A member's key, or the app's session, names a member of a
+tenant; owners register providers and packages and add members; every member reads them and makes
+requests. `POST /v1/responses` is the OpenAI Responses API; sessions are read, followed, steered,
+archived, and their workspaces browsed; arenas pit harnesses against each other on one prompt.
 The web surface is served too: the home page at `/`, the app at `/app`, the documentation at `/docs`.
 Each route validates, calls the layer below and shapes the reply with `wire`; nothing else. A refusal
 is 400, 401, 403, 404 or 409 with `{"detail": …}`; a malformed body 422."""
@@ -19,6 +20,7 @@ from fastapi.responses import FileResponse, JSONResponse, Response, StreamingRes
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
+from ..accounts import Accounts
 from ..blobs import open_blobs
 from ..catalog import Catalog
 from ..errors import Conflict, Invalid, NotFound
@@ -26,6 +28,7 @@ from ..records import open_records
 from ..secrets import Vault
 from ..sessions import Record, Sessions
 from ..store import Member, Store
+from . import accounts as auth_routes
 from . import deployer, internal, wire
 from .auth import Principals
 from .config import Settings
@@ -38,9 +41,18 @@ DOCS = Path(__file__).resolve().parents[1] / "docs"            # the built docum
 VERSION = version("harnessgateway")
 
 
-class SignupBody(BaseModel):
-    tenant: str
-    owner: str
+class InviteBody(BaseModel):
+    email: str
+    role: str = "member"
+
+
+class ArenaBody(BaseModel):
+    prompt: str = ""
+    entries: list[dict[str, Any]]
+
+
+class WinnerBody(BaseModel):
+    winner: str = ""
 
 
 class MemberBody(BaseModel):
@@ -73,8 +85,9 @@ class Service:
         self.store = Store(self.records, self.blobs, self.vault, settings.allow_private)
         self.sessions = Sessions(self.store, settings.public_url, settings.gateway_url)
         self.catalog = Catalog()
+        self.accounts = Accounts(self.store)
         self.join_token = settings.join_token or secrets.token_urlsafe(32)   # an in-process worker joins with it
-        self.principals = Principals(self.store, settings.deployer_key, self.join_token)
+        self.principals = Principals(self.store, settings.deployer_key, self.join_token, self.accounts)
 
 
 def create_app(service: Service) -> FastAPI:
@@ -106,16 +119,6 @@ def create_app(service: Service) -> FastAPI:
     def healthz() -> dict:
         return {"status": "ok", "version": VERSION, "roles": list(settings.roles), "signup": settings.signup}
 
-    # the front door
-    @app.post("/v1/signup")
-    def signup(body: SignupBody) -> dict:
-        if settings.signup != "open":
-            raise HTTPException(404, "sign-up is closed on this platform; the deployer creates tenants")
-        t = store.create_tenant(body.tenant)
-        store.create_member(t.name, body.owner, "owner")
-        key, secret = store.mint_key(t.name, body.owner, "first")
-        return {"tenant": asdict(t), "owner": body.owner, "key": {"id": key.id, "secret": secret}}
-
     @app.get("/v1/me")
     def me(who: Member = member) -> dict:
         t = store.tenant(who.tenant)
@@ -129,6 +132,20 @@ def create_app(service: Service) -> FastAPI:
     @app.get("/v1/members")
     def list_members(who: Member = member) -> dict:
         return {"object": "list", "data": [asdict(m) for m in store.members(who.tenant)]}
+
+    # invitations: an email becomes a member of this tenant when its account signs in
+    @app.post("/v1/invites")
+    def invite(body: InviteBody, who: Member = owner) -> dict:
+        return service.accounts.invite(who.tenant, body.email, body.role)
+
+    @app.get("/v1/invites")
+    def list_invites(who: Member = owner) -> dict:
+        return {"object": "list", "data": service.accounts.invites(who.tenant)}
+
+    @app.delete("/v1/invites/{email}")
+    def revoke_invite(email: str, who: Member = owner) -> dict:
+        service.accounts.revoke_invite(who.tenant, email)
+        return {"deleted": email}
 
     @app.post("/v1/members/{name}/keys")
     def mint_key(name: str, body: KeyBody, who: Member = member) -> dict:
@@ -262,6 +279,14 @@ def create_app(service: Service) -> FastAPI:
                 line["body"] = wire.record_detail(Record(**line["body"]))
         return {"object": "list", "data": lines}
 
+    @app.get("/v1/sessions/{sid}/files")
+    def list_files(sid: str, who: Member = member) -> dict:
+        return {"object": "list", "data": sessions.files(who, sid)}
+
+    @app.get("/v1/sessions/{sid}/files/{path:path}")
+    def get_file(sid: str, path: str, who: Member = member) -> Response:
+        return Response(sessions.file(who, sid, path), media_type="application/octet-stream")
+
     @app.get("/v1/sessions/{sid}/archive")
     def archive(sid: str, who: Member = member) -> Response:
         return Response(sessions.archive(who, sid), media_type="application/gzip",
@@ -272,6 +297,29 @@ def create_app(service: Service) -> FastAPI:
         sessions.delete(who, sid)
         return {"deleted": sid}
 
+    # arenas
+    @app.post("/v1/arenas")
+    def create_arena(body: ArenaBody, who: Member = member) -> dict:
+        return sessions.create_arena(who, body.prompt, body.entries)
+
+    @app.get("/v1/arenas")
+    def list_arenas(who: Member = member) -> dict:
+        return {"object": "list", "data": sessions.arenas(who), "leaderboard": sessions.leaderboard(who)}
+
+    @app.get("/v1/arenas/{aid}")
+    def get_arena(aid: str, who: Member = member) -> dict:
+        return sessions.arena(who, aid)
+
+    @app.patch("/v1/arenas/{aid}")
+    def pick_winner(aid: str, body: WinnerBody, who: Member = member) -> dict:
+        return sessions.pick_winner(who, aid, body.winner)
+
+    @app.delete("/v1/arenas/{aid}")
+    def delete_arena(aid: str, who: Member = member) -> dict:
+        sessions.delete_arena(who, aid)
+        return {"deleted": aid}
+
+    app.include_router(auth_routes.router(store, service.accounts, principals, settings))
     app.include_router(deployer.router(store, sessions, principals))
     app.include_router(internal.router(store, sessions, principals, VERSION))
 

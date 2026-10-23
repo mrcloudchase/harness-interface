@@ -28,6 +28,13 @@ Three things happened:
 Keep both keys somewhere safe. The platform stores only their hashes and cannot show them again;
 the container's log holds them until the container is removed. The second boot makes nothing.
 
+## Your account
+
+The first boot gives you a key, not an account. To sign in by email on a self-hosted box, sign
+in with the key, invite your own email from the Members page, sign out, and create your account
+with that email. It lands in the tenant as a second owner. [The app](app.md) has the sign-in
+methods and how to add GitHub or Google.
+
 ## By hand
 
 ```bash

@@ -7,10 +7,10 @@ PACKAGE = Path(__file__).resolve().parents[1] / "harnessgateway"
 LAYERS = {"errors": 0, "execution": 0, "secrets": 0, "files": 0,
           "runtimes": 1, "runtimes.process": 1, "runtimes.docker": 1, "runtimes.door": 1,
           "harness": 2,
-          "records": 3, "blobs": 3, "limits": 3, "store": 3, "catalog": 3,
+          "records": 3, "blobs": 3, "limits": 3, "store": 3, "catalog": 3, "accounts": 3,
           "sandboxes": 4, "gateway": 4,
           "sessions": 5, "worker": 5,
-          "api": 6, "api.config": 6, "api.wire": 6, "api.auth": 6, "api.app": 6, "api.deployer": 6, "api.internal": 6,
+          "api": 6, "api.config": 6, "api.wire": 6, "api.auth": 6, "api.accounts": 6, "api.app": 6, "api.deployer": 6, "api.internal": 6,
           "__main__": 7, "__init__": 7}
 VENDOR = {"boto3", "botocore", "psycopg", "google", "azure", "kubernetes"}
 VENDOR_ALLOWED = {"blobs": {"boto3", "botocore"}, "records": {"psycopg"}}

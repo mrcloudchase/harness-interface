@@ -7,6 +7,7 @@ a final status. A session is the chain of turns that share a workspace, kept as 
     chunk/<tenant>/<rid>:<seq>   a running turn's output, as it arrives, for any number of followers
     trace/<tenant>/<sid>:<seq>   every request, response, steer and cancel, as sent
     usage/<tenant>/<rid>         calls and bytes (the gateway's), seconds, the time, harness and status (the turn's)
+    arena/<tenant>/<aid>         a matchup: one prompt, several harnesses' turns, and the winner the member picked
 
     blobs tenants/<t>/sessions/<sid>/workspace.tgz           the workspace after the last turn
           tenants/<t>/members/<m>/harnesses/<h>/home.tgz    the member's home for that package
@@ -35,6 +36,7 @@ STREAMS = ("stdout", "stderr")
 FINAL = ("completed", "failed", "cancelled", "incomplete")
 RUNNING = "1"
 LOST_AFTER_S = 45
+FILE_MAX = 4 * 1024 * 1024                       # of one workspace file read back through the API
 
 
 @dataclass(frozen=True)
@@ -421,6 +423,81 @@ class Sessions:
         if not s.stored or not s.workspace:
             raise NotFound(f"session {sid} kept no workspace")
         return self.blobs.get(s.workspace)
+
+    # the workspace's files, from its last snapshot
+    def files(self, who: Member, sid: str) -> list[dict[str, Any]]:
+        """Every file in the workspace after its last turn: path and size. Nothing before the first
+        turn ends, and nothing for a stateless session."""
+        s = self.session(who, sid)
+        if not s.stored or not s.workspace:
+            return []
+        out = []
+        with tarfile.open(fileobj=io.BytesIO(self.blobs.get(s.workspace)), mode="r:gz") as tar:
+            for m in tar:
+                if m.isfile():
+                    out.append({"path": posixpath.normpath(m.name), "size": m.size})
+        return sorted(out, key=lambda f: f["path"])
+
+    def file(self, who: Member, sid: str, path: str, limit: int = FILE_MAX) -> bytes:
+        """One file from the workspace's last snapshot, at most `limit` bytes."""
+        s = self.session(who, sid)
+        wanted = posixpath.normpath(path)
+        if not s.stored or not s.workspace or wanted.startswith(("/", "..")):
+            raise NotFound(f"no file {path}")
+        with tarfile.open(fileobj=io.BytesIO(self.blobs.get(s.workspace)), mode="r:gz") as tar:
+            for m in tar:
+                if m.isfile() and posixpath.normpath(m.name) == wanted:
+                    if m.size > limit:
+                        raise Invalid(f"{path} is over {limit // (1024 * 1024)} MB; download the archive")
+                    return tar.extractfile(m).read()
+        raise NotFound(f"no file {path}")
+
+    # arenas: one prompt, several harnesses, the member's pick
+    def create_arena(self, who: Member, prompt: str, entries: list[dict[str, Any]]) -> dict[str, Any]:
+        if not 2 <= len(entries) <= 6:
+            raise Invalid("an arena has two to six entries")
+        rows = []
+        for e in entries:
+            r = self.response(who, str(e.get("response", "")))
+            rows.append({"harness": r.harness, "model": f"{r.harness}/{r.provider}/{r.model}", "response": r.id, "session": r.session})
+        if len({row["harness"] for row in rows}) < 2:
+            raise Invalid("an arena pits different harnesses against each other")
+        d = {"id": f"arena_{uuid.uuid4().hex[:12]}", "tenant": who.tenant, "member": who.name, "prompt": (prompt or "")[:4000],
+             "entries": rows, "winner": "", "created": time.time()}
+        self.records.put("arena", who.tenant, d["id"], d)
+        return d
+
+    def arena(self, who: Member, aid: str) -> dict[str, Any]:
+        d = self.records.get("arena", who.tenant, aid) if aid.startswith("arena_") else None
+        if d is None or not self._reachable(who, d["tenant"], d["member"]):
+            raise NotFound(f"no arena {aid}")
+        return d
+
+    def arenas(self, who: Member) -> list[dict[str, Any]]:
+        found = [d for d in self.records.list("arena", who.tenant) if self._reachable(who, d["tenant"], d["member"])]
+        return sorted(found, key=lambda d: -d["created"])
+
+    def pick_winner(self, who: Member, aid: str, winner: str) -> dict[str, Any]:
+        d = self.arena(who, aid)
+        if winner and winner not in {e["harness"] for e in d["entries"]}:
+            raise Invalid("the winner is one of the arena's harnesses")
+        d["winner"] = winner
+        self.records.put("arena", who.tenant, aid, d)
+        return d
+
+    def delete_arena(self, who: Member, aid: str) -> None:
+        self.arena(who, aid)
+        self.records.delete("arena", who.tenant, aid)
+
+    def leaderboard(self, who: Member) -> list[dict[str, Any]]:
+        """Per harness, across the arenas this member can see: runs and wins, most wins first."""
+        board: dict[str, dict[str, int]] = {}
+        for d in self.arenas(who):
+            for e in d["entries"]:
+                row = board.setdefault(e["harness"], {"runs": 0, "wins": 0})
+                row["runs"] += 1
+                row["wins"] += e["harness"] == d["winner"]
+        return [{"harness": hn, **v} for hn, v in sorted(board.items(), key=lambda kv: (-kv[1]["wins"], -kv[1]["runs"], kv[0]))]
 
     def captures(self, who: Member, rid: str) -> list[str]:
         r = self.response(who, rid)

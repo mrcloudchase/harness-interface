@@ -34,6 +34,12 @@ class Settings:
     worker_name: str = field(default_factory=socket.gethostname)   # HG_WORKER_NAME
     worker_slots: int = 4                            # HG_WORKER_SLOTS: turns at once on this node
     control_url: str = ""                            # HG_CONTROL_URL: the API, for a worker on another machine
+    github_client_id: str = ""                       # HG_GITHUB_CLIENT_ID / _SECRET: sign in with GitHub, when set
+    github_client_secret: str = ""
+    google_client_id: str = ""                       # HG_GOOGLE_CLIENT_ID / _SECRET: sign in with Google, when set
+    google_client_secret: str = ""
+    smtp_url: str = ""                               # HG_SMTP_URL: smtp(s)://user:pass@host:port; set, sign-ups verify their email
+    mail_from: str = ""                              # HG_MAIL_FROM: the sender
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "data_dir", Path(self.data_dir).absolute())
@@ -63,4 +69,7 @@ class Settings:
                    allow_private=env.get("HG_ALLOW_PRIVATE", "") in ("1", "true", "yes"),
                    ca_file=Path(env["HG_CA_FILE"]) if env.get("HG_CA_FILE") else None,
                    worker_name=env.get("HG_WORKER_NAME") or socket.gethostname(), worker_slots=int(env.get("HG_WORKER_SLOTS", cls.worker_slots)),
-                   control_url=env.get("HG_CONTROL_URL", ""))
+                   control_url=env.get("HG_CONTROL_URL", ""),
+                   github_client_id=env.get("HG_GITHUB_CLIENT_ID", ""), github_client_secret=env.get("HG_GITHUB_CLIENT_SECRET", ""),
+                   google_client_id=env.get("HG_GOOGLE_CLIENT_ID", ""), google_client_secret=env.get("HG_GOOGLE_CLIENT_SECRET", ""),
+                   smtp_url=env.get("HG_SMTP_URL", ""), mail_from=env.get("HG_MAIL_FROM", ""))

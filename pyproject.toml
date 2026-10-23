@@ -1,7 +1,7 @@
 [project]
 name = "harnessgateway"
 dynamic = ["version"]                # the newest section of CHANGELOG.md
-description = "Harness Gateway: run any coding-agent CLI, sandboxed, behind the OpenAI Responses API. Tenants bring providers and harness packages."
+description = "HarnessGateway: run any coding-agent CLI, sandboxed, behind the OpenAI Responses API. Tenants bring providers and harness packages."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"

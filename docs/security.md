@@ -15,6 +15,7 @@ fails CI.
 | 8 | Harness packages are never served back; the archive is the workspace only. | `test_api.py` (no route returns a package) |
 | 9 | The gateway relays only the API shape's own endpoints under the provider's path, and refuses a mixed or missing credential. | `test_gateway.py` |
 | 10 | No cloud SDK is imported anywhere but the two backend modules, and a module imports only its layer or below. | `test_layers.py` |
+| 11 | An account's password is kept only as a salted scrypt hash; its session is a signed, HttpOnly, SameSite=Strict cookie that names one member of one tenant and dies with the tenant's suspension; sign-up is open only to everyone when the deployer says so, or to an invited email; an identity provider's email counts only when that provider says it is verified. | `test_accounts.py`, `test_api.py::test_accounts_sign_up_invite_switch_and_the_cookie_on_member_routes`, `test_api.py::test_sign_up_is_closed_but_an_invitation_opens_it` |
 
 ## How a turn is contained
 
@@ -36,6 +37,14 @@ fails CI.
   Docker client inherits only an allowlist of host variables.
 - **Everything is torn down**: the container, the door, the network, and the token file, which is
   overwritten before it is deleted.
+
+## Accounts
+
+An account is one more way to be a member; it adds nothing a member cannot do. The cookie's
+`SameSite=Strict` keeps another site's page from making requests with it; the app sends it with
+every call and nothing else does. Verification and reset links are signed tokens with an expiry
+and a purpose; nothing is stored for them, so a leaked database cannot mint one. Mail goes out
+only when `HG_SMTP_URL` is set; without it, a self-hosted box takes an invited email at its word.
 
 ## What the deployer sees
 

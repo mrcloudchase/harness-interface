@@ -35,8 +35,8 @@ session can be read but not continued.
 </figure>
 
 <figure class="shot" markdown>
-![A session page: each turn with its response and raw streams, the steer field, the trace](assets/console/session.png){ loading=lazy }
-<figcaption>Every turn's response and raw stdout, the workspace download, the trace at the bottom.</figcaption>
+![A session page: the workspace's files with one open, each turn with its response and raw streams, the trace](assets/console/session.png){ loading=lazy }
+<figcaption>The workspace's files first, then every turn's response and raw stdout, then the trace.</figcaption>
 </figure>
 
 ## Read
@@ -62,6 +62,21 @@ curl -s "https://hg.example.com/v1/responses/resp_…?detail=true" -H "Authoriza
 
 Adds `stdout` and `stderr`, `request.sh`'s streams as kept, plus the worker that ran it and the
 start and end times. While the turn runs, the streams hold what has arrived so far.
+
+## The workspace's files
+
+```bash
+curl -s https://hg.example.com/v1/sessions/sess_…/files -H "Authorization: Bearer $KEY"
+curl -s https://hg.example.com/v1/sessions/sess_…/files/src/app.py -H "Authorization: Bearer $KEY"
+```
+
+```json
+{"object": "list", "data": [{"path": "README.md", "size": 412}, {"path": "src/app.py", "size": 1880}]}
+```
+
+Every file in the workspace after the last turn, with its size, and any one of them, from the
+snapshot. A file over 4 MB is refused with 400; the archive has it. The app's Requests and
+Sessions pages draw this as a tree with a viewer.
 
 ## The archive
 

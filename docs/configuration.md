@@ -23,6 +23,9 @@ Every role reads the same variables, each with a default, when the process start
 | `HG_WORKER_NAME`, `HG_WORKER_SLOTS` | the hostname, `4` | the worker's name in the fleet and its turns at once |
 | `HG_CONTROL_URL` | `HG_PUBLIC_URL` | the API, for a worker on another machine |
 | `HG_CATALOG_DIR` | the shipped catalog | another catalog directory |
+| `HG_SMTP_URL`, `HG_MAIL_FROM` | none | `smtp://user:pass@host:587` (STARTTLS) or `smtps://…`; set, sign-ups verify their email and passwords can be reset |
+| `HG_GITHUB_CLIENT_ID`, `HG_GITHUB_CLIENT_SECRET` | none | sign in with GitHub; the callback is `<HG_PUBLIC_URL>/auth/github/callback` |
+| `HG_GOOGLE_CLIENT_ID`, `HG_GOOGLE_CLIENT_SECRET` | none | sign in with Google; the callback is `<HG_PUBLIC_URL>/auth/google/callback` |
 
 `harnessgateway serve --role api,gateway,worker` chooses the roles; `all` is the default.
 

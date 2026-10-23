@@ -54,4 +54,12 @@ reactivates it.
 
 Nobody sees another tenant. A session id from another tenant is a 404.
 
+## Invitations
+
+An owner invites an email from the Members page or with `POST /v1/invites` (`{email, role}`).
+When an account with that email signs in or is created, it joins the tenant with that role, as
+a member named after the email. The invitation is spent then; `GET /v1/invites` lists the ones
+still open and `DELETE /v1/invites/{email}` withdraws one. A member added with `POST /v1/members`
+has no account and uses a key only.
+
 Next: [Clients](clients.md).

@@ -43,8 +43,8 @@ schema, is at `/reference` on your platform.
 | `POST /v1/sessions/{id}/interrupt` | member | `{input}`: steer the running turn |
 | `GET /v1/sessions/{id}/files`, `…/files/{path}` | member | the workspace's files after the last turn; one of them |
 | `GET /v1/sessions/{id}/trace`, `GET /v1/sessions/{id}/archive`, `DELETE /v1/sessions/{id}` | member | the record, the workspace, removal |
-| `POST /v1/arenas`, `GET /v1/arenas`, `GET /v1/arenas/{id}` | member | `{prompt, entries: [{response}]}`; the list with its leaderboard; one |
-| `PATCH /v1/arenas/{id}`, `DELETE /v1/arenas/{id}` | member | `{winner}`; removal |
+| `POST /v1/rodeos`, `GET /v1/rodeos`, `GET /v1/rodeos/{id}` | member | `{prompt, entries: [{response}]}`; the list with its leaderboard; one |
+| `PATCH /v1/rodeos/{id}`, `DELETE /v1/rodeos/{id}` | member | `{winner}`; removal |
 
 ## The request
 

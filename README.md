@@ -85,7 +85,7 @@ the archive are plain routes under the same key. [Clients](docs/clients.md) has 
 ## The app
 
 Accounts sign in with email and password, GitHub or Google. Owners invite their team by email.
-The app streams a request, shows the workspace's files after each turn, runs an **arena** (one
+The app streams a request, shows the workspace's files after each turn, runs an **rodeo** (one
 task, several harnesses side by side, pick the winner) and keeps the record of every session.
 [The app](docs/app.md).
 
@@ -143,7 +143,7 @@ Served by the platform at `/docs`, written from the code, in the order you meet 
 | | Start here |
 |---|---|
 | Run it | [Deploy](docs/deploy.md), [Initialize](docs/initialize.md), [The app](docs/app.md) |
-| Use it | [Providers](docs/providers.md), [Harnesses](docs/harnesses.md), [First request](docs/first-request.md), [Arena](docs/arena.md), [Sessions](docs/sessions.md), [Steer and cancel](docs/steer-and-cancel.md), [Traces and captures](docs/traces-and-captures.md), [Clients](docs/clients.md) |
+| Use it | [Providers](docs/providers.md), [Harnesses](docs/harnesses.md), [First request](docs/first-request.md), [Rodeo](docs/rodeo.md), [Sessions](docs/sessions.md), [Steer and cancel](docs/steer-and-cancel.md), [Traces and captures](docs/traces-and-captures.md), [Clients](docs/clients.md) |
 | Operate it | [Tenants and limits](docs/tenants.md), [Workers and scale](docs/workers.md), [Configuration](docs/configuration.md), [Security](docs/security.md), [Troubleshooting](docs/troubleshooting.md) |
 | Build on it | [Write a package](docs/packages.md), [The catalog](docs/catalog/index.md), [API](docs/api.md), [Architecture](docs/architecture.md) |
 

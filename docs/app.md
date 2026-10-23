@@ -48,7 +48,7 @@ Signed in as a member or an owner, the sidebar has seven pages, in the order you
 | Page | What |
 |---|---|
 | Requests | a streamed request against a harness, a steer and a cancel while it runs, the response, and the workspace's files after it |
-| Arena | one task for two to six harnesses, side by side as they stream; pick the winner; the leaderboard |
+| Rodeo | one task for two to six harnesses, side by side as they stream; pick the winner; the leaderboard |
 | Sessions | your sessions, or every member's when you are an owner; each opens to its turns, streams, trace, workspace and archive |
 | Providers | the tenant's model endpoints; owners add and remove them |
 | Harnesses | the tenant's packages, forked from the catalog or uploaded; owners add and remove them |

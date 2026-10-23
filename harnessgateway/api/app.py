@@ -1,7 +1,7 @@
 """Layer 6: the HTTP routes a tenant uses. A member's key, or the app's session, names a member of a
 tenant; owners register providers and packages and add members; every member reads them and makes
 requests. `POST /v1/responses` is the OpenAI Responses API; sessions are read, followed, steered,
-archived, and their workspaces browsed; arenas pit harnesses against each other on one prompt.
+archived, and their workspaces browsed; rodeos run several harnesses on one prompt and keep the pick.
 The web surface is served too: the home page at `/`, the app at `/app`, the documentation at `/docs`.
 Each route validates, calls the layer below and shapes the reply with `wire`; nothing else. A refusal
 is 400, 401, 403, 404 or 409 with `{"detail": …}`; a malformed body 422."""
@@ -46,7 +46,7 @@ class InviteBody(BaseModel):
     role: str = "member"
 
 
-class ArenaBody(BaseModel):
+class RodeoBody(BaseModel):
     prompt: str = ""
     entries: list[dict[str, Any]]
 
@@ -297,27 +297,32 @@ def create_app(service: Service) -> FastAPI:
         sessions.delete(who, sid)
         return {"deleted": sid}
 
-    # arenas
-    @app.post("/v1/arenas")
-    def create_arena(body: ArenaBody, who: Member = member) -> dict:
-        return sessions.create_arena(who, body.prompt, body.entries)
+    # rodeos (the 6.0 paths, /v1/arenas, answer too)
+    @app.post("/v1/rodeos")
+    @app.post("/v1/arenas", include_in_schema=False)
+    def create_rodeo(body: RodeoBody, who: Member = member) -> dict:
+        return sessions.create_rodeo(who, body.prompt, body.entries)
 
-    @app.get("/v1/arenas")
-    def list_arenas(who: Member = member) -> dict:
-        return {"object": "list", "data": sessions.arenas(who), "leaderboard": sessions.leaderboard(who)}
+    @app.get("/v1/rodeos")
+    @app.get("/v1/arenas", include_in_schema=False)
+    def list_rodeos(who: Member = member) -> dict:
+        return {"object": "list", "data": sessions.rodeos(who), "leaderboard": sessions.leaderboard(who)}
 
-    @app.get("/v1/arenas/{aid}")
-    def get_arena(aid: str, who: Member = member) -> dict:
-        return sessions.arena(who, aid)
+    @app.get("/v1/rodeos/{rid}")
+    @app.get("/v1/arenas/{rid}", include_in_schema=False)
+    def get_rodeo(rid: str, who: Member = member) -> dict:
+        return sessions.rodeo(who, rid)
 
-    @app.patch("/v1/arenas/{aid}")
-    def pick_winner(aid: str, body: WinnerBody, who: Member = member) -> dict:
-        return sessions.pick_winner(who, aid, body.winner)
+    @app.patch("/v1/rodeos/{rid}")
+    @app.patch("/v1/arenas/{rid}", include_in_schema=False)
+    def pick_winner(rid: str, body: WinnerBody, who: Member = member) -> dict:
+        return sessions.pick_winner(who, rid, body.winner)
 
-    @app.delete("/v1/arenas/{aid}")
-    def delete_arena(aid: str, who: Member = member) -> dict:
-        sessions.delete_arena(who, aid)
-        return {"deleted": aid}
+    @app.delete("/v1/rodeos/{rid}")
+    @app.delete("/v1/arenas/{rid}", include_in_schema=False)
+    def delete_rodeo(rid: str, who: Member = member) -> dict:
+        sessions.delete_rodeo(who, rid)
+        return {"deleted": rid}
 
     app.include_router(auth_routes.router(store, service.accounts, principals, settings))
     app.include_router(deployer.router(store, sessions, principals))

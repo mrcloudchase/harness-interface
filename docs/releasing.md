@@ -22,5 +22,5 @@ surface. Patch for a fix.
 ## The base image
 
 `.github/workflows/base-image.yml` builds the sandbox base image on a schedule, scans it, and
-publishes it. A fleet points `HG_BASE_IMAGE` at the published reference so every worker runs the
+publishes it. Every worker pulls it by default; a fleet points `HG_BASE_IMAGE` at its own copy so every worker runs the
 same scanned image.

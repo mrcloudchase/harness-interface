@@ -1,7 +1,8 @@
 # The platform's sandbox base image: Debian, Python 3.12, Node 22, git, curl, ripgrep, procps, tmux.
 # Nothing of the platform and nothing of any package is in it; packages install their CLI into the
-# tools layer at first use. Built once per node when HG_BASE_IMAGE is empty; a deployer may point
-# HG_BASE_IMAGE at an image built from this file elsewhere and scanned on a schedule.
+# tools layer at first use. The base-image workflow builds it for amd64 and arm64, scans it and
+# publishes it as ghcr.io/mrcloudchase/harnessgatewayai-base; a node pulls that when HG_BASE_IMAGE is
+# empty, and builds this file itself only when the pull fails.
 FROM python:3.12-slim-bookworm
 ARG NODE_VERSION=22.23.4
 ENV DEBIAN_FRONTEND=noninteractive

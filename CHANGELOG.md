@@ -4,6 +4,18 @@ Every release is a section here, newest first, and the newest section's heading 
 A merge to `main` that adds a section releases it: the release workflow tags that version, builds
 the wheel and the image, and publishes the section as its notes.
 
+## [5.2.0]
+
+- **The first boot makes the keys.** An `api` that starts with no deployer key sets one; with
+  sign-up closed and no tenant, it creates the tenant `HG_TENANT` (`main`) with its owner
+  `HG_OWNER` (`owner`) and the owner's API key. All three are printed once, to the log:
+  `docker logs hg`. The second boot makes nothing. `init` remains, for a new deployer key or
+  another tenant by hand.
+- **The sandbox base image is pulled, not built.** With `HG_BASE_IMAGE` empty a node pulls
+  `ghcr.io/mrcloudchase/harnessgatewayai-base`, published for amd64 and arm64 by the base-image
+  workflow, and builds the shipped Dockerfile itself only when the pull fails. The first start
+  takes seconds, not minutes.
+
 ## [5.1.0]
 
 The deploy is one command:

@@ -43,11 +43,12 @@ You need Docker: a Linux server, or Docker Desktop on a Mac. Nothing else. The i
 
 ```bash
 docker run -d --name hg -p 127.0.0.1:8000:8000 -v /var/run/docker.sock:/var/run/docker.sock -v hg:/data ghcr.io/mrcloudchase/harnessgatewayai
-docker exec hg harnessgateway init --tenant acme --owner chase     # prints the deployer key and your key, once
+docker logs hg      # the first boot prints the deployer key and your API key, once
 ```
 
 One container, the Docker socket for the sandboxes, a volume for everything it keeps, one port.
-The platform finds the rest by inspecting its own container.
+The first boot makes the keys and a tenant; the platform finds the rest by inspecting its own
+container, and pulls the sandbox base image.
 
 Then, with your key as `$KEY`, add a provider, fork a package from the catalog and send a request:
 

@@ -20,12 +20,14 @@ class Settings:
     records_url: str = ""                            # HG_RECORDS: sqlite:///… (default) or postgresql://…
     blobs_url: str = ""                              # HG_BLOBS: dir:///… (default) or s3://bucket
     signup: str = "closed"                           # HG_SIGNUP: open (a sign-up page creates tenants) or closed
+    tenant: str = "main"                             # HG_TENANT / HG_OWNER: the tenant and owner the first boot creates, sign-up closed
+    owner: str = "owner"
     deployer_key: str = ""                           # HG_DEPLOYER_KEY: overrides the stored deployer key
     join_token: str = ""                             # HG_JOIN_TOKEN: what a worker presents to join
     gateway_host: str = "0.0.0.0"                    # HG_GATEWAY_HOST / HG_GATEWAY_PORT: where the gateway listens
     gateway_port: int = 8081
     gateway_url: str = ""                            # HG_GATEWAY_URL: how a run's door reaches the gateway
-    base_image: str = ""                             # HG_BASE_IMAGE: the sandbox image; empty builds the shipped one
+    base_image: str = ""                             # HG_BASE_IMAGE: the sandbox image; empty pulls the shipped one, or builds it
     runtime: str = ""                                # HG_RUNTIME: a sandboxed Docker runtime, e.g. runsc
     allow_private: bool = False                      # HG_ALLOW_PRIVATE=1: egress may name private addresses (self-hosted)
     ca_file: Path | None = None                      # HG_CA_FILE: a CA bundle, where the network re-signs TLS
@@ -54,6 +56,7 @@ class Settings:
                    host=env.get("HG_HOST", cls.host), port=int(env.get("HG_PORT", cls.port)),
                    public_url=env.get("HG_PUBLIC_URL", ""), data_dir=Path(env.get("HG_DATA_DIR") or Path.home() / ".harnessgateway"),
                    records_url=env.get("HG_RECORDS", ""), blobs_url=env.get("HG_BLOBS", ""), signup=env.get("HG_SIGNUP", "closed"),
+                   tenant=env.get("HG_TENANT", cls.tenant), owner=env.get("HG_OWNER", cls.owner),
                    deployer_key=env.get("HG_DEPLOYER_KEY", ""), join_token=env.get("HG_JOIN_TOKEN", ""),
                    gateway_host=env.get("HG_GATEWAY_HOST", cls.gateway_host), gateway_port=int(env.get("HG_GATEWAY_PORT", cls.gateway_port)),
                    gateway_url=env.get("HG_GATEWAY_URL", ""), base_image=env.get("HG_BASE_IMAGE", ""), runtime=env.get("HG_RUNTIME", ""),

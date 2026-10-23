@@ -1,10 +1,12 @@
 """The command line.
 
-    harnessgateway init [--tenant NAME --owner NAME]
-        Writes a master key to <data>/master.key unless one is there, sets the deployer key and prints
-        it once, and, with --tenant, creates that tenant with its owner and prints the owner's key once.
     harnessgateway serve [--role api,gateway,worker | all]
-        Runs the roles named in one process, as the environment configures them (HG_*).
+        Runs the roles named in one process, as the environment configures them (HG_*). The first
+        boot of an `api` makes what a fresh platform lacks and prints it once, to stderr: the deployer
+        key, and, with sign-up closed, the tenant HG_TENANT with its owner HG_OWNER and the owner's key.
+    harnessgateway init [--tenant NAME --owner NAME]
+        The same by hand: a new deployer key (replacing the old), and, with --tenant, that tenant with
+        its owner and the owner's key. The master key is written to <data>/master.key unless one is there.
 """
 from __future__ import annotations
 
@@ -46,9 +48,29 @@ def init(args: argparse.Namespace) -> None:
         print(f"owner's API key (shown once): {secret}")
 
 
+def first_boot(service, settings: Settings) -> list[str]:
+    """What a fresh platform lacks, made once: the deployer key unless one is set or stored; the first
+    tenant, its owner and the owner's key when sign-up is closed and there is no tenant. Only an `api`
+    does this: a worker's own records are not the platform's. The lines say what was made."""
+    if "api" not in settings.roles:
+        return []
+    store, lines = service.store, []
+    if not settings.deployer_key and not store.has_deployer_key():
+        lines.append(f"deployer key: {store.set_deployer_key()}")
+    if settings.signup == "closed" and not store.tenants():
+        t = store.create_tenant(settings.tenant)
+        store.create_member(t.name, settings.owner, "owner")
+        _, secret = store.mint_key(t.name, settings.owner, "first")
+        lines += [f"tenant {t.name} created with owner {settings.owner}", f"{settings.owner}'s API key: {secret}"]
+    if lines:
+        print("first boot: shown once; `harnessgateway init` makes new ones\n  " + "\n  ".join(lines), file=sys.stderr, flush=True)
+    return lines
+
+
 async def run(settings: Settings) -> None:
     from .api.app import Service, create_app
     service = Service(settings)
+    first_boot(service, settings)
     tasks = []
     if "api" in settings.roles:
         import uvicorn

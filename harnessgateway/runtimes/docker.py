@@ -31,6 +31,7 @@ import os
 import re
 import shutil
 import socket
+import sys
 import tempfile
 import uuid
 from dataclasses import dataclass
@@ -105,6 +106,7 @@ async def pull(reference: str) -> str:
 
 
 BASE_DOCKERFILE = Path(__file__).with_name("base.Dockerfile")
+BASE_IMAGE = "ghcr.io/mrcloudchase/harnessgatewayai-base:latest"   # built from BASE_DOCKERFILE by the base-image workflow
 
 
 async def build_base() -> str:
@@ -118,6 +120,16 @@ async def build_base() -> str:
     if code != 0:
         raise RuntimeError(f"the base image failed to build:\n{log[-2000:]}")
     return tag
+
+
+async def base_image() -> str:
+    """The shipped base image: the published one, pulled once; built here from the same Dockerfile when
+    it cannot be pulled (no route to the registry, or a private copy). Its reference."""
+    try:
+        return await pull(BASE_IMAGE)
+    except RuntimeError as e:
+        print(f"{str(e).splitlines()[0]}; building it here instead (a few minutes)", file=sys.stderr, flush=True)
+        return await build_base()
 
 
 async def identity(reference: str) -> tuple[str, str]:

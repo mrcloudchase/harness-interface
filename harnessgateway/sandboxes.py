@@ -19,7 +19,7 @@ from typing import AsyncIterator, Sequence
 from .execution import Event, Outcome, Spec
 from .harness import Config
 from .limits import Limits
-from .runtimes.docker import DOOR_SCRIPT, SECRETS, TURN_SCRIPT, DockerRuntime, Host, Resources, build_base, identity, inspect_self, pull, sweep, whole
+from .runtimes.docker import DOOR_SCRIPT, SECRETS, TURN_SCRIPT, DockerRuntime, Host, Resources, base_image, identity, inspect_self, pull, sweep, whole
 from .runtimes.door import GATEWAY_PORT
 
 MARKER = ".hg-installed"
@@ -72,7 +72,7 @@ def log_line(event: Event) -> bytes:
 
 @dataclass
 class Node:
-    """How this node runs things: the base image (the shipped one, built here, when empty), the
+    """How this node runs things: the base image (the shipped one, pulled or built here, when empty), the
     sandboxed runtime if any, the CA file, whether private egress is allowed (a self-hosted box with
     internal hosts), the owner its runs carry, and, with a `root` under the data directory, where
     the sandboxes' mounts come from: the platform's own scripts and each run's secrets are kept there,
@@ -90,7 +90,7 @@ class Node:
     secrets: Path = SECRETS
 
     async def prepare(self) -> str:
-        """The base image, built or pulled once; its id, which keys the tools layers. Also where this
+        """The base image, pulled or built once; its id, which keys the tools layers. Also where this
         process runs, and the scripts and secrets under the root when there is one."""
         self.host = await inspect_self()
         if self.root:
@@ -104,7 +104,7 @@ class Node:
                 self.ca_file = platform / "ca.pem"
             self.secrets = self.root / "secrets"
             self.secrets.mkdir(mode=0o700, exist_ok=True)
-        self.image = await build_base() if not self.image else await pull(self.image)
+        self.image = await pull(self.image) if self.image else await base_image()
         return (await identity(self.image))[0]
 
     @property

@@ -16,8 +16,9 @@ docker run -d --name hg -p 127.0.0.1:8000:8000 \
   -v /var/run/docker.sock:/var/run/docker.sock -v hg:/data ghcr.io/mrcloudchase/harnessgatewayai
 ```
 
-That runs `serve --role all`: the API on 8000, the gateway, and a worker that builds the sandbox
-base image on first start (a few minutes) and then takes turns. The home page is at
+That runs `serve --role all`: the API on 8000, the gateway, and a worker that pulls the sandbox
+base image and then takes turns. The first boot makes the deployer key, a tenant and its owner's
+key, and prints them once: `docker logs hg`. The home page is at
 `http://127.0.0.1:8000/`, the app at `/app`, this documentation at `/docs/`, the OpenAPI reference
 at `/reference`. Add `--restart unless-stopped` on a server.
 
@@ -89,8 +90,7 @@ Docker is still needed for the sandboxes, but the platform can run as a plain pr
 
 ```bash
 uv tool install harnessgateway          # or: pip install harnessgateway
-harnessgateway init --tenant acme --owner chase
-harnessgateway serve
+harnessgateway serve                    # the first boot prints the keys
 ```
 
 The data directory defaults to `~/.harnessgateway`. A process on the host shares the daemon's

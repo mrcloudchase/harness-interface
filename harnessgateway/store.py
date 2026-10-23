@@ -324,6 +324,9 @@ class Store:
         self.records.put("deployer", PLATFORM, "key", {"digest": digest_of(secret), "created": time.time()})
         return secret
 
+    def has_deployer_key(self) -> bool:
+        return self.records.get("deployer", PLATFORM, "key") is not None
+
     def is_deployer(self, secret: str) -> bool:
         d = self.records.get("deployer", PLATFORM, "key")
         return bool(d) and secrets.compare_digest(d["digest"], digest_of(secret))

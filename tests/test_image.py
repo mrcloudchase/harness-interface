@@ -33,6 +33,22 @@ def sh(*args: str, check: bool = True) -> str:
     return r.stdout
 
 
+def logs() -> str:
+    """The container's log, both streams: the first boot prints to stderr."""
+    return subprocess.run(["docker", "logs", NAME], capture_output=True, text=True).stderr + sh("docker", "logs", NAME, check=False)
+
+
+def up() -> None:
+    for _ in range(60):
+        try:
+            if urllib.request.urlopen(f"http://127.0.0.1:{PORT}/healthz", timeout=2).status == 200:
+                return
+        except (urllib.error.URLError, OSError):
+            pass
+        time.sleep(2)
+    raise AssertionError("the platform did not come up:\n" + logs())
+
+
 def call(method: str, path: str, body: bytes | dict | None = None, key: str = "", content_type: str = "application/json") -> dict:
     data = json.dumps(body).encode() if isinstance(body, dict) else body
     req = urllib.request.Request(f"http://127.0.0.1:{PORT}{path}", data=data, method=method,
@@ -52,19 +68,11 @@ def platform():
     sh("docker", "rm", "-f", NAME, check=False)
     sh("docker", "volume", "rm", "-f", VOLUME, check=False)
     sh("docker", "run", "-d", "--name", NAME, "-p", f"127.0.0.1:{PORT}:8000", "-v", "/var/run/docker.sock:/var/run/docker.sock",
-       "-v", f"{VOLUME}:/data", "-e", "HG_BASE_IMAGE=python:3.12-slim", "-e", "HG_WORKER_SLOTS=1",
+       "-v", f"{VOLUME}:/data", "-e", "HG_BASE_IMAGE=python:3.12-slim", "-e", "HG_WORKER_SLOTS=1", "-e", "HG_TENANT=acme", "-e", "HG_OWNER=ops",
        *(["-e", f"HG_CA_FILE={os.environ['HG_CA_FILE']}", "-v", f"{os.environ['HG_CA_FILE']}:{os.environ['HG_CA_FILE']}:ro"] if os.environ.get("HG_CA_FILE") else []),
        image)
     try:
-        for _ in range(60):
-            try:
-                if urllib.request.urlopen(f"http://127.0.0.1:{PORT}/healthz", timeout=2).status == 200:
-                    break
-            except (urllib.error.URLError, OSError):
-                pass
-            time.sleep(2)
-        else:
-            raise AssertionError("the platform did not come up:\n" + sh("docker", "logs", NAME, check=False))
+        up()
         yield image
     finally:
         if os.environ.get("HG_TEST_KEEP"):
@@ -74,8 +82,9 @@ def platform():
 
 
 def test_a_turn_through_the_containerized_platform(platform):
-    out = sh("docker", "exec", NAME, "harnessgateway", "init", "--tenant", "acme", "--owner", "ops")
-    key = next(line.split()[-1] for line in out.splitlines() if "API key" in line)
+    log = logs()
+    assert "deployer key: hgd_" in log and "tenant acme created with owner ops" in log, log
+    key = next(line.split()[-1] for line in log.splitlines() if "API key:" in line)
     assert call("PUT", "/v1/providers/none", {"url": "https://example.com", "api": "none", "key": ""}, key)["api"] == "none"
     assert call("PUT", "/v1/harnesses/echo", archive({"request.sh": REQUEST}), key, "application/x-tar")["name"] == "echo"
     r = call("POST", "/v1/responses", {"model": "echo/none/m", "input": "hello from outside"}, key)
@@ -91,3 +100,7 @@ def test_a_turn_through_the_containerized_platform(platform):
     caps = call("GET", f"/v1/responses/{r['id']}/captures", key=key)["data"]
     assert "door.log" in caps, caps
     assert sid == r2["metadata"]["session_id"]
+    sh("docker", "restart", NAME)
+    up()
+    assert logs().count("deployer key:") == 1, "the second boot made nothing"
+    assert call("GET", "/v1/me", key=key)["name"] == "ops"

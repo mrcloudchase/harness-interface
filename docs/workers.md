@@ -35,7 +35,7 @@ docker run -d --name hg-worker --restart unless-stopped \
 | `HG_CONTROL_URL` | the API, as this machine reaches it |
 | `HG_JOIN_TOKEN` | the same value the control plane has as `HG_JOIN_TOKEN` |
 | `HG_GATEWAY_URL` | the gateway, as this machine's sandboxes reach it: a TLS address behind your load balancer |
-| `HG_BASE_IMAGE` | the sandbox image; empty builds the shipped one on this machine at first start |
+| `HG_BASE_IMAGE` | the sandbox image; empty pulls the shipped one, or builds it on this machine when it cannot be pulled |
 | `HG_RUNTIME` | `runsc` to run every sandbox under gVisor; strongly recommended for strangers' tenants |
 | `HG_DATA_DIR` | the cache; `/data` in the image, a named volume. The worker inspects its own container and mounts the daemon's paths into its sandboxes |
 
@@ -83,8 +83,9 @@ day, per tenant, per harness, and by outcome. The same numbers are in a table be
 
 Every turn starts from one image: Debian, Python 3.12, Node 22, git, curl, ripgrep, procps,
 tmux. Nothing of the platform and nothing of any package is in it; packages install their CLI
-into a tools layer at first use. With `HG_BASE_IMAGE` empty each worker builds the shipped
-Dockerfile once. For a fleet, build it once and publish it: the repository's base-image workflow
-builds it on a schedule, scans it, and pushes it, and each worker then pulls the same image.
+into a tools layer at first use. The repository's base-image workflow builds it for amd64 and
+arm64 on a schedule, scans it, and publishes it as `ghcr.io/mrcloudchase/harnessgatewayai-base`;
+with `HG_BASE_IMAGE` empty each worker pulls that once, and builds the shipped Dockerfile itself
+when it cannot (no route to the registry). Point `HG_BASE_IMAGE` at your own copy to pin one.
 
 Next: [Configuration](configuration.md).

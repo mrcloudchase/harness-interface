@@ -53,4 +53,5 @@ platform container was started without the Docker socket or outside the daemon i
 | the worker logs `could not reach the control plane` | `HG_CONTROL_URL` or the join token |
 | a worker joined but its turns fail at once | the Docker socket it was given is not the daemon that runs it, so the paths it learned by inspecting itself are another machine's |
 | sandboxes fail TLS on a network that re-signs it | `HG_CA_FILE` with the network's bundle |
-| `set HG_MASTER_KEY (64 hex digits) or HG_MASTER_KEY_FILE` | run `init`, or pass the key the fleet shares |
+| `set HG_MASTER_KEY (64 hex digits) or HG_MASTER_KEY_FILE` | run `serve` or `init`, or pass the key the fleet shares |
+| the keys were not kept | they are in the container's log (`docker logs hg`) until it is removed; `init` makes new ones |

@@ -16,7 +16,7 @@ there you can do with curl.
 <figcaption>A member's key opens their tenant; the deployer's key opens the platform dashboard.</figcaption>
 </figure>
 
-Paste the owner's key from `init`. The key is kept in the browser's session storage only, so
+Paste the owner's key from the first boot's log, or from `init`. The key is kept in the browser's session storage only, so
 closing the tab signs you out.
 
 When sign-up is open, the app also offers to create a tenant. The owner's key is shown once,

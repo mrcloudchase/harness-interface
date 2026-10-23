@@ -2,7 +2,7 @@
  "title": "OpenHands",
  "intro": "The OpenHands CLI, headless over `openhands --headless --json`, on any litellm provider through `LLM_MODEL`, `LLM_API_KEY` and `LLM_BASE_URL`.",
  "verified": {
-  "contract": 4,
+  "contract": 5,
   "checks": {
    "make": true,
    "recall": true,

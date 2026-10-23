@@ -1,8 +1,8 @@
 {
  "title": "Codex",
- "intro": "OpenAI's Codex CLI, headless over `codex exec --json`, on any provider that speaks the OpenAI Responses API. The thread id from the first turn is kept in `$HI_DIR` and later turns run `codex exec resume <id>`.",
+ "intro": "OpenAI's Codex CLI, headless over `codex exec --json`, on any provider that speaks the OpenAI Responses API. The thread id from the first turn is kept in `$HG_DIR` and later turns run `codex exec resume <id>`.",
  "verified": {
-  "contract": 4,
+  "contract": 5,
   "checks": {
    "make": true,
    "recall": true,
@@ -19,7 +19,7 @@
   "model": "gpt-5.4-mini"
  },
  "notes": [
-  "Codex reads its provider from `$CODEX_HOME/config.toml`, written every turn: `model_providers.hi` with the gateway's `/v1` base and `env_key = \"OPENAI_API_KEY\"`, which `provider_env` sets to the session token.",
+  "Codex reads its provider from `$CODEX_HOME/config.toml`, written every turn: `model_providers.hg` with the gateway's `/v1` base and `env_key = \"OPENAI_API_KEY\"`, which `provider_env` sets to the session token.",
   "`sandbox_mode = \"danger-full-access\"` and `--skip-git-repo-check`: the container is the sandbox and the workspace need not be a git repository.",
   "The three `features` switches stop Codex cloning its plugin repository and discovering models over the network, both of which the door would refuse anyway.",
   "The request's model path (`node22/codex/openai-responses/<model>`) picks the model; `gpt-5.4-mini` is the default here."

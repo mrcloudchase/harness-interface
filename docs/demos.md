@@ -45,7 +45,7 @@ Press play. Idle stretches are shortened; the timings shown are real.
 ## Record your own
 
 ```bash
-asciinema rec -c "python scripts/demo.py --url https://hi.example.com --harness my-harness" my-harness.cast
+asciinema rec -c "python scripts/demo.py --url https://hg.example.com --harness my-harness" my-harness.cast
 ```
 
-The script reads the key from `HI_KEY` and never prints it, so the recording is safe to share.
+The script reads the key from `HG_KEY` and never prints it, so the recording is safe to share.

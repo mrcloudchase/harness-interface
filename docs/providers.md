@@ -32,7 +32,7 @@ API at.
 ## Add one
 
 ```bash
-curl -s -X PUT https://hi.example.com/v1/providers/deepseek -H "Authorization: Bearer $KEY" \
+curl -s -X PUT https://hg.example.com/v1/providers/deepseek -H "Authorization: Bearer $KEY" \
   -H 'content-type: application/json' \
   -d "{\"url\": \"https://api.deepseek.com/anthropic\", \"api\": \"anthropic-messages\", \"key\": \"$DEEPSEEK_API_KEY\"}"
 ```

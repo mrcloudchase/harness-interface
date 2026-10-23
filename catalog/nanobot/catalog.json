@@ -2,7 +2,7 @@
  "title": "nanobot",
  "intro": "nanobot, headless over `nanobot agent -m`, on an Anthropic-shaped provider through `$HOME/.nanobot/config.json`, where `${ANTHROPIC_API_KEY}` and `${ANTHROPIC_BASE_URL}` are expanded from the environment at load.",
  "verified": {
-  "contract": 4,
+  "contract": 5,
   "checks": {
    "make": true,
    "recall": true,
@@ -20,7 +20,7 @@
  },
  "notes": [
   "Installed with pip into its own venv.",
-  "`-s $HI_SESSION` resumes the same conversation; `-w $HI_WORKSPACE` makes its tools run in the workspace (it seeds a few of its own files there).",
+  "`-s $HG_SESSION` resumes the same conversation; `-w $HG_WORKSPACE` makes its tools run in the workspace (it seeds a few of its own files there).",
   "Its output is plain text."
  ],
  "caveat": ""

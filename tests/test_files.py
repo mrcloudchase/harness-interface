@@ -3,8 +3,8 @@ import os
 
 import pytest
 
-from harness_interface import files
-from harness_interface.errors import Invalid
+from harnessgateway import files
+from harnessgateway.errors import Invalid
 
 
 def test_write_and_read_plain_files(tmp_path):

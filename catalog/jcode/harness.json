@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "jcode 0.90.0, headless `jcode run --ndjson`; an Anthropic-shaped provider.",
   "defaults": {
     "provider": "deepseek",

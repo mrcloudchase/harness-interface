@@ -2,7 +2,7 @@
  "title": "OpenSquilla",
  "intro": "OpenSquilla, headless over `opensquilla agent --json`, on an Anthropic-shaped provider through `$HOME/.opensquilla/config.toml`, where `api_key_env` names the credential's variable.",
  "verified": {
-  "contract": 4,
+  "contract": 5,
   "checks": {
    "make": true,
    "recall": true,
@@ -20,7 +20,7 @@
  },
  "notes": [
   "Needs Python 3.12, hence the `py312` sandbox; installed from the wheel its GitHub release publishes.",
-  "`--session-id $HI_SESSION` with a session database in the member's home resumes across turns.",
+  "`--session-id $HG_SESSION` with a session database in the member's home resumes across turns.",
   "`--stateless-keep-project-rules` stops it seeding persona files into the workspace."
  ],
  "caveat": "OpenSquilla prints its answer as one JSON line at the end of the turn, so a streamed response arrives as one chunk rather than many."

@@ -1,8 +1,8 @@
 {
  "title": "Grok Build",
- "intro": "Grok Build, headless over `grok -p --output-format streaming-json`, on any provider through a `[model.hi]` entry in `$HOME/.grok/config.toml` whose `env_key` names the variable holding the credential.",
+ "intro": "Grok Build, headless over `grok -p --output-format streaming-json`, on any provider through a `[model.hg]` entry in `$HOME/.grok/config.toml` whose `env_key` names the variable holding the credential.",
  "verified": {
-  "contract": 4,
+  "contract": 5,
   "checks": {
    "make": true,
    "recall": true,

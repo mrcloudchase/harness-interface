@@ -2,11 +2,11 @@ import os
 
 import pytest
 
-from harness_interface.blobs import DirBlobs, S3Blobs
-from harness_interface.records import PostgresRecords, SqliteRecords
-from harness_interface.secrets import Vault
+from harnessgateway.blobs import DirBlobs, S3Blobs
+from harnessgateway.records import PostgresRecords, SqliteRecords
+from harnessgateway.secrets import Vault
 
-POSTGRES = os.environ.get("HI_TEST_POSTGRES", "postgresql://postgres@/postgres?host=/var/lib/postgresql/hi&port=54329")
+POSTGRES = os.environ.get("HG_TEST_POSTGRES", "postgresql://postgres@/postgres?host=/var/lib/postgresql/hg&port=54329")
 
 
 @pytest.fixture
@@ -50,7 +50,7 @@ def blobs(request, tmp_path):
         return DirBlobs(tmp_path / "blobs", "http://api.test", b"secret")
     endpoint = request.getfixturevalue("s3_endpoint")
     import boto3
-    boto3.client("s3", endpoint_url=endpoint, region_name="us-east-1").create_bucket(Bucket="hi-test")
-    b = S3Blobs("hi-test", endpoint, "us-east-1")
+    boto3.client("s3", endpoint_url=endpoint, region_name="us-east-1").create_bucket(Bucket="hg-test")
+    b = S3Blobs("hg-test", endpoint, "us-east-1")
     b.delete("tenants")
     return b

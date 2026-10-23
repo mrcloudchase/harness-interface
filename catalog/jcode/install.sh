@@ -5,11 +5,11 @@ case "$(uname -m)" in x86_64) arch=x86_64 ;; aarch64|arm64) arch=aarch64 ;; *) e
 tmp=$(mktemp -d)
 curl -fsSL "https://github.com/1jehuang/jcode/releases/download/v$VERSION/jcode-linux-$arch.tar.gz" -o "$tmp/jcode.tgz"
 tar -xzf "$tmp/jcode.tgz" -C "$tmp"
-rm -rf "$HI_TOOLS/jcode" && mkdir -p "$HI_TOOLS/jcode" "$HI_TOOLS/bin"
+rm -rf "$HG_TOOLS/jcode" && mkdir -p "$HG_TOOLS/jcode" "$HG_TOOLS/bin"
 if [ -f "$tmp/jcode-linux-$arch.bin" ]; then
-  install -m 755 "$tmp/jcode-linux-$arch" "$tmp/jcode-linux-$arch.bin" "$HI_TOOLS/jcode/"
-  ln -sf "$HI_TOOLS/jcode/jcode-linux-$arch" "$HI_TOOLS/bin/jcode"
+  install -m 755 "$tmp/jcode-linux-$arch" "$tmp/jcode-linux-$arch.bin" "$HG_TOOLS/jcode/"
+  ln -sf "$HG_TOOLS/jcode/jcode-linux-$arch" "$HG_TOOLS/bin/jcode"
 else
-  install -m 755 "$tmp/jcode-linux-$arch" "$HI_TOOLS/bin/jcode"
+  install -m 755 "$tmp/jcode-linux-$arch" "$HG_TOOLS/bin/jcode"
 fi
-"$HI_TOOLS/bin/jcode" --version
+"$HG_TOOLS/bin/jcode" --version

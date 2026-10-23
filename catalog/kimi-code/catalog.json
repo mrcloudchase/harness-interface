@@ -2,7 +2,7 @@
  "title": "Kimi Code",
  "intro": "Kimi Code, headless over `kimi -p --output-format stream-json`, on an Anthropic- or OpenAI-chat-shaped provider through the `KIMI_MODEL_*` variables.",
  "verified": {
-  "contract": 4,
+  "contract": 5,
   "checks": {
    "make": true,
    "recall": true,

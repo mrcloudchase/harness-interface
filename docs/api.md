@@ -1,6 +1,6 @@
 # API
 
-Every route takes `Authorization: Bearer <key>`: a member's `hi_…` key, the deployer's `hd_…`
+Every route takes `Authorization: Bearer <key>`: a member's `hg_…` key, the deployer's `hgd_…`
 key, or a worker's credential, as the row says. Refusals are `{"detail": …}` with 400 (cannot be
 done), 401, 403, 404 (unknown), 409 (busy) or 422 (malformed). The interactive reference, with
 every body's schema, is at `/reference` on your platform.
@@ -10,7 +10,7 @@ every body's schema, is at `/reference` on your platform.
 | Route | Who | What |
 |---|---|---|
 | `GET /healthz` | anyone | status, version, roles, whether sign-up is open |
-| `POST /v1/signup` | anyone, when `HI_SIGNUP=open` | `{tenant, owner}` → the owner's key, once |
+| `POST /v1/signup` | anyone, when `HG_SIGNUP=open` | `{tenant, owner}` → the owner's key, once |
 | `GET /v1/me` | member | who you are, your tenant's ceilings and status |
 | `POST /v1/members`, `GET /v1/members` | owner | add a member (`{name, role}`), list them |
 | `POST /v1/members/{name}/keys` | member (self) or owner | mint a key (`{label}`) → the secret, once |
@@ -36,7 +36,7 @@ every body's schema, is at `/reference` on your platform.
 |---|---|
 | `model` | `harness` or `harness/provider/model` |
 | `input` | a string, or a list of messages and parts: `input_text`, `input_file` (`filename`, `file_data` as a data URL or text) |
-| `instructions` | reaches the package as `HI_INSTRUCTIONS` |
+| `instructions` | reaches the package as `HG_INSTRUCTIONS` |
 | `previous_response_id` | continue that response's session |
 | `stream` | server-sent events |
 | `background` | return at once with `in_progress` |
@@ -44,7 +44,7 @@ every body's schema, is at `/reference` on your platform.
 | `metadata` | strings, returned on the response |
 
 Fields the platform does not use are ignored and kept in the trace, and reach the package in
-`HI_REQUEST`.
+`HG_REQUEST`.
 
 ## The response
 
@@ -72,6 +72,7 @@ With `stream: true`: `response.created`, `response.in_progress`, `response.outpu
 | `DELETE /v1/tenants/{name}` | the tenant and everything it owns |
 | `GET /v1/workers`, `DELETE /v1/workers/{id}` | the fleet's workers; forget one |
 | `GET /v1/fleet` | counts across the platform |
+| `GET /v1/usage?days=N` | usage all time (`0`) or over the last N days: totals, per day, per tenant, per harness, by outcome |
 
 ## Workers
 

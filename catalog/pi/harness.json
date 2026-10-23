@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "pi 1.3.0 (earendil-works), headless `pi -p --mode json`; Anthropic- or OpenAI-shaped providers.",
   "defaults": {
     "provider": "deepseek",

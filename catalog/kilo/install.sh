@@ -7,6 +7,6 @@ curl -fsSL "https://github.com/Kilo-Org/kilocode/releases/download/v$VERSION/kil
 mkdir -p "$tmp/x" && tar -xzf "$tmp/kilo.tgz" -C "$tmp/x"
 bin=$(find "$tmp/x" -type f -name kilo -perm -u+x | head -n 1)
 dir=$(dirname "$bin")
-rm -rf "$HI_TOOLS/kilo" && mkdir -p "$HI_TOOLS/bin" && cp -r "$dir" "$HI_TOOLS/kilo" && chmod -R a+rX "$HI_TOOLS/kilo"
-printf '#!/bin/sh\nexec "%s/kilo/kilo" "$@"\n' "$HI_TOOLS" > "$HI_TOOLS/bin/kilo" && chmod 755 "$HI_TOOLS/bin/kilo"
-"$HI_TOOLS/bin/kilo" --version
+rm -rf "$HG_TOOLS/kilo" && mkdir -p "$HG_TOOLS/bin" && cp -r "$dir" "$HG_TOOLS/kilo" && chmod -R a+rX "$HG_TOOLS/kilo"
+printf '#!/bin/sh\nexec "%s/kilo/kilo" "$@"\n' "$HG_TOOLS" > "$HG_TOOLS/bin/kilo" && chmod 755 "$HG_TOOLS/bin/kilo"
+"$HG_TOOLS/bin/kilo" --version

@@ -1,8 +1,8 @@
-{"version": 2, "width": 100, "height": 28, "timestamp": 1792714176, "idle_time_limit": 2.0, "env": {"SHELL": "/bin/bash", "TERM": "xterm-256color"}, "title": "harness-interface: opencode takes a steered turn"}
-[0.148377, "o", "\r\n\u001b[1mharness\u001b[0m opencode\r\n\r\n\u001b[1mrequest\u001b[0m POST /v1/responses  model=opencode  stream=true\r\n\u001b[2mRun exactly this shell command with your shell tool, wait for it to finish, then reply with the one word: counted\r\n\r\nfor i in $(seq 1 12); do echo tick $i; sleep 1; done\u001b[0m\r\n\r\n\u001b[2mlive stdout\u001b[0m (request.sh, relayed as it is written)\r\n"]
-[15.855232, "o", "\r\n\u001b[33msteer\u001b[0m POST /v1/sessions/{id}/interrupt -> 200\r\n\u001b[2mStop counting. Whether or not it finished, reply now with just the one word: stopped\u001b[0m\r\n"]
-[20.301869, "o", "$ for i in $(seq 1 12); do echo tick $i; sleep 1; done tick 1\r\ntick 2\r\ntick 3\r\ntick 4\r\ntick 5\r\ntick 6\r\ntick 7\r\ntick 8\r\ntick 9\r\ntick 10\r\ntick 11\r\ntick 12\r\n tick 1\r\ntick 2\r\ntick 3\r\ntick 4\r\ntick 5\r\ntick 6\r\ntick 7\r\ntick 8\r\ntick 9\r\ntick 10\r\ntick 11\r\ntick 12\r\n"]
-[21.056803, "o", "counted\r\n"]
-[25.582499, "o", "stopped\r\n"]
-[26.085297, "o", "\r\n\u001b[32mresponse\u001b[0m status=completed  exit_code=0  26s\r\ntick 9\r\ntick 10\r\ntick 11\r\ntick 12\r\ncounted\r\nstopped\r\n\u001b[2m(the last 6 of 26 lines; the package returns request.sh's stdout as it is)\u001b[0m\r\n\r\n\u001b[2mtrace\u001b[0m GET /v1/sessions/{id}/trace\r\n"]
-[26.090477, "o", "  request   resp_7dd8256d95ce4cc…  \"Run exactly this shell command with your shell tool, wait for it to f\r\n  interrupt resp_7dd8256d95ce4cc…  \"Stop counting. Whether or not it finished, reply now with just the on\r\n  response  resp_7dd8256d95ce4cc…  \r\n"]
+{"version": 2, "width": 100, "height": 28, "timestamp": 1792716616, "idle_time_limit": 2.0, "env": {"SHELL": "/bin/bash", "TERM": "xterm-256color"}, "title": "Harness Gateway: opencode takes a steered turn"}
+[0.151598, "o", "\r\n\u001b[1mharness\u001b[0m opencode\r\n\r\n\u001b[1mrequest\u001b[0m POST /v1/responses  model=opencode  stream=true\r\n\u001b[2mRun exactly this shell command with your shell tool, wait for it to finish, then reply with the one word: counted\r\n\r\nfor i in $(seq 1 12); do echo tick $i; sleep 1; done\u001b[0m\r\n\r\n\u001b[2mlive stdout\u001b[0m (request.sh, relayed as it is written)\r\n"]
+[15.374505, "o", "\r\n\u001b[33msteer\u001b[0m POST /v1/sessions/{id}/interrupt -> 200\r\n\u001b[2mStop counting. Whether or not it finished, reply now with just the one word: stopped\u001b[0m\r\n"]
+[19.51874, "o", "$ for i in $(seq 1 12); do echo tick $i; sleep 1; done\r\ntick 1\r\ntick 2\r\ntick 3\r\ntick 4\r\ntick 5\r\ntick 6\r\ntick 7\r\ntick 8\r\ntick 9\r\ntick 10\r\ntick 11\r\ntick 12\r\n"]
+[20.52495, "o", "counted\r\n"]
+[25.066075, "o", "stopped\r\n"]
+[25.318145, "o", "\r\n\u001b[32mresponse\u001b[0m status=completed  exit_code=0  25s\r\n\r\n\r\n\u001b[2mtrace\u001b[0m GET /v1/sessions/{id}/trace\r\n"]
+[25.321672, "o", "  request   resp_38b6eb902f504f7…  \"Run exactly this shell command with your shell tool, wait for it to f\r\n  interrupt resp_38b6eb902f504f7…  \"Stop counting. Whether or not it finished, reply now with just the on\r\n  response  resp_38b6eb902f504f7…  \r\n"]

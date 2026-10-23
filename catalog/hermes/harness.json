@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "Hermes Agent 0.19.0, headless `hermes chat -q`; any Anthropic-shaped provider.",
   "defaults": {
     "provider": "deepseek",

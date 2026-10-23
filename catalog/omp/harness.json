@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "Oh My Pi (omp) 18.1.13, headless `omp -p --mode json`; any provider through models.yml.",
   "defaults": {
     "provider": "deepseek",

@@ -6,5 +6,5 @@ tmp=$(mktemp -d)
 curl -fsSL "https://github.com/MoonshotAI/kimi-code/releases/download/%40moonshot-ai%2Fkimi-code%40$VERSION/kimi-code-linux-$arch.tar.gz" -o "$tmp/kimi.tgz"
 mkdir "$tmp/x" && tar -xzf "$tmp/kimi.tgz" -C "$tmp/x"
 bin=$(find "$tmp/x" -type f -name kimi -perm -u+x | head -n 1)
-mkdir -p "$HI_TOOLS/bin" && install -m 755 "$bin" "$HI_TOOLS/bin/kimi"
-"$HI_TOOLS/bin/kimi" --version
+mkdir -p "$HG_TOOLS/bin" && install -m 755 "$bin" "$HG_TOOLS/bin/kimi"
+"$HG_TOOLS/bin/kimi" --version

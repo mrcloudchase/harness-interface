@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "DeepSeek Harness (dsh) 0.2.0-rc.2, headless `dsh --profile headless --json`; DeepSeek's Anthropic-shaped endpoint.",
   "defaults": {
     "provider": "deepseek",

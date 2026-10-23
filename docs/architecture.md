@@ -11,7 +11,7 @@ its own layer or below, and `tests/test_layers.py` fails when that changes.
 | 3 | `records`, `blobs`, `limits`, `store`, `catalog` | one table (SQLite or Postgres); one bucket (a directory or S3); the ceilings; tenants, members, keys, providers, packages, workers, tokens; the shipped packages |
 | 4 | `sandboxes`, `gateway` | a node's base image, tools layers and runtimes; the gateway service |
 | 5 | `sessions`, `worker` | the control plane's turn queue, sessions, reach, follow, cancel, steer; the worker that pulls and runs turns |
-| 6 | `api.config`, `api.wire`, `api.auth`, `api.app`, `api.deployer`, `api.internal`, `__main__` | settings; the Responses format; principals; the routes; the roles |
+| 6 | `api.config`, `api.wire`, `api.auth`, `api.app`, `api.deployer`, `api.internal`, `__main__` | settings; the Responses format; principals; the routes and the web surface; the roles |
 
 ## One request through the code
 
@@ -36,7 +36,7 @@ its own layer or below, and `tests/test_layers.py` fails when that changes.
 6. **The runner runs the package.** `turn.sh` runs `request.sh` in its own process group with
    stdout teed to a file and relayed, forwards `SIGTERM` to the group and the steer signal to the
    script alone, then runs `response.sh` with the exit code and outcome.
-7. **Provider calls go through the gateway.** The CLI calls `hi-provider:8080`; the door forwards
+7. **Provider calls go through the gateway.** The CLI calls `hg-provider:8080`; the door forwards
    bytes to the gateway; the gateway resolves the token, checks the path against the shape,
    decrypts the key, relays over TLS, counts the call, and keeps the capture.
 8. **Output flows back.** The worker posts chunk records every quarter second; the API's follower
@@ -68,9 +68,9 @@ stand-in as services), three Docker tests run a real sandbox, and the layer rule
 ## Repository
 
 ```
-harness_interface/   the package
+harnessgateway/   the package
 catalog/             the twenty-two shipped packages and the template
-console/             the console, one HTML file
+web/                 the home page, the app and Picky; served at /, /app and /web
 docs/                this documentation (mkdocs.yml at the root builds it into the wheel)
 deploy/              Dockerfile, compose, Caddyfile, cloud-init
 scripts/             live.py (the nine checks), demo.py (a recorded turn), catalog_verify.py

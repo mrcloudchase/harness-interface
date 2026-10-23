@@ -2,8 +2,8 @@
 /VISION.md @mrcloudchase
 /AGENTS.md @mrcloudchase
 /.github/ @mrcloudchase
-/harness_interface/execution.py @mrcloudchase
-/harness_interface/runtimes/ @mrcloudchase
-/harness_interface/harness/contract.py @mrcloudchase
-/harness_interface/harness/folder.py @mrcloudchase
-/harness_interface/harness/hi_adapter.py @mrcloudchase
+/harnessgateway/execution.py @mrcloudchase
+/harnessgateway/runtimes/ @mrcloudchase
+/harnessgateway/harness/contract.py @mrcloudchase
+/harnessgateway/harness/folder.py @mrcloudchase
+/harnessgateway/harness/hg_adapter.py @mrcloudchase

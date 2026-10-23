@@ -4,4 +4,4 @@ __pycache__/
 .pytest_cache/
 .venv/
 dist/
-harness_interface/docs/
+harnessgateway/docs/

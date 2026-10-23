@@ -14,45 +14,46 @@ and the same variables.
 ## One box with Docker
 
 ```bash
-mkdir -p /srv/hi/data
-docker run -d --name hi --restart unless-stopped \
+mkdir -p /srv/hg/data
+docker run -d --name hg --restart unless-stopped \
   -p 127.0.0.1:8000:8000 -p 127.0.0.1:8081:8081 \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /srv/hi/data:/srv/hi/data -e HI_DATA_DIR=/srv/hi/data \
+  -v /srv/hg/data:/srv/hg/data -e HG_DATA_DIR=/srv/hg/data \
   --add-host host.docker.internal:host-gateway \
-  ghcr.io/mrcloudchase/harness-interface:4.0.0
+  ghcr.io/mrcloudchase/harnessgateway:5.0.0
 ```
 
 That runs `serve --role all`: the API on 8000, the gateway on 8081, and a worker that builds the
-sandbox base image on first start (a few minutes) and then takes turns. The console is at
-`http://127.0.0.1:8000/`, this documentation at `/docs/`, the OpenAPI reference at `/reference`.
+sandbox base image on first start (a few minutes) and then takes turns. The home page is at
+`http://127.0.0.1:8000/`, the app at `/app`, this documentation at `/docs/`, the OpenAPI reference
+at `/reference`.
 
-On a Mac with Docker Desktop, replace `/srv/hi/data` with a directory under your home, such as
-`$HOME/hi`, on both sides of the `-v` and in `HI_DATA_DIR`.
+On a Mac with Docker Desktop, replace `/srv/hg/data` with a directory under your home, such as
+`$HOME/hg`, on both sides of the `-v` and in `HG_DATA_DIR`.
 
 ## One box with compose and TLS
 
 ```bash
-git clone https://github.com/mrcloudchase/harness-interface && cd harness-interface/deploy
-mkdir -p /srv/hi/data
-HI_DOMAIN=hi.example.com docker compose --profile one-box up -d
+git clone https://github.com/mrcloudchase/harnessgateway && cd harnessgateway/deploy
+mkdir -p /srv/hg/data
+HG_DOMAIN=hg.example.com docker compose --profile one-box up -d
 ```
 
-Every role in one container over SQLite and a blob directory on `/srv/hi/data`, with Caddy
-terminating TLS for `HI_DOMAIN` (a certificate from Let's Encrypt, or self-signed for
-`localhost`). Set `HI_SIGNUP=open` in the environment to let anyone create a tenant from the
-sign-up page; leave it closed to create tenants yourself.
+Every role in one container over SQLite and a blob directory on `/srv/hg/data`, with Caddy
+terminating TLS for `HG_DOMAIN` (a certificate from Let's Encrypt, or self-signed for
+`localhost`). Set `HG_SIGNUP=open` in the environment to let anyone create a tenant from the
+app; leave it closed to create tenants yourself.
 
 ## The roles
 
 | Role | Does | Holds | Scales |
 |---|---|---|---|
-| `api` | the Responses API, the tenant and deployer routes, the console, the workers' routes | the master key | any number behind a load balancer |
+| `api` | the Responses API, the tenant and deployer routes, the web surface, the workers' routes | the master key | any number behind a load balancer |
 | `gateway` | relays sandboxes' provider calls, swaps the session token for the key, meters, captures | the master key | any number behind a load balancer |
 | `worker` | joins with a token, pulls turns, runs them in sandboxes on its Docker host, pushes snapshots | a worker credential and a cache | one per machine, any number of machines |
 | `all` | the three in one process | | one box |
 
-`harness-interface serve --role api,gateway` and `--role worker` run roles apart.
+`harnessgateway serve --role api,gateway` and `--role worker` run roles apart.
 
 ## A fleet
 
@@ -61,20 +62,20 @@ docker compose --profile ha up -d
 ```
 
 The same file: two `api,gateway` containers behind Caddy, a worker, Postgres and MinIO. Point
-`HI_RECORDS` at any Postgres and `HI_BLOBS` at any S3-API store (S3, R2, B2, MinIO, Garage) to
+`HG_RECORDS` at any Postgres and `HG_BLOBS` at any S3-API store (S3, R2, B2, MinIO, Garage) to
 use managed ones. Give `api` and `gateway` the master key from your secrets manager as
-`HI_MASTER_KEY`, and set `HI_JOIN_TOKEN` on the control plane and on every worker.
+`HG_MASTER_KEY`, and set `HG_JOIN_TOKEN` on the control plane and on every worker.
 
 Add a machine by running the worker role on it, with the gateway's address as that machine's
 sandboxes will reach it:
 
 ```bash
-docker run -d --name hi-worker --restart unless-stopped \
-  -v /var/run/docker.sock:/var/run/docker.sock -v /srv/hi/data:/srv/hi/data \
+docker run -d --name hg-worker --restart unless-stopped \
+  -v /var/run/docker.sock:/var/run/docker.sock -v /srv/hg/data:/srv/hg/data \
   --add-host host.docker.internal:host-gateway \
-  -e HI_DATA_DIR=/srv/hi/data -e HI_CONTROL_URL=https://hi.example.com -e HI_JOIN_TOKEN=… \
-  -e HI_GATEWAY_URL=https://gateway.hi.example.com -e HI_RUNTIME=runsc \
-  ghcr.io/mrcloudchase/harness-interface:4.0.0 serve --role worker
+  -e HG_DATA_DIR=/srv/hg/data -e HG_CONTROL_URL=https://hg.example.com -e HG_JOIN_TOKEN=… \
+  -e HG_GATEWAY_URL=https://gateway.hg.example.com -e HG_RUNTIME=runsc \
+  ghcr.io/mrcloudchase/harnessgateway:5.0.0 serve --role worker
 ```
 
 `deploy/worker.cloud-init.yml` is the same as a cloud-init file for an autoscaling group:
@@ -85,12 +86,12 @@ Docker, gVisor, the worker. [Workers and scale](workers.md) covers capacity and 
 Docker is still needed for the sandboxes, but the platform can run as a plain process:
 
 ```bash
-uv tool install harness-interface          # or: pip install harness-interface
-harness-interface init --tenant acme --owner chase
-harness-interface serve
+uv tool install harnessgateway          # or: pip install harnessgateway
+harnessgateway init --tenant acme --owner chase
+harnessgateway serve
 ```
 
-The data directory defaults to `~/.harness-interface`. Put a reverse proxy in front for TLS.
+The data directory defaults to `~/.harnessgateway`. Put a reverse proxy in front for TLS.
 
 ## Upgrading
 

@@ -9,9 +9,9 @@ Qwen Code, headless over `qwen -o stream-json`, on an OpenAI chat-shaped provide
 ## Use it
 
 ```bash
-curl -s -X PUT $HI/v1/providers/deepseek-openai -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"url": "…", "api": "…", "key": "…"}'
-curl -s -X PUT $HI/v1/harnesses/qwen-code -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"catalog": "qwen-code"}'
-curl -s $HI/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"model": "qwen-code", "input": "Create hello.txt containing hello, then say done."}'
+curl -s -X PUT $HG/v1/providers/deepseek-openai -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"url": "…", "api": "…", "key": "…"}'
+curl -s -X PUT $HG/v1/harnesses/qwen-code -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"catalog": "qwen-code"}'
+curl -s $HG/v1/responses -H "Authorization: Bearer $KEY" -H 'content-type: application/json' -d '{"model": "qwen-code", "input": "Create hello.txt containing hello, then say done."}'
 ```
 
 The package's default provider is `deepseek-openai` and its default model `deepseek-chat`; name another with `qwen-code/<provider>/<model>`. The folder is `catalog/qwen-code/` in the repository.
@@ -22,7 +22,7 @@ The package's default provider is `deepseek-openai` and its default model `deeps
 
 ```json
 {
-  "contract": 4,
+  "contract": 5,
   "description": "Qwen Code 0.25.2, headless `qwen -o stream-json`; any OpenAI chat-shaped provider.",
   "defaults": {
     "provider": "deepseek-openai",
@@ -53,9 +53,9 @@ The package's default provider is `deepseek-openai` and its default model `deeps
 #!/usr/bin/env bash
 set -euo pipefail
 VERSION=0.25.2
-mkdir -p "$HI_TOOLS/bin"
-npm install --global --prefix "$HI_TOOLS" --no-audit --no-fund "@qwen-code/qwen-code@$VERSION"
-"$HI_TOOLS/bin/qwen" --version
+mkdir -p "$HG_TOOLS/bin"
+npm install --global --prefix "$HG_TOOLS" --no-audit --no-fund "@qwen-code/qwen-code@$VERSION"
+"$HG_TOOLS/bin/qwen" --version
 ```
 
 `request.sh`:
@@ -63,23 +63,23 @@ npm install --global --prefix "$HI_TOOLS" --no-audit --no-fund "@qwen-code/qwen-
 ```bash
 #!/usr/bin/env bash
 # request.sh: one turn. The prompt is on stdin; stdout is relayed live and kept for response.sh.
-# A steer arrives as $HI_DIR/interrupt plus the package's signal, delivered to this script alone,
+# A steer arrives as $HG_DIR/interrupt plus the package's signal, delivered to this script alone,
 # so the trap below runs the steer as the next turn once the current one ends.
 set -uo pipefail
 prompt=$(cat)
-sid_uuid() { local h=${HI_SESSION#sess_}; echo "${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"; }
+sid_uuid() { local h=${HG_SESSION#sess_}; echo "${h:0:8}-${h:8:4}-${h:12:4}-${h:16:4}-${h:20:12}"; }
 run_wait() {   # run a turn and wait for it, re-waiting after a signal interrupts the wait
   "$@" </dev/null & local pid=$! rc
   while :; do wait "$pid"; rc=$?; kill -0 "$pid" 2>/dev/null || break; done
   return $rc
 }
 steer=""
-trap 'steer=$(cat "$HI_DIR/interrupt" 2>/dev/null || true)' USR1
-export OPENAI_MODEL="$HI_MODEL" QWEN_CODE_SUPPRESS_YOLO_WARNING=1 QWEN_CODE_MODELS_DEV=off QWEN_USAGE_STATISTICS_ENABLED=0
+trap 'steer=$(cat "$HG_DIR/interrupt" 2>/dev/null || true)' USR1
+export OPENAI_MODEL="$HG_MODEL" QWEN_CODE_SUPPRESS_YOLO_WARNING=1 QWEN_CODE_MODELS_DEV=off QWEN_USAGE_STATISTICS_ENABLED=0
 turn() {
-  local args=(--approval-mode yolo --auth-type openai -m "$HI_MODEL" -o stream-json)
-  if [ -f "$HI_DIR/turned" ]; then args+=(--resume "$(sid_uuid)"); else args+=(--session-id "$(sid_uuid)"); fi
-  touch "$HI_DIR/turned"
+  local args=(--approval-mode yolo --auth-type openai -m "$HG_MODEL" -o stream-json)
+  if [ -f "$HG_DIR/turned" ]; then args+=(--resume "$(sid_uuid)"); else args+=(--session-id "$(sid_uuid)"); fi
+  touch "$HG_DIR/turned"
   qwen "${args[@]}" "$1" </dev/null
 }
 

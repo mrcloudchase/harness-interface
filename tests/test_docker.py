@@ -10,24 +10,24 @@ from pathlib import Path
 
 import pytest
 
-from harness_interface.execution import Spec
-from harness_interface.runtimes.docker import TURN_SCRIPT, DockerRuntime, Resources, docker, owner_of
+from harnessgateway.execution import Spec
+from harnessgateway.runtimes.docker import TURN_SCRIPT, DockerRuntime, Resources, docker, owner_of
 
 pytestmark = pytest.mark.docker
 IMAGE = "python:3.12-slim"
-CA = Path(os.environ["HI_CA_FILE"]) if os.environ.get("HI_CA_FILE") else None
+CA = Path(os.environ["HG_CA_FILE"]) if os.environ.get("HG_CA_FILE") else None
 REQUEST = """#!/usr/bin/env bash
 set -u
-trap 'echo "steer=$(cat "$HI_DIR/interrupt")"; exit 0' USR1
+trap 'echo "steer=$(cat "$HG_DIR/interrupt")"; exit 0' USR1
 prompt=$(cat)
 echo "prompt=$prompt uid=$(id -u) caps=$(grep CapEff /proc/self/status | awk '{print $2}')"
 echo "user=$(id -un) home=$(python3 -c 'import os,pwd; print(pwd.getpwuid(os.getuid()).pw_dir)')"
-echo "token=$(cat "$HI_PROVIDER_KEY_FILE") keyenv=${FAKE_KEY:-} url=${FAKE_URL:-}"
+echo "token=$(cat "$HG_PROVIDER_KEY_FILE") keyenv=${FAKE_KEY:-} url=${FAKE_URL:-}"
 fetch() { python3 -c "import sys,urllib.request as u
 r=u.Request(sys.argv[1], headers={'Authorization': 'Bearer ' + open(sys.argv[2]).read().strip()} if len(sys.argv) > 2 else {})
 try: print(u.urlopen(r, timeout=8).read().decode())
 except Exception as e: print('refused' if '403' in str(e) else 'FAIL ' + str(e)[:80])" "$@"; }
-echo "gateway=$(fetch "$HI_PROVIDER_URL/v1/models" "$HI_PROVIDER_KEY_FILE")"
+echo "gateway=$(fetch "$HG_PROVIDER_URL/v1/models" "$HG_PROVIDER_KEY_FILE")"
 echo "private=$(fetch https://169.254.169.254/)"
 echo "rootfs=$(touch /x 2>/dev/null && echo writable || echo readonly)"
 echo "a warning" >&2
@@ -35,7 +35,7 @@ if [ "$prompt" = "wait" ]; then sleep 60 & wait $!; fi
 exit 4
 """
 RESPONSE = """#!/usr/bin/env bash
-echo "outcome=$HI_OUTCOME exit=$HI_EXIT lines=$(wc -l < "$HI_STDOUT") err=$(cat "$HI_STDERR")"
+echo "outcome=$HG_OUTCOME exit=$HG_EXIT lines=$(wc -l < "$HG_STDOUT") err=$(cat "$HG_STDERR")"
 exit 0
 """
 
@@ -76,7 +76,7 @@ def folder(tmp_path: Path, response: bool = True) -> Path:
 
 def runtime(tmp_path: Path, gateway: str, **kw) -> DockerRuntime:
     return DockerRuntime(IMAGE, uid=100123, limits=Resources(cpus=1, memory="1g", pids=128), read_only=(tmp_path / "folder",),
-                         writable=(tmp_path / "home", tmp_path / "run"), gateway_url=gateway, token="sk-hi-testtoken",
+                         writable=(tmp_path / "home", tmp_path / "run"), gateway_url=gateway, token="sk-hg-testtoken",
                          ca_file=CA, owner=owner_of(tmp_path), **kw)
 
 
@@ -84,10 +84,10 @@ def spec(tmp_path: Path, prompt: str, rt: DockerRuntime, timeout: float = 120) -
     for d in ("workspace", "home", "run"):
         (tmp_path / d).mkdir(exist_ok=True)
     (tmp_path / "run" / "prompt").write_text(prompt)
-    env = {"HI_WORKSPACE": str(tmp_path / "workspace"), "HOME": str(tmp_path / "home"), "HI_DIR": str(tmp_path / "run"),
-           "HI_HARNESS_DIR": str(tmp_path / "folder"), "HI_INTERRUPT": "SIGUSR1", "PATH": "/usr/local/bin:/usr/bin:/bin",
-           "HI_PROVIDER_URL": rt.provider_url + "/x", "HI_PROVIDER_KEY_FILE": str(rt.token_path),
-           "FAKE_KEY": "sk-hi-testtoken", "FAKE_URL": rt.provider_url}
+    env = {"HG_WORKSPACE": str(tmp_path / "workspace"), "HOME": str(tmp_path / "home"), "HG_DIR": str(tmp_path / "run"),
+           "HG_HARNESS_DIR": str(tmp_path / "folder"), "HG_INTERRUPT": "SIGUSR1", "PATH": "/usr/local/bin:/usr/bin:/bin",
+           "HG_PROVIDER_URL": rt.provider_url + "/x", "HG_PROVIDER_KEY_FILE": str(rt.token_path),
+           "FAKE_KEY": "sk-hg-testtoken", "FAKE_URL": rt.provider_url}
     return Spec(("bash", str(TURN_SCRIPT)), input=prompt.encode(), env=env, workspace=tmp_path / "workspace", timeout_s=timeout)
 
 
@@ -108,8 +108,8 @@ def test_a_turn(tmp_path, gateway):
     uid = 100123 if os.geteuid() == 0 else os.getuid()                           # unprivileged servers run as themselves
     assert lines["prompt"].startswith(f"hello uid={uid} caps=0000000000000000")
     assert lines["user"] == f"sandbox home={tmp_path / 'home'}"                 # a uid with a name and a home
-    assert lines["token"] == "sk-hi-testtoken keyenv=sk-hi-testtoken url=http://hi-provider:8080"
-    assert lines["gateway"] == '{"ok": true}' and Gateway.seen[-1] == ("/x/v1/models", "Bearer sk-hi-testtoken")
+    assert lines["token"] == "sk-hg-testtoken keyenv=sk-hg-testtoken url=http://hg-provider:8080"
+    assert lines["gateway"] == '{"ok": true}' and Gateway.seen[-1] == ("/x/v1/models", "Bearer sk-hg-testtoken")
     assert lines["private"] == "refused" and lines["rootfs"] == "readonly"
     assert out["stderr"].decode() == "a warning\n"
     response = (tmp_path / "run" / "response").read_text()

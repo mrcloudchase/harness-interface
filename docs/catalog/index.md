@@ -4,7 +4,7 @@ Every package below ships with the platform and was run through the nine checks 
 
 | Package | Default provider | Checks | Note |
 |---|---|---|---|
-| [aider](aider.md) | `deepseek-openai` | 8/9 | aider has no shell tool: a task that asks it to run a command is answered with a script to run instead, so the counting turn ends at once and the steer, delivered after the turn, finds nothing to interrupt. That is aider's shape, not a platform fault; cancel and the rest work. |
+| [aider](aider.md) | `deepseek-openai` | 6/9 | aider has no shell tool: a task that asks it to run a command is answered with a script to run instead, so the counting turn ends at once. A steer sent after the turn has ended is refused (there is nothing running to interrupt), so the interrupt and steer checks depend on timing; cancel and the rest work. That is aider's shape, not a platform fault. |
 | [CheetahClaws](cheetahclaws.md) | `openai` | 9/9 | Headless CheetahClaws starts from an empty conversation every run (resume is a REPL command); it answers recall by looking at the workspace, not by remembering. |
 | [Claude Code](claude-code.md) | `deepseek` | 9/9 |  |
 | [Cline](cline.md) | `deepseek-openai` | 9/9 | Headless Cline cannot resume a session (that needs its ACP mode); it answers recall by looking at the workspace, not by remembering. |

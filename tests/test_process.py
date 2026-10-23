@@ -1,8 +1,8 @@
 """Layer 1: a process as an Execution: output as it comes, stop and kill, timeout, a failed start."""
 import asyncio
 
-from harness_interface.execution import NeverStarted, Spec
-from harness_interface.runtimes.process import ProcessExecution
+from harnessgateway.execution import NeverStarted, Spec
+from harnessgateway.runtimes.process import ProcessExecution
 
 
 async def run(argv, **kw):

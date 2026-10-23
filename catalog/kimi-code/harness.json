@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "Kimi Code 2.0.0, headless `kimi -p --output-format stream-json`; Anthropic- or OpenAI chat-shaped providers.",
   "defaults": {
     "provider": "deepseek",

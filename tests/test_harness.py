@@ -1,4 +1,4 @@
-"""Layer 2: a package is contract 4 or it is refused by name; an archive is unpacked safely; a digest
+"""Layer 2: a package is contract 5 or it is refused by name; an archive is unpacked safely; a digest
 names a version; seeds copy through the safe writer."""
 import io
 import json
@@ -8,12 +8,12 @@ import tarfile
 import pytest
 
 from fakes import HARNESS_JSON, archive
-from harness_interface.errors import Invalid
-from harness_interface.harness import Config, copy_seed, digest, load_config, pack, unpack, validate
+from harnessgateway.errors import Invalid
+from harnessgateway.harness import Config, copy_seed, digest, load_config, pack, unpack, validate
 
 
 def test_config_defaults_and_values():
-    assert load_config(json.dumps({"contract": 4})) == Config()
+    assert load_config(json.dumps({"contract": 5})) == Config()
     c = load_config(json.dumps(HARNESS_JSON))
     assert (c.provider, c.model, c.key_env, c.url_env) == ("prov", "m1", "FAKE_KEY", "FAKE_URL")
     assert c.install_egress == ("registry.example",) and c.run_egress == ("git.example",) and c.timeout_s == 60
@@ -22,12 +22,12 @@ def test_config_defaults_and_values():
 
 
 @pytest.mark.parametrize("bad, says", [
-    ("not json", "not JSON"), ('{"contract": 3}', '"contract": 4'), ('{"contract": 4, "extra": 1}', "unknown keys"),
-    ('{"contract": 4, "defaults": {"sandbox": "x"}}', "defaults is an object"),
-    ('{"contract": 4, "interrupt": "SIGTERM"}', "interrupt is one of"),
-    ('{"contract": 4, "run": {"timeout_s": -1}}', "positive number"),
-    ('{"contract": 4, "provider_env": {"key": "has space"}}', "environment variable names"),
-    ('{"contract": 4, "run": {"egress": "host"}}', "list of hosts"),
+    ("not json", "not JSON"), ('{"contract": 3}', '"contract": 5'), ('{"contract": 5, "extra": 1}', "unknown keys"),
+    ('{"contract": 5, "defaults": {"sandbox": "x"}}', "defaults is an object"),
+    ('{"contract": 5, "interrupt": "SIGTERM"}', "interrupt is one of"),
+    ('{"contract": 5, "run": {"timeout_s": -1}}', "positive number"),
+    ('{"contract": 5, "provider_env": {"key": "has space"}}', "environment variable names"),
+    ('{"contract": 5, "run": {"egress": "host"}}', "list of hosts"),
 ])
 def test_config_refusals(bad, says):
     with pytest.raises(Invalid, match=says):

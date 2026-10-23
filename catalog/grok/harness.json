@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "Grok Build 1.0.41, headless `grok -p --output-format streaming-json`; chat-, Responses- or Anthropic-shaped providers.",
   "defaults": {
     "provider": "deepseek-openai",

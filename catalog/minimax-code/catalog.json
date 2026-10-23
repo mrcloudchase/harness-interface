@@ -1,8 +1,8 @@
 {
  "title": "MiniMax Code",
- "intro": "MiniMax Code (`mcode`), headless over `mcode exec --output-format stream-json`, on an Anthropic-shaped provider through a config file the folder writes into `$HI_DIR` each turn.",
+ "intro": "MiniMax Code (`mcode`), headless over `mcode exec --output-format stream-json`, on an Anthropic-shaped provider through a config file the folder writes into `$HG_DIR` each turn.",
  "verified": {
-  "contract": 4,
+  "contract": 5,
   "checks": {
    "make": true,
    "recall": true,

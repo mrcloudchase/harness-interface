@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "OpenSquilla 0.5.6, headless `opensquilla agent --json`; Anthropic- or Responses-shaped providers.",
   "defaults": {
     "provider": "deepseek",

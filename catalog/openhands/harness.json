@@ -1,5 +1,5 @@
 {
-  "contract": 4,
+  "contract": 5,
   "description": "OpenHands CLI 1.16.0, headless `openhands --headless --json`; any litellm provider.",
   "defaults": {
     "provider": "openai",

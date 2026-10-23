@@ -2,7 +2,7 @@
  "title": "DeepSeek Harness",
  "intro": "The DeepSeek Harness (`dsh`), headless over `dsh --profile headless --json`, on DeepSeek's Anthropic-shaped endpoint through `DEEPSEEK_BASE_URL` and `DEEPSEEK_API_KEY`.",
  "verified": {
-  "contract": 4,
+  "contract": 5,
   "checks": {
    "make": true,
    "recall": true,
@@ -20,7 +20,7 @@
  },
  "notes": [
   "The model is set by a config patch (`--patch`) the folder writes each turn; dsh has no model flag.",
-  "The session id is read from its `session` event and kept in `$HI_DIR`; later turns pass `--session-id`.",
+  "The session id is read from its `session` event and kept in `$HG_DIR`; later turns pass `--session-id`.",
   "`DSH_PERMISSION_MODE=danger-full-access` runs tools without approval prompts; stdin is closed with `</dev/null` because dsh reads it when the task is omitted."
  ],
  "caveat": ""

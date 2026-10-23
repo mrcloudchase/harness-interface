@@ -11,8 +11,8 @@ A harness is a package the tenant owns: `harness.json`, `install.sh`, `request.s
 ## Fork from the catalog
 
 ```bash
-curl -s https://hi.example.com/v1/catalog -H "Authorization: Bearer $KEY"
-curl -s -X PUT https://hi.example.com/v1/harnesses/claude-code -H "Authorization: Bearer $KEY" \
+curl -s https://hg.example.com/v1/catalog -H "Authorization: Bearer $KEY"
+curl -s -X PUT https://hg.example.com/v1/harnesses/claude-code -H "Authorization: Bearer $KEY" \
   -H 'content-type: application/json' -d '{"catalog": "claude-code"}'
 ```
 
@@ -26,11 +26,11 @@ checks each passed.
 
 ```bash
 tar czf my-harness.tgz -C my-harness .
-curl -s -X PUT https://hi.example.com/v1/harnesses/my-harness -H "Authorization: Bearer $KEY" \
+curl -s -X PUT https://hg.example.com/v1/harnesses/my-harness -H "Authorization: Bearer $KEY" \
   -H 'content-type: application/x-tar' --data-binary @my-harness.tgz
 ```
 
-The platform unpacks the archive, validates it (the three required files, contract 4 in
+The platform unpacks the archive, validates it (the three required files, contract 5 in
 `harness.json`, scripts that parse as bash, egress hosts that are not private), and keeps it as a
 version named by the digest of its files. Uploading the same bytes twice is one version. A
 session keeps the version it started on; re-upload an older folder to roll back.
@@ -44,12 +44,12 @@ error, a seeds directory with anything but `org`, `user` and `project`.
 ## What you see afterwards
 
 ```bash
-curl -s https://hi.example.com/v1/harnesses/claude-code -H "Authorization: Bearer $KEY"
+curl -s https://hg.example.com/v1/harnesses/claude-code -H "Authorization: Bearer $KEY"
 ```
 
 ```json
 {"name": "claude-code", "version": "3f0c…", "created": 1792713100.4, "versions": ["3f0c…"],
- "contract": 4, "description": "Claude Code 2.1.305, headless over stream-json; any Anthropic-shaped provider.",
+ "contract": 5, "description": "Claude Code 2.1.305, headless over stream-json; any Anthropic-shaped provider.",
  "defaults": {"provider": "deepseek", "model": "deepseek-chat"},
  "provider_env": {"key": "ANTHROPIC_API_KEY", "url": "ANTHROPIC_BASE_URL"}, "interrupt": "SIGUSR1",
  "install": {"egress": ["registry.npmjs.org"], "timeout_s": 1200},

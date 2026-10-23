@@ -6,7 +6,7 @@ provider.
 ## The trace
 
 ```bash
-curl -s https://hi.example.com/v1/sessions/sess_…/trace -H "Authorization: Bearer $KEY"
+curl -s https://hg.example.com/v1/sessions/sess_…/trace -H "Authorization: Bearer $KEY"
 ```
 
 One line per event, in order, each with the time, the kind and the response it concerns:
@@ -23,8 +23,8 @@ The trace is the member's record of the session and the deployer never reads it.
 ## Captures
 
 ```bash
-curl -s https://hi.example.com/v1/responses/resp_…/captures -H "Authorization: Bearer $KEY"
-curl -s https://hi.example.com/v1/responses/resp_…/captures/provider/0001.json -H "Authorization: Bearer $KEY"
+curl -s https://hg.example.com/v1/responses/resp_…/captures -H "Authorization: Bearer $KEY"
+curl -s https://hg.example.com/v1/responses/resp_…/captures/provider/0001.json -H "Authorization: Bearer $KEY"
 ```
 
 Every call the sandbox made to its provider during the turn, as the gateway relayed it, numbered

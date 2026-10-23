@@ -167,18 +167,18 @@ const tip = (el, text) => { el.addEventListener("mousemove", (e) => { const t = 
 
 function columns(rows, key, fmt, title) {
   // one series of thin columns, a hairline grid, labels on the last and the highest, a tooltip per column
-  const W = 720, H = 200, L = 36, R = 8, T = 18, B = 26;
+  const W = 720, H = 200, L = 48, R = 8, T = 18, B = 26;
   const max = Math.max(1, ...rows.map(r => r[key]));
   const step = Math.pow(10, Math.floor(Math.log10(max))); const top = Math.ceil(max / step) * step;
   const root = svg("svg", { class: "chart", viewBox: `0 0 ${W} ${H}`, preserveAspectRatio: "none", role: "img", "aria-label": title });
   root.append(svg("title", {}, title));
-  for (let i = 0; i <= 2; i++) { const y = T + (H - T - B) * (1 - i / 2); root.append(svg("line", { class: "grid", x1: L, x2: W - R, y1: y, y2: y }), svg("text", { class: "axis", x: L - 6, y: y + 3, "text-anchor": "end" }, num(top * i / 2))); }
+  for (let i = 0; i <= 2; i++) { const y = T + (H - T - B) * (1 - i / 2); root.append(svg("line", { class: "grid", x1: L, x2: W - R, y1: y, y2: y }), svg("text", { class: "axis", x: L - 6, y: y + 3, "text-anchor": "end" }, i ? fmt(top * i / 2) : "0")); }
   const slot = (W - L - R) / rows.length, bw = Math.min(24, Math.max(2, slot - 2));
   const peak = rows.reduce((b, r, i) => r[key] > rows[b][key] ? i : b, 0);
   rows.forEach((r, i) => {
     const x = L + i * slot + (slot - bw) / 2, hgt = (H - T - B) * r[key] / top, y = H - B - hgt;
     const g = svg("g", {});
-    g.append(svg("path", { class: "bar", d: `M${x},${H - B} V${y + 4} a4,4 0 0 1 4,-4 h${bw - 8} a4,4 0 0 1 4,4 V${H - B} Z` }));
+    if (r[key] > 0) g.append(svg("path", { class: "bar", d: `M${x},${H - B} V${Math.min(y + 4, H - B)} a4,4 0 0 1 4,-4 h${bw - 8} a4,4 0 0 1 4,4 V${H - B} Z` }));
     g.append(svg("rect", { class: "hit", x: L + i * slot, y: T, width: slot, height: H - T - B }));
     tip(g, `${r.day}: ${fmt(r[key])}`);
     root.append(g);

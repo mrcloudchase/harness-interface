@@ -1,11 +1,11 @@
 ---
 name: harnessgateway-setup
-description: Set up harnessgateway, the multi-tenant harness platform, end to end and prove it works. Use when asked to deploy or configure harnessgateway, create a tenant, register a provider, fork or upload a harness package, add members and keys, or make a first OpenAI Responses request against it. Covers the one-box self-hosted platform and a tenant on a hosted one.
+description: Set up Harness Gateway (harnessgateway), the multi-tenant harness platform, end to end and prove it works. Use when asked to deploy or configure harnessgateway, create a tenant, register a provider, fork or upload a harness package, add members and keys, or make a first OpenAI Responses request against it. Covers the one-box self-hosted platform and a tenant on a hosted one.
 ---
 
-# Set up harnessgateway end to end
+# Set up Harness Gateway end to end
 
-harnessgateway runs harness packages (a CLI agent plus `install.sh`, `request.sh`, `response.sh`
+Harness Gateway runs harness packages (a CLI agent plus `install.sh`, `request.sh`, `response.sh`
 and seeds) in sandboxes it owns, behind the OpenAI Responses API. A tenant registers **providers**
 (model endpoints and keys) and **harnesses** (packages, forked from the catalog or uploaded); members
 `POST /v1/responses` with `model` set to the harness name or `harness/provider/model`.

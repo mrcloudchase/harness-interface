@@ -51,7 +51,7 @@ def router(store: Store, sessions: Sessions, principals: Principals) -> APIRoute
         for tenant, u in rows:
             by_day.setdefault(time.strftime("%Y-%m-%d", time.gmtime(u.get("at", 0))), []).append(u)
             by_tenant.setdefault(tenant, []).append(u)
-            by_harness.setdefault(u.get("harness", "?"), []).append(u)
+            by_harness.setdefault(u.get("harness") or "(in progress)", []).append(u)
         span = days if days > 0 else max(1, int((now - min((u.get("at", now) for _, u in rows), default=now)) // 86400) + 1)
         day_rows = []
         for i in range(span - 1, -1, -1):

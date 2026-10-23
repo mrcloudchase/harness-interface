@@ -152,6 +152,7 @@ def main() -> int:
                     final.append(d["response"])
     f = final[-1] if final else {}
     say("response", f"status={f.get('status')}  exit_code={f.get('metadata', {}).get('exit_code')}  {round(time.time() - started)}s", GREEN)
+    _seen.clear(); _line[0] = ""                       # the response is read whole, not as a continuation of the stream
     text = flatten(f.get("output", [{}])[0].get("content", [{}])[0].get("text", "")).splitlines()
     print("\n".join(text[-6:]) if len(text) > 6 else "\n".join(text))
     if len(text) > 6:

@@ -4,6 +4,12 @@ Every release is a section here, newest first, and the newest section's heading 
 A merge to `main` that adds a section releases it: the release workflow tags that version, builds
 the wheel and the image, and publishes the section as its notes.
 
+## [6.1.2]
+
+- **The sidebar in the order you use it.** Setup (Providers, Harnesses) first, Build (Requests,
+  Rodeo, Sessions) below it, Team (Members, Account) at the bottom. A fresh sign-in lands on
+  Providers, the first thing a new tenant needs.
+
 ## [6.1.1]
 
 - **Picky, updated.** The newest portrait on the home page and the sign-in page, and the small

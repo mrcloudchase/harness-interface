@@ -61,9 +61,11 @@ async def run(settings: Settings) -> None:
         from .runtimes.docker import owner_of
         from .sandboxes import Node
         from .worker import Worker
-        node = Node(settings.base_image, owner_of(settings.data_dir), settings.runtime, settings.ca_file, settings.allow_private)
+        node = Node(settings.base_image, owner_of(settings.data_dir), settings.runtime, settings.ca_file, settings.allow_private,
+                    root=settings.data_dir / "worker", gateway_port=settings.gateway_port if "gateway" in settings.roles else 0)
         worker = Worker(settings.control_url, node, settings.data_dir / "worker", name=settings.worker_name,
-                        slots=settings.worker_slots, version=service_version(), join_token=service.join_token, ca_file=settings.ca_file)
+                        slots=settings.worker_slots, version=service_version(), join_token=service.join_token, ca_file=settings.ca_file,
+                        gateway_url=os.environ.get("HG_GATEWAY_URL", "").rstrip("/"))
         tasks.append(asyncio.create_task(worker.run()))
     stop = asyncio.Event()
     for sig in (signal.SIGINT, signal.SIGTERM):

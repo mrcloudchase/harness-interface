@@ -18,14 +18,19 @@ Its guarantees, on every run:
   own); a sweep removes one owner's leftovers, never another's.
 
 Paths are the same inside as outside: the workspace and every mount appear at their own paths.
+When the platform itself is a container, `Host` says what the daemon sees behind this container's
+mounts and where this container is on its network, so the sandboxes it starts get real host paths
+and a gateway address they can reach; nothing is asked of the operator but a volume and the socket.
 """
 from __future__ import annotations
 
 import asyncio
 import hashlib
+import json
 import os
 import re
 import shutil
+import socket
 import tempfile
 import uuid
 from dataclasses import dataclass
@@ -135,6 +140,58 @@ def checked(owner: str) -> str:
 
 
 @dataclass(frozen=True)
+class Host:
+    """Where this process runs, as the Docker daemon sees it. On a host process, the identity. In a
+    container: the host paths behind its mounts, the network it is on, its address there."""
+    mounts: tuple[tuple[Path, Path], ...] = ()      # (a mount's destination here, its source on the host), deepest first
+    network: str = "bridge"                         # the network a door is connected to for its way out
+    address: str = ""                               # this container's address on that network; empty on a host
+
+    def path(self, p: Path | str) -> Path:
+        """The host's path for `p`, a path here."""
+        p = Path(p)
+        for dest, src in self.mounts:
+            if p == dest or dest in p.parents:
+                return src / p.relative_to(dest)
+        return p
+
+    @classmethod
+    def from_inspect(cls, doc: dict) -> Host:
+        mounts = sorted(((Path(m["Destination"]), Path(m["Source"])) for m in doc.get("Mounts", ())
+                         if m.get("Source") and m.get("Destination")), key=lambda m: -len(m[0].parts))
+        networks = doc.get("NetworkSettings", {}).get("Networks", {})
+        name, address = next(((n, v.get("IPAddress", "")) for n, v in networks.items() if v.get("IPAddress")), ("bridge", ""))
+        return cls(tuple(mounts), name, address)
+
+
+def own_container_id() -> str:
+    """The id of the container this process runs in, from what Docker leaves in /proc; '' on a host."""
+    if not Path("/.dockerenv").exists():
+        return ""
+    try:
+        for line in Path("/proc/self/mountinfo").read_text().splitlines():
+            if m := re.search(r"/containers/([0-9a-f]{64})/", line):
+                return m.group(1)
+    except OSError:
+        pass
+    return socket.gethostname()                      # Docker's default hostname: the id's first 12 digits
+
+
+async def inspect_self() -> Host:
+    """This process's container as the daemon sees it, or the identity Host on a host process."""
+    cid = own_container_id()
+    if not cid:
+        return Host()
+    code, out = await docker("inspect", cid)
+    if code != 0:
+        return Host()
+    try:
+        return Host.from_inspect(json.loads(out)[0])
+    except (ValueError, IndexError, KeyError, TypeError):
+        return Host()
+
+
+@dataclass(frozen=True)
 class Names:
     run: str
     door: str
@@ -142,9 +199,9 @@ class Names:
     secrets: Path
 
     @classmethod
-    def new(cls, owner: str) -> Names:
+    def new(cls, owner: str, secrets: Path = SECRETS) -> Names:
         rid = uuid.uuid4().hex[:12]
-        return cls(f"{PREFIX}run-{rid}", f"{PREFIX}door-{rid}", f"{PREFIX}net-{rid}", SECRETS / f"{PREFIX}{owner}-{rid}")
+        return cls(f"{PREFIX}run-{rid}", f"{PREFIX}door-{rid}", f"{PREFIX}net-{rid}", secrets / f"{PREFIX}{owner}-{rid}")
 
 
 class ContainerExecution(ProcessExecution):
@@ -174,13 +231,15 @@ class DockerRuntime:
 
     def __init__(self, image: str, *, uid: int, limits: Resources = Resources(), read_only: Sequence[Path] = (),
                  writable: Sequence[Path] = (), egress: Sequence[str] = (), gateway_url: str = "", token: str = "",
-                 ca_file: Path | None = None, owner: str, runtime: str = "", allow_private: bool = False):
+                 ca_file: Path | None = None, owner: str, runtime: str = "", allow_private: bool = False,
+                 host: Host = Host(), secrets: Path = SECRETS, turn_script: Path = TURN_SCRIPT, door_script: Path = DOOR_SCRIPT):
         if bool(gateway_url) != bool(token):
             raise Invalid("a gateway comes with a token, or neither")
         if token and any(c in token for c in "\r\n\0"):
             raise Invalid("a token is one line")
         self.image, self.uid, self.limits, self.ca_file = image, uid, limits, ca_file
         self.gateway_url, self.token, self.runtime, self.allow_private = gateway_url, token, runtime, allow_private
+        self.host, self.secrets, self.turn_script, self.door_script = host, Path(secrets), Path(turn_script), Path(door_script)
         self.owner = checked(owner)
         self.read_only, self.writable = tuple(Path(p) for p in read_only), tuple(Path(p) for p in writable)
         self.allowed = sorted({normalize(h) for h in egress if h.strip()})
@@ -194,14 +253,14 @@ class DockerRuntime:
         return TOKEN_PATH if self.gateway_url else None
 
     async def start(self, spec: Spec) -> Execution:
-        names, door = Names.new(self.owner), None
+        names, door = Names.new(self.owner, self.secrets), None
         try:
             run_bin = docker_bin()
             await whole(asyncio.to_thread(self._prepare, spec, names))
             await self._step("network", "create", "--internal", *self.label, names.network)
             door = await self._spawn_door(names)
             await self._door_ready(door)
-            await self._step("network", "connect", "bridge", names.door)
+            await self._step("network", "connect", self.host.network, names.door)
             env = {**spec.env, "HTTPS_PROXY": PROXY, "https_proxy": PROXY, "NO_PROXY": NO_PROXY, "no_proxy": NO_PROXY,
                    **({v: CA_PATH for v in CA_VARS} if self.ca_file else {})}
             execution = await ContainerExecution.spawn(
@@ -220,7 +279,7 @@ class DockerRuntime:
             return NeverStarted(str(e) or repr(e))
 
     async def recover(self) -> None:
-        await sweep(self.owner)
+        await sweep(self.owner, self.secrets)
 
     @property
     def label(self) -> tuple[str, str]:
@@ -231,23 +290,24 @@ class DockerRuntime:
         return f"{self.uid}:{self.uid}" if os.geteuid() == 0 else f"{os.getuid()}:{os.getgid()}"
 
     def run_argv(self, spec: Spec, names: Names, env: dict[str, str]) -> list[str]:
+        v = lambda src, dst, ro="": f"{self.host.path(src)}:{dst}{ro}"     # a mount, by the path the daemon sees
         argv = ["run", "--rm", "-i", "--init", "-e", "TINI_KILL_PROCESS_GROUP=1", "--name", names.run,
                 *self.label, "--network", names.network, *HARDENING, "--cpus", str(self.limits.cpus),
                 "--memory", self.limits.memory, "--pids-limit", str(self.limits.pids), "--user", self.user]
         if self.runtime:
             argv += ["--runtime", self.runtime]
         if spec.workspace:
-            argv += ["-v", f"{spec.workspace}:{spec.workspace}", "-w", str(spec.workspace)]
+            argv += ["-v", v(spec.workspace, spec.workspace), "-w", str(spec.workspace)]
         for path in self.writable:
-            argv += ["-v", f"{path}:{path}"]
+            argv += ["-v", v(path, path)]
         for path in self.read_only:
-            argv += ["-v", f"{path}:{path}:ro"]
-        argv += ["-v", f"{TURN_SCRIPT}:{TURN_SCRIPT}:ro"]           # the runner, at its own path, read-only
-        argv += ["-v", f"{names.secrets / 'passwd'}:/etc/passwd:ro", "-v", f"{names.secrets / 'group'}:/etc/group:ro"]   # the run's user has a name and a home
+            argv += ["-v", v(path, path, ":ro")]
+        argv += ["-v", v(self.turn_script, TURN_SCRIPT, ":ro")]      # the runner, at its own path, read-only
+        argv += ["-v", v(names.secrets / "passwd", "/etc/passwd", ":ro"), "-v", v(names.secrets / "group", "/etc/group", ":ro")]   # the run's user has a name and a home
         if self.gateway_url:
-            argv += ["-v", f"{names.secrets / 'token'}:{TOKEN_PATH}:ro"]
+            argv += ["-v", v(names.secrets / "token", TOKEN_PATH, ":ro")]
         if self.ca_file:
-            argv += ["-v", f"{self.ca_file}:{CA_PATH}:ro"]
+            argv += ["-v", v(self.ca_file, CA_PATH, ":ro")]
         for name, value in env.items():
             argv += ["-e", f"{name}={value}" if clients_own(name) else name]
         return [*argv, self.image, *spec.command]
@@ -256,9 +316,9 @@ class DockerRuntime:
         argv = ["run", "-i", "--rm", "--name", names.door, *self.label, "--network", names.network,
                 "--network-alias", DOOR_HOST, "--network-alias", PROVIDER_HOST, "--add-host", "host.docker.internal:host-gateway",
                 *LOCKDOWN, *DOOR_LIMITS,
-                "--user", "65534:65534", "-v", f"{DOOR_SCRIPT}:/door/door.py:ro"]
+                "--user", "65534:65534", "-v", f"{self.host.path(self.door_script)}:/door/door.py:ro"]
         if self.ca_file:
-            argv += ["-v", f"{self.ca_file}:{CA_PATH}:ro", "-e", f"SSL_CERT_FILE={CA_PATH}"]
+            argv += ["-v", f"{self.host.path(self.ca_file)}:{CA_PATH}:ro", "-e", f"SSL_CERT_FILE={CA_PATH}"]
         argv += [DOOR_IMAGE, "python3", "/door/door.py", f"0.0.0.0:{DOOR_PORT}", *self.allowed]
         if self.gateway_url:
             argv += ["--gateway", f"0.0.0.0:{GATEWAY_PORT}", self.gateway_url]
@@ -271,6 +331,7 @@ class DockerRuntime:
         if os.geteuid() == 0:
             for path in (*([spec.workspace] if spec.workspace else []), *self.writable):
                 hand_over(path, self.uid)
+        names.secrets.parent.mkdir(parents=True, exist_ok=True)
         names.secrets.mkdir(mode=0o700)
         uid = self.uid if os.geteuid() == 0 else os.getuid()
         home = spec.env.get("HOME", "/tmp")
@@ -369,7 +430,7 @@ async def teardown(names: Names, door: asyncio.subprocess.Process | None) -> Non
         await asyncio.to_thread(shred, names.secrets)
 
 
-async def sweep(owner: str) -> None:
+async def sweep(owner: str, secrets: Path = SECRETS) -> None:
     """Remove the containers, networks and tokens of the owner's runs a crash cut off."""
     label = f"label={LABEL}={checked(owner)}"
     code, out = await docker("ps", "-aq", "--filter", label)
@@ -380,5 +441,5 @@ async def sweep(owner: str) -> None:
     _, out = await docker("network", "ls", "-q", "--filter", label)
     if ids := out.split():
         await docker("network", "rm", *ids)
-    for secrets in SECRETS.glob(f"{PREFIX}{owner}-" + "[0-9a-f]" * 12):
-        await asyncio.to_thread(shred, secrets)
+    for left in Path(secrets).glob(f"{PREFIX}{owner}-" + "[0-9a-f]" * 12):
+        await asyncio.to_thread(shred, left)

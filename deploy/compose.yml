@@ -6,8 +6,8 @@
 #                                                Postgres and MinIO (or point HG_RECORDS / HG_BLOBS at
 #                                                any Postgres and any S3)
 #
-# The data directory is mounted at the SAME path inside and out (/srv/hg/data), because a worker
-# bind-mounts session trees into sandboxes by their host paths. Set HG_DOMAIN for Caddy's certificate.
+# Each container that runs turns inspects itself through the socket and mounts the daemon's own
+# paths into its sandboxes, so the data lives on a named volume. Set HG_DOMAIN for Caddy's certificate.
 name: harnessgateway
 
 x-env: &env
@@ -16,11 +16,9 @@ x-env: &env
   HG_MASTER_KEY: ${HG_MASTER_KEY:-}
   HG_JOIN_TOKEN: ${HG_JOIN_TOKEN:-}
   HG_PUBLIC_URL: ${HG_PUBLIC_URL:-https://${HG_DOMAIN:-localhost}}
-  HG_GATEWAY_URL: ${HG_GATEWAY_URL:-http://host.docker.internal:8081}
   HG_BASE_IMAGE: ${HG_BASE_IMAGE:-}
   HG_RUNTIME: ${HG_RUNTIME:-}
   HG_ALLOW_PRIVATE: ${HG_ALLOW_PRIVATE:-0}
-  HG_DATA_DIR: /srv/hg/data
 
 services:
   caddy:
@@ -36,22 +34,20 @@ services:
 
   # one box
   platform:
-    image: ${HG_IMAGE:-ghcr.io/mrcloudchase/harnessgatewayai:5.0.1}
+    image: ${HG_IMAGE:-ghcr.io/mrcloudchase/harnessgatewayai}
     profiles: [one-box]
     restart: unless-stopped
     command: ["serve", "--role", "all"]
     environment:
       <<: *env
       HG_HOST: 0.0.0.0
-    extra_hosts: ["host.docker.internal:host-gateway"]
-    ports: ["8081:8081"]                        # the gateway, for the doors on this host: reachable through host.docker.internal, token-only
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /srv/hg/data:/srv/hg/data
+      - hg-data:/data
 
   # many boxes
   api:
-    image: ${HG_IMAGE:-ghcr.io/mrcloudchase/harnessgatewayai:5.0.1}
+    image: ${HG_IMAGE:-ghcr.io/mrcloudchase/harnessgatewayai}
     profiles: [ha]
     restart: unless-stopped
     command: ["serve", "--role", "api,gateway"]
@@ -59,6 +55,7 @@ services:
     environment:
       <<: *env
       HG_HOST: 0.0.0.0
+      HG_GATEWAY_URL: ${HG_GATEWAY_URL:-http://api:8081}     # what a turn is told; a worker with its own HG_GATEWAY_URL uses that
       HG_RECORDS: ${HG_RECORDS:-postgresql://hg:hg@postgres/hg}
       HG_BLOBS: ${HG_BLOBS:-s3://hg}
       HG_S3_ENDPOINT: ${HG_S3_ENDPOINT:-http://minio:9000}
@@ -68,19 +65,18 @@ services:
     depends_on: [postgres, minio]
 
   worker:
-    image: ${HG_IMAGE:-ghcr.io/mrcloudchase/harnessgatewayai:5.0.1}
+    image: ${HG_IMAGE:-ghcr.io/mrcloudchase/harnessgatewayai}
     profiles: [ha]
     restart: unless-stopped
     command: ["serve", "--role", "worker"]
     environment:
       <<: *env
       HG_CONTROL_URL: ${HG_CONTROL_URL:-http://api:8000}
-      HG_GATEWAY_URL: ${HG_GATEWAY_URL:-http://host.docker.internal:8081}
+      HG_GATEWAY_URL: ${HG_GATEWAY_URL:-http://api:8081}     # the gateway over the compose network; the doors are put on it too
       HG_WORKER_SLOTS: ${HG_WORKER_SLOTS:-4}
-    extra_hosts: ["host.docker.internal:host-gateway"]
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
-      - /srv/hg/data:/srv/hg/data
+      - hg-worker-data:/data
     depends_on: [api]
 
   postgres:
@@ -99,6 +95,8 @@ services:
     volumes: [minio-data:/data]
 
 volumes:
+  hg-data: {}
+  hg-worker-data: {}
   caddy-data: {}
   caddy-config: {}
   postgres-data: {}

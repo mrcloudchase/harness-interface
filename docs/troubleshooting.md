@@ -41,7 +41,8 @@ gateway forward
 
 A `deny` names a host the package did not list under `run.egress` (or `install.egress` for an
 install). A refused private address is by design. A `gateway unreachable` line means
-`HG_GATEWAY_URL` is wrong for this worker machine.
+`HG_GATEWAY_URL` is wrong for this worker machine; on one box, where it is found, it means the
+platform container was started without the Docker socket or outside the daemon it talks to.
 
 ## The platform
 
@@ -50,6 +51,6 @@ install). A refused private address is by design. A `gateway unreachable` line m
 | the first request to a package takes minutes | its install; the next one is fast |
 | `GET /healthz` works, requests sit `queued` | no worker is alive, or every slot is busy; the dashboard shows both |
 | the worker logs `could not reach the control plane` | `HG_CONTROL_URL` or the join token |
-| a worker joined but its turns fail at once | the data directory is not at the same path inside and outside its container |
+| a worker joined but its turns fail at once | the Docker socket it was given is not the daemon that runs it, so the paths it learned by inspecting itself are another machine's |
 | sandboxes fail TLS on a network that re-signs it | `HG_CA_FILE` with the network's bundle |
 | `set HG_MASTER_KEY (64 hex digits) or HG_MASTER_KEY_FILE` | run `init`, or pass the key the fleet shares |

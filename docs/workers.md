@@ -24,11 +24,10 @@ ceilings comfortably. Set the slots to what the machine has, not more.
 
 ```bash
 docker run -d --name hg-worker --restart unless-stopped \
-  -v /var/run/docker.sock:/var/run/docker.sock -v /srv/hg/data:/srv/hg/data \
-  --add-host host.docker.internal:host-gateway \
-  -e HG_DATA_DIR=/srv/hg/data -e HG_CONTROL_URL=https://hg.example.com -e HG_JOIN_TOKEN=… \
+  -v /var/run/docker.sock:/var/run/docker.sock -v hg:/data \
+  -e HG_CONTROL_URL=https://hg.example.com -e HG_JOIN_TOKEN=… \
   -e HG_GATEWAY_URL=https://gateway.hg.example.com -e HG_RUNTIME=runsc -e HG_WORKER_SLOTS=8 \
-  ghcr.io/mrcloudchase/harnessgatewayai:5.0.1 serve --role worker
+  ghcr.io/mrcloudchase/harnessgatewayai serve --role worker
 ```
 
 | Variable | What |
@@ -38,7 +37,7 @@ docker run -d --name hg-worker --restart unless-stopped \
 | `HG_GATEWAY_URL` | the gateway, as this machine's sandboxes reach it: a TLS address behind your load balancer |
 | `HG_BASE_IMAGE` | the sandbox image; empty builds the shipped one on this machine at first start |
 | `HG_RUNTIME` | `runsc` to run every sandbox under gVisor; strongly recommended for strangers' tenants |
-| `HG_DATA_DIR` | the cache, mounted at the same path inside and out |
+| `HG_DATA_DIR` | the cache; `/data` in the image, a named volume. The worker inspects its own container and mounts the daemon's paths into its sandboxes |
 
 The worker joins once and saves its credential under the data directory; the join token is not
 needed again. `deploy/worker.cloud-init.yml` does all of this on a fresh machine.
@@ -48,6 +47,8 @@ needed again. `deploy/worker.cloud-init.yml` does all of this on a fresh machine
 ```
 <data>/worker/
   worker.json                     its credential
+  platform/                       the turn runner and the door, copied here so the sandboxes can mount them
+  secrets/                        each running turn's token, passwd and group, shredded when it ends
   packages/<digest>/              packages, unpacked once
   tools/<digest>-<image>/         tools layers: install.sh's result, once per package version and base image
   sessions/<sid>/{workspace,run}  a session's trees between turns, restored from the snapshot when stale

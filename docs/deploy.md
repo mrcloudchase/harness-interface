@@ -34,7 +34,7 @@ On a Mac with Docker Desktop, replace `/srv/hg/data` with a directory under your
 ## One box with compose and TLS
 
 ```bash
-git clone https://github.com/mrcloudchase/harnessgateway && cd harnessgateway/deploy
+git clone https://github.com/mrcloudchase/harnessgatewayai && cd harnessgateway/deploy
 mkdir -p /srv/hg/data
 HG_DOMAIN=hg.example.com docker compose --profile one-box up -d
 ```

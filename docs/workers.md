@@ -28,7 +28,7 @@ docker run -d --name hg-worker --restart unless-stopped \
   --add-host host.docker.internal:host-gateway \
   -e HG_DATA_DIR=/srv/hg/data -e HG_CONTROL_URL=https://hg.example.com -e HG_JOIN_TOKEN=… \
   -e HG_GATEWAY_URL=https://gateway.hg.example.com -e HG_RUNTIME=runsc -e HG_WORKER_SLOTS=8 \
-  ghcr.io/mrcloudchase/harnessgateway:5.0.0 serve --role worker
+  ghcr.io/mrcloudchase/harnessgatewayai:5.0.1 serve --role worker
 ```
 
 | Variable | What |

@@ -4,12 +4,23 @@ Every release is a section here, newest first, and the newest section's heading 
 A merge to `main` that adds a section releases it: the release workflow tags that version, builds
 the wheel and the image, and publishes the section as its notes.
 
+## [5.0.1]
+
+- **The image is `ghcr.io/mrcloudchase/harnessgatewayai`**, the repository's name, built for
+  amd64 and arm64; the base image is `ghcr.io/mrcloudchase/harnessgatewayai-base`, the same.
+- **The one-box platform's gateway port is reachable from its sandboxes.** The quickstart and the
+  compose file published 8081 on 127.0.0.1 only, which `host.docker.internal` cannot reach, so a
+  platform run as a container could not relay a single provider call. It is published on every
+  interface now; the gateway answers nothing without a per-turn token.
+- **The quickstart uses a directory under your home**, which works on a Mac, where `/srv` is
+  read-only, as well as on a Linux box.
+
 ## [5.0.0]
 
 The platform is **Harness Gateway** (harnessgateway.ai). Everything public is renamed, so this is
 a major: the package and command are `harnessgateway`, the variables are `HG_*`, keys are `hg_…`
 (members), `hgd_…` (the deployer) and `hgw_…` (workers), the image is
-`ghcr.io/mrcloudchase/harnessgateway`, the data directory is `~/.harnessgateway`. Nothing on disk
+`ghcr.io/mrcloudchase/harnessgatewayai`, the data directory is `~/.harnessgateway`. Nothing on disk
 from 4.x is read; a 4.x data directory is not migrated.
 
 - **Contract 5.** The same package contract as 4 with the platform's variables renamed: `HG_DIR`,

@@ -8,7 +8,7 @@ A release is a section of `CHANGELOG.md`. The newest section's heading is the ve
 2. Merge to `main`.
 3. The release workflow sees that `vX.Y.Z` has no tag yet, runs the suite, builds the
    documentation and the wheel, builds the image, pushes
-   `ghcr.io/mrcloudchase/harnessgateway:X.Y.Z` and `:latest`, tags the commit, and publishes
+   `ghcr.io/mrcloudchase/harnessgatewayai:X.Y.Z` and `:latest`, tags the commit, and publishes
    a GitHub release with the wheel attached and the section as its notes.
 
 Nothing else creates tags. A merge whose newest section is already tagged releases nothing.

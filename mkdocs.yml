@@ -1,0 +1,115 @@
+site_name: harness-interface
+site_description: A multi-tenant platform that runs coding-agent CLIs sandboxed behind the OpenAI Responses API.
+site_url: https://mrcloudchase.github.io/harness-interface/
+repo_url: https://github.com/mrcloudchase/harness-interface
+repo_name: mrcloudchase/harness-interface
+edit_uri: edit/main/docs/
+docs_dir: docs
+site_dir: harness_interface/docs          # ships in the wheel; the API serves it at /docs
+strict: true
+
+theme:
+  name: material
+  logo: assets/picky.png
+  favicon: assets/picky.png
+  features:
+    - navigation.sections
+    - navigation.indexes
+    - navigation.top
+    - navigation.footer
+    - search.suggest
+    - content.code.copy
+    - content.tabs.link
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-night
+        name: Dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: teal
+      toggle:
+        icon: material/weather-sunny
+        name: Light mode
+
+extra_css:
+  - assets/asciinema-player.css
+  - assets/extra.css
+extra_javascript:
+  - assets/asciinema-player.min.js
+  - assets/players.js
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight
+  - pymdownx.inlinehilite
+  - pymdownx.snippets:
+      base_path: ["."]
+      check_paths: true
+
+nav:
+  - Overview: index.md
+  - Get started:
+      - Deploy: deploy.md
+      - Initialize: initialize.md
+      - Sign in: sign-in.md
+      - Providers: providers.md
+      - Harnesses: harnesses.md
+      - First request: first-request.md
+  - Use it:
+      - Sessions: sessions.md
+      - Steer and cancel: steer-and-cancel.md
+      - Traces and captures: traces-and-captures.md
+      - Members and keys: members-and-keys.md
+      - Clients: clients.md
+  - Operate it:
+      - Tenants and limits: tenants.md
+      - Workers and scale: workers.md
+      - Configuration: configuration.md
+      - Security: security.md
+      - Troubleshooting: troubleshooting.md
+  - Packages:
+      - Write a package: packages.md
+      - The catalog: catalog/index.md
+      - Demos: demos.md
+      - aider: catalog/aider.md
+      - cheetahclaws: catalog/cheetahclaws.md
+      - claude-code: catalog/claude-code.md
+      - cline: catalog/cline.md
+      - codex: catalog/codex.md
+      - dsh: catalog/dsh.md
+      - goose: catalog/goose.md
+      - grok: catalog/grok.md
+      - hermes: catalog/hermes.md
+      - jcode: catalog/jcode.md
+      - kilo: catalog/kilo.md
+      - kimi-code: catalog/kimi-code.md
+      - mimo: catalog/mimo.md
+      - minimax-code: catalog/minimax-code.md
+      - nanobot: catalog/nanobot.md
+      - omp: catalog/omp.md
+      - opencode: catalog/opencode.md
+      - openhands: catalog/openhands.md
+      - opensquilla: catalog/opensquilla.md
+      - pi: catalog/pi.md
+      - qwen-code: catalog/qwen-code.md
+      - zeroclaw: catalog/zeroclaw.md
+  - Reference:
+      - API: api.md
+      - Architecture: architecture.md
+      - Contributing: contributing.md
+      - Releasing: releasing.md
+      - Changelog: changelog.md

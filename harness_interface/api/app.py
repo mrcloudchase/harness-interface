@@ -15,6 +15,7 @@ from typing import Any, Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, Response, StreamingResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from ..blobs import open_blobs
@@ -32,6 +33,7 @@ STATUS = {Invalid: 400, NotFound: 404, Conflict: 409}
 CONSOLE = Path(__file__).resolve().parents[1] / "console"      # inside the wheel; a checkout has it at the repository root
 if not CONSOLE.is_dir():
     CONSOLE = Path(__file__).resolve().parents[2] / "console"
+DOCS = Path(__file__).resolve().parents[1] / "docs"            # the built documentation site (mkdocs build), when present
 VERSION = version("harness-interface")
 
 
@@ -90,7 +92,7 @@ def create_app(service: Service) -> FastAPI:
         yield
         task.cancel()
 
-    app = FastAPI(title="harness-interface", version=VERSION, lifespan=lifespan)
+    app = FastAPI(title="harness-interface", version=VERSION, lifespan=lifespan, docs_url="/reference", redoc_url=None)
 
     for error, code in STATUS.items():
         @app.exception_handler(error)
@@ -283,5 +285,8 @@ def create_app(service: Service) -> FastAPI:
             if not target.is_file() or CONSOLE not in target.parents:
                 raise HTTPException(404)
             return FileResponse(target)
+
+    if (DOCS / "index.html").is_file():
+        app.mount("/docs", StaticFiles(directory=DOCS, html=True), name="docs")
 
     return app

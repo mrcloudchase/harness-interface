@@ -1,0 +1,12 @@
+{"version": 2, "width": 100, "height": 28, "timestamp": 1792714223, "idle_time_limit": 2.0, "env": {"SHELL": "/bin/bash", "TERM": "xterm-256color"}, "title": "harness-interface: goose takes a steered turn"}
+[0.141726, "o", "\r\n\u001b[1mharness\u001b[0m goose\r\n\r\n\u001b[1mrequest\u001b[0m POST /v1/responses  model=goose  stream=true\r\n\u001b[2mRun exactly this shell command with your shell tool, wait for it to finish, then reply with the one word: counted\r\n\r\nfor i in $(seq 1 12); do echo tick $i; sleep 1; done\u001b[0m\r\n\r\n\u001b[2mlive stdout\u001b[0m (request.sh, relayed as it is written)\r\n"]
+[2.163297, "o", "    __( O)>  ● new session · anthropic deepseek-chat\r\n   \\____)    20261023_1 · /tmp/claude-0/-home-user/37719b48-fc3a-58ba-bb72-5869c819d794/scratchpad/docs-live/data/worker/sessions/sess_a95ceca37da3431985e363126f8b63ce/workspace\r\n     L L     goose is ready\r\n"]
+[3.419789, "o", "$ for i in $(seq 1 12); do echo tick $i; sleep 1; done\r\n"]
+[10.364501, "o", "\r\n\u001b[33msteer\u001b[0m POST /v1/sessions/{id}/interrupt -> 200\r\n\u001b[2mStop counting. Whether or not it finished, reply now with just the one word: stopped\u001b[0m\r\n"]
+[15.501546, "o", "tick 1\r\ntick 2\r\ntick 3\r\ntick 4\r\ntick 5\r\ntick 6\r\ntick 7\r\ntick 8\r\ntick 9\r\ntick 10\r\ntick 11\r\ntick 12\r\n"]
+[16.256269, "o", "count\r\n"]
+[16.508939, "o", "ed\r\n    __( O)>  ● resuming · anthropic deepseek-chat\r\n   \\____)    20261023_1 · /tmp/claude-0/-home-user/37719b48-fc3a-58ba-bb72-5869c819d794/scratchpad/docs-live/data/worker/sessions/sess_a95ceca37da3431985e363126f8b63ce/workspace\r\n     L L     goose is ready\r\n"]
+[17.515584, "o", "sto\r\n"]
+[17.516602, "o", "pped\r\n"]
+[18.021255, "o", "\r\n\u001b[32mresponse\u001b[0m status=completed  exit_code=0  18s\r\ned\r\n    __( O)>  ● resuming · anthropic deepseek-chat\r\n   \\____)    20261023_1 · /tmp/claude-0/-home-user/37719b48-fc3a-58ba-bb72-5869c819d794/scratchpad/docs-live/data/worker/sessions/sess_a95ceca37da3431985e363126f8b63ce/workspace\r\n     L L     goose is ready\r\nsto\r\npped\r\n\u001b[2m(the last 6 of 23 lines; the package returns request.sh's stdout as it is)\u001b[0m\r\n\r\n\u001b[2mtrace\u001b[0m GET /v1/sessions/{id}/trace\r\n"]
+[18.025441, "o", "  request   resp_8f8fb2dca49148c…  \"Run exactly this shell command with your shell tool, wait for it to f\r\n  interrupt resp_8f8fb2dca49148c…  \"Stop counting. Whether or not it finished, reply now with just the on\r\n  response  resp_8f8fb2dca49148c…  \r\n"]

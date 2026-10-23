@@ -42,7 +42,7 @@ docker compose exec platform harness-interface init --tenant <tenant> --owner <o
 
 `init` prints the deployer key and the owner's API key, once each. The console is at `https://<HI_DOMAIN>`.
 For many boxes, `docker compose --profile ha up -d` and workers that join with `HI_JOIN_TOKEN`;
-`docs/users/deploying.md` has the variables. Check: `curl -s $HI/healthz` returns `"status": "ok"`.
+`docs/deploy.md` and `docs/configuration.md` have the variables. Check: `curl -s $HI/healthz` returns `"status": "ok"`.
 
 ## 2. Create a tenant (deployer)
 
@@ -87,7 +87,7 @@ Or upload your own: a folder with `harness.json` (contract 4: `defaults` provide
 CLI under `$HI_TOOLS`), `request.sh` (the turn: prompt on stdin, prints the output), optional
 `response.sh` (prints the response, exits with the status), `seeds/`. `tar czf <name>.tgz -C <name> .`
 and `PUT /v1/harnesses/<name>` with the archive as the body; a `400` names what is wrong.
-`docs/users/packages.md` is the contract. Check: `GET /v1/harnesses/<name>` shows a `version`.
+`docs/packages.md` is the contract. Check: `GET /v1/harnesses/<name>` shows a `version`.
 
 ## 5. Make the first request
 

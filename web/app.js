@@ -96,8 +96,8 @@ function login(note, mode = "signin", resetToken = "") {
   }
   $("#root").replaceChildren(h("div", { class: "auth" },
     h("div", { class: "side-art" },
-      h("a", { class: "brand", href: "/" }, h("img", { src: "/web/picky.svg", alt: "" }), "HarnessGateway"),
-      h("div", {}, h("h1", {}, "Every coding agent.", h("br"), "One API. ", h("em", {}, "Sandboxed.")), h("p", {}, "Bring your providers and your harness packages. The platform runs each turn in a sandbox it owns, relays the provider calls through a gateway that holds the keys, and keeps the complete record."), h("img", { class: "mascot", src: "/web/picky.svg", alt: "" })),
+      h("a", { class: "brand", href: "/" }, h("img", { src: "/web/picky.png", alt: "" }), "HarnessGateway"),
+      h("div", {}, h("h1", {}, "Every coding agent.", h("br"), "One API. ", h("em", {}, "Sandboxed.")), h("p", {}, "Bring your providers and your harness packages. The platform runs each turn in a sandbox it owns, relays the provider calls through a gateway that holds the keys, and keeps the complete record."), h("img", { class: "mascot", src: "/web/picky.png", alt: "" })),
       h("div", { class: "muted", style: "color:#8FA3C6" }, state.health.signup === "open" ? "harnessgateway.ai" : "self-hosted", " · v", state.health.version, " · ", h("a", { href: "/docs/", style: "color:#B7C6E0" }, "Docs"))),
     h("div", { class: "form" }, h("div", {}, note, ...body, out))));
 }
@@ -117,10 +117,10 @@ function shell(page) {
   const item = (p, ic) => h("button", { class: "item" + (p === state.page ? " on" : ""), on: { click: () => shell(p) } }, icon(ic), p);
   const switcher = state.account ? h("div", { class: "tenant" }, h("select", { on: { change: async (e) => { if (e.target.value === "+") { e.target.value = state.me.tenant; return shell("Account"); } try { const me = await api("POST", "/auth/switch", { tenant: e.target.value }); state.tenants = me.tenants; state.me = { ...me.current, name: me.current.member }; state.kind = me.current.role; shell(state.page); } catch (err) { alert(err.message); } } } },
     ...state.tenants.map(t => h("option", { value: t.tenant, selected: t.tenant === state.me.tenant }, `${t.tenant} · ${t.role}`)), h("option", { value: "+" }, "+ new tenant"))) : null;
-  const side = h("aside", { class: "side" }, h("a", { class: "brand", href: "/" }, h("img", { src: "/web/picky.svg", alt: "" }), "HarnessGateway"), switcher,
+  const side = h("aside", { class: "side" }, h("a", { class: "brand", href: "/" }, h("img", { src: "/web/picky.png", alt: "" }), "HarnessGateway"), switcher,
     ...groups.flatMap(([label, items]) => [h("div", { class: "group" }, label), ...items.filter(([p]) => all.includes(p)).map(([p, ic]) => item(p, ic))]),
     h("div", { class: "foot" }, h("b", {}, state.kind === "deployer" ? "deployer" : `${state.me.name} · ${state.kind}`), state.account ? h("span", {}, state.account.email) : h("span", {}, state.me.tenant || "the platform"), h("a", { class: "item", href: "/docs/", style: "padding:6px 0" }, icon("book"), "Docs"), h("button", { class: "item", style: "padding:6px 0", on: { click: signOut } }, icon("logout"), "Sign out")));
-  const top = h("div", { class: "topbar" }, h("img", { src: "/web/picky.svg", alt: "" }), h("b", {}, "HarnessGateway"), ...all.map(p => h("button", { class: p === state.page ? "on" : "", on: { click: () => shell(p) } }, p)), h("button", { on: { click: signOut } }, "Sign out"));
+  const top = h("div", { class: "topbar" }, h("img", { src: "/web/picky.png", alt: "" }), h("b", {}, "HarnessGateway"), ...all.map(p => h("button", { class: p === state.page ? "on" : "", on: { click: () => shell(p) } }, p)), h("button", { on: { click: signOut } }, "Sign out"));
   const main = h("main", { class: "page" }, h("div", { class: "empty" }, "loading…"));
   $("#root").replaceChildren(h("div", { class: "shell" }, side, h("div", {}, top, main)));
   VIEWS[state.page]().then(el => main.replaceChildren(el)).catch(e => main.replaceChildren(h("div", { class: "card" }, fail(e))));

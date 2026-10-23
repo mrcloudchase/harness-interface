@@ -1,7 +1,7 @@
 # HarnessGateway
 
 <figure class="shot" markdown>
-![Picky, the mascot: a hermit crab with no shell of its own](assets/picky.svg){ width="200" }
+![Picky, the mascot: a hermit crab in a circuit-board shell](assets/picky.png){ width="200" }
 </figure>
 
 A multi-tenant platform that runs coding-agent CLIs, the **harnesses**, one turn at a time in

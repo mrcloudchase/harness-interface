@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="docs/assets/picky.svg" width="220" alt="Picky, the HarnessGateway mascot: a hermit crab with no shell of its own">
+  <img src="docs/assets/picky.png" width="220" alt="Picky, the HarnessGateway mascot: a hermit crab in a circuit-board shell">
 </p>
 
 <h1 align="center">HarnessGateway</h1>

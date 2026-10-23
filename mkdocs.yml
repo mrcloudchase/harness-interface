@@ -10,8 +10,8 @@ strict: true
 
 theme:
   name: material
-  logo: assets/picky.svg
-  favicon: assets/picky.svg
+  logo: assets/picky.png
+  favicon: assets/picky.png
   features:
     - navigation.sections
     - navigation.indexes

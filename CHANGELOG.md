@@ -4,6 +4,11 @@ Every release is a section here, newest first, and the newest section's heading 
 A merge to `main` that adds a section releases it: the release workflow tags that version, builds
 the wheel and the image, and publishes the section as its notes.
 
+## [6.1.1]
+
+- **Picky, updated.** The newest portrait, everywhere, and no square behind it on the navy: the
+  app's sidebar, the sign-in page and the documentation's header show the crab alone.
+
 ## [6.1.0]
 
 - **The arena is the rodeo.** The page, the records and the routes are named for it:

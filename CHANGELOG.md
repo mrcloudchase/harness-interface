@@ -6,6 +6,11 @@ the wheel and the image, and publishes the section as its notes.
 
 ## [6.1.2]
 
+- **Fixed: installs on the base image's npm 12.** npm 12 runs no install script it was not told
+  to, so claude-code and opencode failed to install (their postinstall fetches the binary) and
+  six other packages installed with scripts blocked. Every npm-installed package in the catalog
+  now names the packages whose scripts it allows, and fails loudly if a version brings a new
+  one. A tenant that forked one of these before 6.1.2 forks it again to pick up the fix.
 - **The sidebar in the order you use it.** Setup (Providers, Harnesses) first, Build (Requests,
   Rodeo, Sessions) below it, Team (Members, Account) at the bottom. A fresh sign-in lands on
   Providers, the first thing a new tenant needs.

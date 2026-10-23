@@ -51,13 +51,21 @@ image, with `$HG_TOOLS` writable and egress to `install.egress` only. Put the CL
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-mkdir -p "$HG_TOOLS/bin"
-npm install --global --prefix "$HG_TOOLS" --no-audit --no-fund "@anthropic-ai/claude-code@2.1.305"
+mkdir -p "$HG_TOOLS/bin" "$HG_TOOLS/lib"
+npm install --global --prefix "$HG_TOOLS" --no-audit --no-fund \
+  --strict-allow-scripts --allow-scripts=@anthropic-ai/claude-code "@anthropic-ai/claude-code@2.1.305"
 ```
 
 The base image has Debian, Python 3.12, Node 22, git, curl, ripgrep, procps and tmux. A Python
 CLI goes in a virtualenv under `$HG_TOOLS` with a link in `$HG_TOOLS/bin`. A failed install
 fails the turn with the log's tail in `error`, and the next turn tries again.
+
+The base image's npm (12) runs no install script it was not told to. Name the packages whose
+scripts the CLI needs in `--allow-scripts` (the CLI itself when it fetches a native binary in
+its postinstall, and any dependency that builds one), and keep `--strict-allow-scripts` so that
+a version bump bringing a new scripted dependency fails the install naming it, instead of
+installing a CLI that breaks at run time. The catalog's packages show the lists. Make
+`$HG_TOOLS/lib` before the install: npm 12 looks for it before it would create it.
 
 ## request.sh
 

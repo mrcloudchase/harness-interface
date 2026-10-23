@@ -4,6 +4,11 @@ Every release is a section here, newest first, and the newest section's heading 
 A merge to `main` that adds a section releases it: the release workflow tags that version, builds
 the wheel and the image, and publishes the section as its notes.
 
+## [6.0.1]
+
+- **Picky has a portrait.** The mascot is the illustrated hermit crab, with its shell, everywhere:
+  the home page, the app, the documentation, the README and the favicon.
+
 ## [6.0.0]
 
 **HarnessGateway** has accounts, and the app is new. A major because `POST /v1/signup` is gone:

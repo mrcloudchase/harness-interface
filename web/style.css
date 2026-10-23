@@ -133,7 +133,7 @@ th { color:var(--muted); font-weight:600; font-size:11px; text-transform:upperca
 .hero { max-width:1180px; margin:0 auto; padding:56px 28px 36px; display:grid; grid-template-columns:1.15fr .85fr; gap:36px; align-items:center; }
 .hero h1 { font-size:48px; line-height:1.05; letter-spacing:-.03em; margin-bottom:16px; color:var(--navy); } .hero h1 em { color:var(--orange); font-style:normal; }
 .hero .lead { max-width:560px; } .hero .row { margin-top:18px; }
-.hero .art { position:relative; display:flex; justify-content:center; } .hero .art img { width:100%; max-width:380px; filter:drop-shadow(0 24px 40px rgba(4,30,66,.18)); }
+.hero .art { position:relative; display:flex; justify-content:center; } .hero .art img { width:100%; max-width:460px; filter:drop-shadow(0 24px 40px rgba(4,30,66,.18)); }
 .band { max-width:1180px; margin:0 auto; padding:34px 28px; } .band h2 { font-size:26px; letter-spacing:-.02em; margin-bottom:6px; color:var(--navy); } .band > p.lead { margin-bottom:22px; max-width:680px; }
 .band.alt { max-width:none; background:var(--navy); color:#DCE5F3; } .band.alt > div { max-width:1180px; margin:0 auto; padding:0 28px; } .band.alt h2 { color:#fff; } .band.alt .lead { color:#B7C6E0; }
 .feature { padding:18px 20px; border:1px solid var(--line); border-radius:var(--radius); background:var(--surface); } .feature b { display:block; margin-bottom:6px; font-size:15px; color:var(--navy); } .feature p { margin:0; color:var(--dim); font-size:13.5px; } .feature .n { display:inline-flex; width:26px; height:26px; align-items:center; justify-content:center; border-radius:8px; background:var(--orange-soft); color:var(--orange-2); font-weight:700; margin-bottom:10px; }

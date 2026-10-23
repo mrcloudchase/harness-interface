@@ -20,7 +20,7 @@ jobs:
           image=ghcr.io/mrcloudchase/harnessgateway-base
           docker build -f harnessgateway/runtimes/base.Dockerfile -t "$image:$(date +%Y%m%d)" -t "$image:latest" .
           docker push "$image:$(date +%Y%m%d)" && docker push "$image:latest"
-      - uses: aquasecurity/trivy-action@0.29.0
+      - uses: aquasecurity/trivy-action@v0.33.1
         with:
           image-ref: ghcr.io/mrcloudchase/harnessgateway-base:latest
           severity: CRITICAL,HIGH

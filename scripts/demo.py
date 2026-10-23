@@ -24,32 +24,66 @@ KEYS = {"text", "data", "content", "contentDelta", "delta", "output"}
 DIM, BOLD, GREEN, YELLOW, RESET = "\033[2m", "\033[1m", "\033[32m", "\033[33m", "\033[0m"
 
 
-def strings(v: object) -> list[str]:
-    """The human-readable strings in a JSON event: text fields, and shell commands as `$ cmd`."""
+INLINE = {"delta", "contentDelta"}                   # token-sized pieces: joined, not one per line
+
+
+def strings(v: object) -> list[tuple[str, bool]]:
+    """The human-readable strings in a JSON event, each flagged inline when it is a token-sized
+    piece of a longer text: text fields, and shell commands as `$ cmd`."""
     if isinstance(v, dict):
-        out = []
+        out: list[tuple[str, bool]] = []
         for k, x in v.items():
             if k in KEYS and isinstance(x, str):
-                out.append(x)
+                out.append((x, k in INLINE))
             elif k == "command" and isinstance(x, str):
-                out.append(f"$ {x}")
+                out.append((f"$ {x}", False))
             else:
                 out += strings(x)
         return out
     return [s for x in v for s in strings(x)] if isinstance(v, list) else []
 
 
+_line = [""]                                         # inline pieces in progress, across chunks
+_seen: list[str] = []                                # recent long strings, so a CLI that resends one grown shows only the growth
+
+
+def _growth(piece: str) -> str:
+    """Nothing when `piece` repeats a recent string exactly; the part beyond the longest recent
+    string it extends; the piece itself otherwise."""
+    if piece in _seen:
+        return ""
+    base = max((s for s in _seen if piece.startswith(s)), key=len, default="")
+    _seen.append(piece)
+    del _seen[:-50]
+    return piece[len(base):]
+
+
 def flatten(text: str) -> str:
-    """JSON lines become their strings, one per line; other lines pass through; empty ones are dropped."""
-    out = []
+    """JSON lines become their strings; inline pieces join into one line; a string that only grows
+    a previous one shows its growth; other lines pass through; empty lines are dropped."""
+    out: list[str] = []
     for ln in text.splitlines():
+        if not ln.startswith("{"):
+            if ln.strip():
+                out.append(ln.rstrip())
+            continue
         try:
-            words = " ".join(strings(json.loads(ln))) if ln.startswith("{") else ln
+            found = strings(json.loads(ln))
         except ValueError:
-            words = ln
-        if words.strip():
-            out.append(words.rstrip())
-    return "".join(f"{ln}\n" for ln in out)
+            out.append(ln.rstrip())
+            continue
+        for piece, inline in found:
+            if inline:
+                _line[0] += piece
+                while "\n" in _line[0]:
+                    head, _line[0] = _line[0].split("\n", 1)
+                    out.append(head)
+                continue
+            if _line[0].strip():
+                out.append(_line[0])
+            _line[0] = ""
+            out += [p for p in _growth(piece).splitlines() if p.strip()]
+    return "".join(f"{ln.rstrip()}\n" for ln in out if ln.strip())
 
 
 def say(label: str, text: str = "", color: str = BOLD) -> None:

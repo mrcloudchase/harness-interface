@@ -17,7 +17,7 @@ a { color:var(--blue); text-decoration:none; } a:hover { color:var(--blue-2); te
 h1, h2, h3, h4 { margin:0; letter-spacing:-.01em; text-wrap:balance; }
 .wordmark { font-weight:700; letter-spacing:-.01em; white-space:nowrap; } .wordmark em { font-style:normal; color:var(--orange); }
 .rodeo-mascot { width:112px; height:112px; filter:drop-shadow(0 10px 20px rgba(4,30,66,.18)); }
-.rodeo-feature { position:relative; padding-right:120px; } .rodeo-feature img { position:absolute; right:10px; top:10px; width:96px; height:96px; }
+.feature.rodeo-feature { position:relative; padding-right:120px; } .rodeo-feature img { position:absolute; right:10px; top:10px; width:96px; height:96px; }
 h2 { font-size:17px; font-weight:650; } h3 { font-size:12px; font-weight:650; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin:18px 0 8px; }
 p { margin:0 0 10px; } p.lead { font-size:17px; color:var(--dim); line-height:1.55; }
 code, kbd { font-family:var(--mono); font-size:.92em; background:var(--surface-2); border:1px solid var(--line); border-radius:5px; padding:1px 5px; }

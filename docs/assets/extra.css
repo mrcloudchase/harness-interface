@@ -20,7 +20,6 @@
   --md-text-font: "Inter";
 }
 .md-header, .md-tabs { background-color: #041E42; }
-.md-header__button.md-logo img { height: 1.8rem; width: 1.8rem; }
 .md-search__form { background-color: rgba(255,255,255,.1); }
 .md-typeset h1, .md-typeset h2 { color: #041E42; font-weight: 700; letter-spacing: -.01em; }
 .md-typeset h2 { border-bottom: 1px solid #E4DACB; padding-bottom: .2em; }

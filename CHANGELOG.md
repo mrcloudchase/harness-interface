@@ -6,8 +6,10 @@ the wheel and the image, and publishes the section as its notes.
 
 ## [6.1.1]
 
-- **Picky, updated.** The newest portrait, everywhere, and no square behind it on the navy: the
-  app's sidebar, the sign-in page and the documentation's header show the crab alone.
+- **Picky, updated.** The newest portrait on the home page and the sign-in page, and the small
+  one next to the name is gone: the name is a wordmark, Harness in ink and Gateway in orange.
+- **Picky rides in the rodeo.** A cowboy hat and a bandana on the Rodeo page, the home page's
+  rodeo card and the rodeo's documentation.
 
 ## [6.1.0]
 

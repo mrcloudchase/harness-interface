@@ -1,5 +1,9 @@
 # Rodeo
 
+<figure class="shot" markdown>
+![Picky in a cowboy hat and bandana](assets/picky-rodeo.png){ width="180" }
+</figure>
+
 One task, several harnesses, out of the chute side by side. Each entry is an ordinary request in a
 session of its own; the rodeo records which harnesses ran the task and which one you picked.
 

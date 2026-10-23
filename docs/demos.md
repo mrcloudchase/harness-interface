@@ -17,6 +17,11 @@ Press play. Idle stretches are shortened; the timings shown are real.
 <div class="cast" data-cast="../assets/casts/claude-code.cast"></div>
 <p class="caption">Anthropic shape, DeepSeek. <a href="../catalog/claude-code/">The package</a>.</p>
 
+## Hermes Agent
+
+<div class="cast" data-cast="../assets/casts/hermes.cast"></div>
+<p class="caption">Anthropic shape, DeepSeek. <a href="../catalog/hermes/">The package</a>.</p>
+
 ## Codex
 
 <div class="cast" data-cast="../assets/casts/codex.cast"></div>
@@ -27,20 +32,15 @@ Press play. Idle stretches are shortened; the timings shown are real.
 <div class="cast" data-cast="../assets/casts/opencode.cast"></div>
 <p class="caption">Anthropic shape, DeepSeek. <a href="../catalog/opencode/">The package</a>.</p>
 
+## pi
+
+<div class="cast" data-cast="../assets/casts/pi.cast"></div>
+<p class="caption">Anthropic shape, DeepSeek. <a href="../catalog/pi/">The package</a>.</p>
+
 ## Cline
 
 <div class="cast" data-cast="../assets/casts/cline.cast"></div>
 <p class="caption">OpenAI chat shape, DeepSeek. <a href="../catalog/cline/">The package</a>.</p>
-
-## Goose
-
-<div class="cast" data-cast="../assets/casts/goose.cast"></div>
-<p class="caption">Anthropic shape, DeepSeek. <a href="../catalog/goose/">The package</a>.</p>
-
-## OpenHands
-
-<div class="cast" data-cast="../assets/casts/openhands.cast"></div>
-<p class="caption">OpenAI chat shape, OpenAI. <a href="../catalog/openhands/">The package</a>.</p>
 
 ## Record your own
 

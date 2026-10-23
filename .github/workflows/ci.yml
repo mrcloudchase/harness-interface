@@ -1,6 +1,6 @@
 # Every pull request and every push to main: the suite on both backends (SQLite and a directory;
-# Postgres and MinIO as services), the Docker tests against a real daemon, the layer rule, lint, and
-# the documentation site built strictly.
+# Postgres and MinIO as services), the Docker tests against a real daemon (a sandbox's turn, and the
+# platform image run as an operator runs it), the layer rule, lint, and the documentation site built strictly.
 name: ci
 on:
   push:

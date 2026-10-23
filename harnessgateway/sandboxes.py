@@ -19,7 +19,8 @@ from typing import AsyncIterator, Sequence
 from .execution import Event, Outcome, Spec
 from .harness import Config
 from .limits import Limits
-from .runtimes.docker import DockerRuntime, Resources, build_base, identity, pull, sweep, whole
+from .runtimes.docker import DOOR_SCRIPT, SECRETS, TURN_SCRIPT, DockerRuntime, Host, Resources, build_base, identity, inspect_self, pull, sweep, whole
+from .runtimes.door import GATEWAY_PORT
 
 MARKER = ".hg-installed"
 SYSTEM_PATH = "/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
@@ -73,26 +74,54 @@ def log_line(event: Event) -> bytes:
 class Node:
     """How this node runs things: the base image (the shipped one, built here, when empty), the
     sandboxed runtime if any, the CA file, whether private egress is allowed (a self-hosted box with
-    internal hosts), and the owner its runs carry."""
+    internal hosts), the owner its runs carry, and, with a `root` under the data directory, where
+    the sandboxes' mounts come from: the platform's own scripts and each run's secrets are kept there,
+    so that a platform running as a container needs nothing of its own filesystem shared."""
     image: str
     owner: str
     runtime: str = ""
     ca_file: Path | None = None
     allow_private: bool = False
+    root: Path | None = None                          # <data>/worker: platform/ (the scripts, the CA) and secrets/
+    gateway_port: int = GATEWAY_PORT
+    host: Host = Host()
+    turn_script: Path = TURN_SCRIPT
+    door_script: Path = DOOR_SCRIPT
+    secrets: Path = SECRETS
 
     async def prepare(self) -> str:
-        """The base image, built or pulled once; its id, which keys the tools layers."""
+        """The base image, built or pulled once; its id, which keys the tools layers. Also where this
+        process runs, and the scripts and secrets under the root when there is one."""
+        self.host = await inspect_self()
+        if self.root:
+            platform = self.root / "platform"
+            platform.mkdir(parents=True, exist_ok=True)
+            for src, name in ((TURN_SCRIPT, "turn.sh"), (DOOR_SCRIPT, "door.py")):
+                (platform / name).write_bytes(src.read_bytes())
+            self.turn_script, self.door_script = platform / "turn.sh", platform / "door.py"
+            if self.ca_file:
+                (platform / "ca.pem").write_bytes(Path(self.ca_file).read_bytes())
+                self.ca_file = platform / "ca.pem"
+            self.secrets = self.root / "secrets"
+            self.secrets.mkdir(mode=0o700, exist_ok=True)
         self.image = await build_base() if not self.image else await pull(self.image)
         return (await identity(self.image))[0]
 
+    @property
+    def gateway_url(self) -> str:
+        """Where this node's doors reach the gateway in this same container: its address on its own
+        network. '' on a host process, and '' when the gateway is not in this process (port 0)."""
+        return f"http://{self.host.address}:{self.gateway_port}" if self.host.address and self.gateway_port else ""
+
     async def recover(self) -> None:
-        await sweep(self.owner)
+        await sweep(self.owner, self.secrets)
 
     def runtime_for(self, tenant: str, limits: Limits, *, read_only: Sequence[Path] = (), writable: Sequence[Path] = (),
                     egress: Sequence[str] = (), gateway_url: str = "", token: str = "") -> DockerRuntime:
         return DockerRuntime(self.image, uid=uid_for(tenant), limits=Resources(limits.cpus, limits.memory, limits.pids),
                              read_only=read_only, writable=writable, egress=egress, gateway_url=gateway_url, token=token,
-                             ca_file=self.ca_file, owner=self.owner, runtime=self.runtime, allow_private=self.allow_private)
+                             ca_file=self.ca_file, owner=self.owner, runtime=self.runtime, allow_private=self.allow_private,
+                             host=self.host, secrets=self.secrets, turn_script=self.turn_script, door_script=self.door_script)
 
     async def tools_for(self, tenant: str, limits: Limits, folder: Path, config: Config, root: Path, image_id: str) -> Path:
         """The package's tools in the base image, installed now unless they are already."""

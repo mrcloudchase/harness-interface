@@ -8,11 +8,9 @@ runcmd:
   - curl -fsSL https://get.docker.com | sh
   - curl -fsSL https://github.com/google/gvisor/releases/latest/download/runsc -o /usr/local/bin/runsc || true
   - chmod +x /usr/local/bin/runsc && /usr/local/bin/runsc install && systemctl restart docker || true
-  - mkdir -p /srv/hg/data
   - >
     docker run -d --name hg-worker --restart unless-stopped
-    -v /var/run/docker.sock:/var/run/docker.sock -v /srv/hg/data:/srv/hg/data
-    --add-host host.docker.internal:host-gateway
-    -e HG_DATA_DIR=/srv/hg/data -e HG_CONTROL_URL=https://hg.example.com -e HG_JOIN_TOKEN=CHANGE-ME
+    -v /var/run/docker.sock:/var/run/docker.sock -v hg:/data
+    -e HG_CONTROL_URL=https://hg.example.com -e HG_JOIN_TOKEN=CHANGE-ME
     -e HG_GATEWAY_URL=https://gateway.hg.example.com -e HG_RUNTIME=runsc -e HG_WORKER_SLOTS=4
-    ghcr.io/mrcloudchase/harnessgatewayai:5.0.1 serve --role worker
+    ghcr.io/mrcloudchase/harnessgatewayai serve --role worker

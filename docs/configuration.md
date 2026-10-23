@@ -14,7 +14,7 @@ Every role reads the same variables, each with a default, when the process start
 | `HG_DEPLOYER_KEY` | the key `init` set | overrides the stored deployer key |
 | `HG_JOIN_TOKEN` | generated for the `all` role | what a worker presents to join |
 | `HG_GATEWAY_HOST`, `HG_GATEWAY_PORT` | `0.0.0.0`, `8081` | where `gateway` listens |
-| `HG_GATEWAY_URL` | `http://host.docker.internal:8081` | how a sandbox's door reaches the gateway; a TLS address across machines |
+| `HG_GATEWAY_URL` | found: the platform container's own address, or `host.docker.internal:8081` for a host process | how a sandbox's door reaches the gateway; set it to a TLS address for a worker on another machine |
 | `HG_BASE_IMAGE` | empty: the shipped one is built on the node | the sandbox image |
 | `HG_RUNTIME` | empty | a sandboxed Docker runtime for every sandbox, such as `runsc` |
 | `HG_ALLOW_PRIVATE` | `0` | `1`: egress and provider URLs may name private addresses, for an internal registry or model server on a self-hosted box |

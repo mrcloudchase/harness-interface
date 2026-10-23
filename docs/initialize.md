@@ -7,7 +7,7 @@ docker exec hg harnessgateway init --tenant acme --owner chase
 ```
 
 ```
-master key written to /srv/hg/data/master.key
+master key written to /data/master.key
 deployer key (shown once): hgd_…
 tenant acme created with owner chase
 owner's API key (shown once): hg_…
@@ -52,7 +52,7 @@ curl -s http://127.0.0.1:8000/healthz
 ```
 
 ```json
-{"status": "ok", "version": "5.0.0", "roles": ["api", "gateway", "worker"], "signup": "closed"}
+{"status": "ok", "version": "5.1.0", "roles": ["api", "gateway", "worker"], "signup": "closed"}
 ```
 
 Next: [The app](app.md).

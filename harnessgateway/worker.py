@@ -45,9 +45,11 @@ class NodeLike(Protocol):
 
 class Worker:
     def __init__(self, control_url: str, node: NodeLike, cache: Path, *, name: str, slots: int, version: str,
-                 join_token: str = "", ca_file: Path | None = None, transport: httpx.AsyncBaseTransport | None = None):
+                 join_token: str = "", ca_file: Path | None = None, transport: httpx.AsyncBaseTransport | None = None,
+                 gateway_url: str = ""):
         self.control_url, self.node, self.cache = control_url.rstrip("/"), node, Path(cache)
         self.name, self.slots, self.version, self.join_token = name, slots, version, join_token
+        self.gateway_url = gateway_url                # this node's own, when set; else what the node finds; else the job's
         self.cache.mkdir(parents=True, exist_ok=True)
         verify = str(ca_file) if ca_file else True
         self._http = httpx.AsyncClient(base_url=self.control_url, timeout=60, verify=verify, transport=transport)
@@ -90,6 +92,7 @@ class Worker:
         await self.join()
         await self.node.recover()
         self._image_id = await self.node.prepare()
+        self.gateway_url = self.gateway_url or getattr(self.node, "gateway_url", "")
         beat = asyncio.create_task(self._heartbeats())
         try:
             while not self.stopping:
@@ -187,7 +190,7 @@ class Worker:
         await self._http.post(f"/internal/turns/{rid}/started", json={})
         self._stop_timeouts[rid], self._interrupts[rid], self._sessions[rid] = config.stop_timeout_s, config.interrupt, sid
         runtime = self.node.runtime_for(tenant, limits, read_only=(folder, tools), writable=(home, rundir),
-                                        egress=config.run_egress, gateway_url=job["gateway_url"], token=job["token"])
+                                        egress=config.run_egress, gateway_url=self.gateway_url or job["gateway_url"], token=job["token"])
         env = {"HG_WORKSPACE": str(workspace), "HOME": str(home), "HG_DIR": str(rundir), "HG_SESSION": sid, "HG_RESPONSE": rid,
                "HG_TURN": str(job["turn"]), "HG_MODEL": job["model"], "HG_INSTRUCTIONS": job["instructions"],
                "HG_REQUEST": str(rundir / "request.json"), "HG_HARNESS_DIR": str(folder), "HG_TOOLS": str(tools),

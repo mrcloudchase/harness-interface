@@ -4,6 +4,32 @@ Every release is a section here, newest first, and the newest section's heading 
 A merge to `main` that adds a section releases it: the release workflow tags that version, builds
 the wheel and the image, and publishes the section as its notes.
 
+## [5.1.0]
+
+The deploy is one command:
+
+```
+docker run -d --name hg -p 127.0.0.1:8000:8000 -v /var/run/docker.sock:/var/run/docker.sock -v hg:/data ghcr.io/mrcloudchase/harnessgatewayai
+```
+
+- **The platform finds its own place.** A node that runs turns inspects its own container through
+  the socket it was given: where the daemon keeps the paths behind its mounts, which network it is
+  on, its address there. Every mount a sandbox gets is translated to the daemon's path, and the
+  turn runner, the door and the CA bundle are copied under `<data>/worker/platform` first, so
+  nothing of the platform container's own filesystem is shared. The data directory no longer has
+  to be at the same path inside and out; a named volume is enough, on a Mac as on a server.
+- **The gateway needs no port.** A sandbox's door is put on the platform container's own network
+  and reaches the gateway at that container's address. `HG_GATEWAY_URL` is for a worker on another
+  machine, where it names the gateway behind your load balancer; on a host process it still
+  defaults to `host.docker.internal`.
+- **Each turn's token lives under the data directory** (`<data>/worker/secrets`), not in the
+  platform's temporary directory, so the sandbox can mount it wherever the platform runs.
+- **The image is tested as it is deployed.** The Docker tests run the platform image with the
+  socket, a volume and one port, create a tenant, a provider and a package through it, and take
+  two turns, one of them through the gateway.
+- In 5.0.x a platform run as a container could not start a single sandbox: the scripts and the
+  token it mounted were paths in its own filesystem, which the host's daemon does not have.
+
 ## [5.0.1]
 
 - **The image is `ghcr.io/mrcloudchase/harnessgatewayai`**, the repository's name, built for

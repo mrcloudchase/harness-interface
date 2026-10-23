@@ -43,17 +43,18 @@ storage only, so closing the tab signs you out.
 
 ## The pages
 
-Signed in as a member or an owner, the sidebar has seven pages, in the order you use them:
+Signed in as a member or an owner, the sidebar has seven pages in three groups, in the order
+you use them: Setup, then Build, then Team.
 
-| Page | What |
-|---|---|
-| Requests | a streamed request against a harness, a steer and a cancel while it runs, the response, and the workspace's files after it |
-| Rodeo | one task for two to six harnesses, side by side as they stream; pick the winner; the leaderboard |
-| Sessions | your sessions, or every member's when you are an owner; each opens to its turns, streams, trace, workspace and archive |
-| Providers | the tenant's model endpoints; owners add and remove them |
-| Harnesses | the tenant's packages, forked from the catalog or uploaded; owners add and remove them |
-| Members | the tenant's members and invitations (owners), and your API keys |
-| Account | your name, your password, your tenants; create another tenant |
+| Group | Page | What |
+|---|---|---|
+| Setup | Providers | the tenant's model endpoints; owners add and remove them |
+| Setup | Harnesses | the tenant's packages, forked from the catalog or uploaded; owners add and remove them |
+| Build | Requests | a streamed request against a harness, a steer and a cancel while it runs, the response, and the workspace's files after it |
+| Build | Rodeo | one task for two to six harnesses, side by side as they stream; pick the winner; the leaderboard |
+| Build | Sessions | your sessions, or every member's when you are an owner; each opens to its turns, streams, trace, workspace and archive |
+| Team | Members | the tenant's members and invitations (owners), and your API keys |
+| Team | Account | your name, your password, your tenants; create another tenant |
 
 <figure class="shot" markdown>
 ![A request's result: the response, and the workspace's files with one open in the viewer](assets/console/requests-done.png){ loading=lazy }

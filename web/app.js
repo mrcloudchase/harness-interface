@@ -104,7 +104,7 @@ function login(note, mode = "signin", resetToken = "") {
 
 // the shell
 const NAV = {
-  member: [["Build", [["Requests", "bolt"], ["Rodeo", "lasso"], ["Sessions", "clock"]]], ["Setup", [["Providers", "plug"], ["Harnesses", "box"]]], ["Team", [["Members", "users"], ["Account", "user"]]]],
+  member: [["Setup", [["Providers", "plug"], ["Harnesses", "box"]]], ["Build", [["Requests", "bolt"], ["Rodeo", "lasso"], ["Sessions", "clock"]]], ["Team", [["Members", "users"], ["Account", "user"]]]],
   deployer: [["Platform", [["Dashboard", "chart"], ["Tenants", "building"], ["Workers", "server"]]]],
 };
 const VIEWS = { Requests: requests, Rodeo: rodeo, Sessions: sessions, Providers: providers, Harnesses: harnesses, Members: members, Account: account, Dashboard: dashboard, Tenants: tenants, Workers: workers };

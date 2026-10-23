@@ -12,7 +12,7 @@
 </head>
 <body class="site">
 <header>
-  <a class="brand" href="/"><img src="/web/picky.png" alt="">HarnessGateway</a>
+  <a class="brand" href="/"><span class="wordmark">Harness<em>Gateway</em></span></a>
   <nav><a href="#how">How it works</a><a href="#harnesses">Harnesses</a><a href="#rodeo">Rodeo</a><a href="#deploy">Deploy</a><a href="#editions">Editions</a><a href="/docs/">Docs</a></nav>
   <div class="cta"><a class="quiet btn" href="/app">Sign in</a><a class="act btn" href="/app#signup" id="start">Get started</a></div>
 </header>
@@ -65,7 +65,7 @@ print(r.status, r.output_text)</div>
   <div class="grid-3">
     <div class="feature"><b>Sandboxed by construction</b><p>A fresh container per turn, no capabilities, a read-only root, the tenant's own uid and ceilings, and a door that tunnels only to the hosts the package names.</p></div>
     <div class="feature"><b>The workspace, in the app</b><p>Every turn ends with a snapshot. Browse the files the agent made, read them in place, download the archive, continue the session.</p></div>
-    <div class="feature"><b>The rodeo</b><p>One task, several harnesses, out of the chute side by side. Pick the winner. The leaderboard remembers which harness earns your work.</p></div>
+    <div class="feature rodeo-feature"><img src="/web/picky-rodeo.png" alt="Picky in a cowboy hat and bandana"><b>The rodeo</b><p>One task, several harnesses, out of the chute side by side. Pick the winner. The leaderboard remembers which harness earns your work.</p></div>
     <div class="feature"><b>The complete record</b><p>Every request, steer, cancel and response in the trace; every provider exchange captured; usage metered per turn.</p></div>
     <div class="feature"><b>Your team</b><p>Accounts with email, GitHub or Google sign-in. Owners invite members by email, mint keys per place a key is used, and revoke the one that leaks.</p></div>
     <div class="feature"><b>Hosted or yours</b><p>One image, four roles. Records in SQLite or Postgres, blobs in a directory or any S3 store, no cloud SDK anywhere else. The same code is harnessgateway.ai and your own box.</p></div>
@@ -94,7 +94,7 @@ docker logs hg   <span class="c"># the deployer key, your tenant, your API key</
   </div>
 </section>
 
-<footer><b style="color:var(--navy)">HarnessGateway</b> · Apache 2.0 · <a href="/docs/">Docs</a> · <a href="/reference">API reference</a> · <a href="https://github.com/mrcloudchase/harnessgatewayai">Source</a> · <span id="edition"></span></footer>
+<footer><b class="wordmark" style="color:var(--navy)">Harness<em>Gateway</em></b> · Apache 2.0 · <a href="/docs/">Docs</a> · <a href="/reference">API reference</a> · <a href="https://github.com/mrcloudchase/harnessgatewayai">Source</a> · <span id="edition"></span></footer>
 <script>
   fetch("/healthz").then(r => r.json()).then(h => {
     document.getElementById("edition").textContent = (h.signup === "open" ? "cloud" : "self-hosted") + " · v" + h.version;

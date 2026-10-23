@@ -96,7 +96,7 @@ function login(note, mode = "signin", resetToken = "") {
   }
   $("#root").replaceChildren(h("div", { class: "auth" },
     h("div", { class: "side-art" },
-      h("a", { class: "brand", href: "/" }, h("img", { src: "/web/picky.png", alt: "" }), "HarnessGateway"),
+      h("a", { class: "brand", href: "/" }, h("span", { class: "wordmark" }, "Harness", h("em", {}, "Gateway"))),
       h("div", {}, h("h1", {}, "Every coding agent.", h("br"), "One API. ", h("em", {}, "Sandboxed.")), h("p", {}, "Bring your providers and your harness packages. The platform runs each turn in a sandbox it owns, relays the provider calls through a gateway that holds the keys, and keeps the complete record."), h("img", { class: "mascot", src: "/web/picky.png", alt: "" })),
       h("div", { class: "muted", style: "color:#8FA3C6" }, state.health.signup === "open" ? "harnessgateway.ai" : "self-hosted", " · v", state.health.version, " · ", h("a", { href: "/docs/", style: "color:#B7C6E0" }, "Docs"))),
     h("div", { class: "form" }, h("div", {}, note, ...body, out))));
@@ -117,10 +117,10 @@ function shell(page) {
   const item = (p, ic) => h("button", { class: "item" + (p === state.page ? " on" : ""), on: { click: () => shell(p) } }, icon(ic), p);
   const switcher = state.account ? h("div", { class: "tenant" }, h("select", { on: { change: async (e) => { if (e.target.value === "+") { e.target.value = state.me.tenant; return shell("Account"); } try { const me = await api("POST", "/auth/switch", { tenant: e.target.value }); state.tenants = me.tenants; state.me = { ...me.current, name: me.current.member }; state.kind = me.current.role; shell(state.page); } catch (err) { alert(err.message); } } } },
     ...state.tenants.map(t => h("option", { value: t.tenant, selected: t.tenant === state.me.tenant }, `${t.tenant} · ${t.role}`)), h("option", { value: "+" }, "+ new tenant"))) : null;
-  const side = h("aside", { class: "side" }, h("a", { class: "brand", href: "/" }, h("img", { src: "/web/picky.png", alt: "" }), "HarnessGateway"), switcher,
+  const side = h("aside", { class: "side" }, h("a", { class: "brand", href: "/" }, h("span", { class: "wordmark" }, "Harness", h("em", {}, "Gateway"))), switcher,
     ...groups.flatMap(([label, items]) => [h("div", { class: "group" }, label), ...items.filter(([p]) => all.includes(p)).map(([p, ic]) => item(p, ic))]),
     h("div", { class: "foot" }, h("b", {}, state.kind === "deployer" ? "deployer" : `${state.me.name} · ${state.kind}`), state.account ? h("span", {}, state.account.email) : h("span", {}, state.me.tenant || "the platform"), h("a", { class: "item", href: "/docs/", style: "padding:6px 0" }, icon("book"), "Docs"), h("button", { class: "item", style: "padding:6px 0", on: { click: signOut } }, icon("logout"), "Sign out")));
-  const top = h("div", { class: "topbar" }, h("img", { src: "/web/picky.png", alt: "" }), h("b", {}, "HarnessGateway"), ...all.map(p => h("button", { class: p === state.page ? "on" : "", on: { click: () => shell(p) } }, p)), h("button", { on: { click: signOut } }, "Sign out"));
+  const top = h("div", { class: "topbar" }, h("b", {}, h("span", { class: "wordmark" }, "Harness", h("em", {}, "Gateway"))), ...all.map(p => h("button", { class: p === state.page ? "on" : "", on: { click: () => shell(p) } }, p)), h("button", { on: { click: signOut } }, "Sign out"));
   const main = h("main", { class: "page" }, h("div", { class: "empty" }, "loading…"));
   $("#root").replaceChildren(h("div", { class: "shell" }, side, h("div", {}, top, main)));
   VIEWS[state.page]().then(el => main.replaceChildren(el)).catch(e => main.replaceChildren(h("div", { class: "card" }, fail(e))));
@@ -228,7 +228,7 @@ async function rodeo() {
     runBtn.disabled = false;
   };
   const rows = board.data.map(a => h("tr", {}, h("td", {}, when(a.created)), h("td", { class: "mono", style: "max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis", title: a.prompt }, a.prompt.slice(0, 80)), h("td", {}, a.entries.map(e => e.harness).join(", ")), h("td", {}, a.winner ? tag(a.winner, "orange") : h("span", { class: "muted" }, "undecided")), h("td", {}, h("button", { class: "ghost small danger", on: { click: async () => { await api("DELETE", `/v1/rodeos/${a.id}`); shell("Rodeo"); } } }, "delete"))));
-  return h("div", {}, head("Rodeo", "One task, several harnesses, out of the chute side by side. Pick the winner; the leaderboard remembers."),
+  return h("div", {}, head("Rodeo", "One task, several harnesses, out of the chute side by side. Pick the winner; the leaderboard remembers.", h("img", { class: "rodeo-mascot", src: "/web/picky-rodeo.png", alt: "Picky in a cowboy hat and bandana" })),
     h("div", { class: "card" }, h("h3", { style: "margin-top:0" }, "harnesses"), picks, h("div", { style: "margin-top:12px" }, field("Task", input)), h("div", { class: "row between", style: "margin-top:10px" }, h("span", { class: "muted" }, "each harness runs in its own session; every one is a normal request"), runBtn), out),
     h("div", { id: "rodeo-run", style: "margin-top:16px" }, cols, verdict),
     h("div", { class: "grid-2", style: "margin-top:16px" },

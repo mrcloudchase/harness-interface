@@ -33,7 +33,7 @@ jobs:
         run: uv run --extra dev pytest
       - name: Build
         if: steps.version.outputs.new == 'true'
-        run: uv build
+        run: uvx --from mkdocs-material mkdocs build --strict && uv build
       - name: Image
         if: steps.version.outputs.new == 'true'
         run: |

@@ -29,6 +29,8 @@ packages = ["harness_interface"]
 [tool.hatch.build.targets.wheel.force-include]
 catalog = "harness_interface/catalog"
 console = "harness_interface/console"
+# The documentation site is built into harness_interface/docs by `mkdocs build` (see mkdocs.yml) and
+# ships in the wheel from there; the API serves it at /docs.
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

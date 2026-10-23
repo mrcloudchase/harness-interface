@@ -1,5 +1,5 @@
 # The platform image: every role in one image, chosen at run time with `--role`. Python, the package,
-# the console and the catalog; the Docker CLI for the worker role (it talks to the host's daemon
+# the console, the catalog and the documentation site; the Docker CLI for the worker role (it talks to the host's daemon
 # through the socket you mount). Nothing of any harness is in it: packages install their CLI into
 # the tools layer, under the tenant's terms, at first use.
 FROM python:3.12-slim-bookworm AS build
@@ -9,7 +9,9 @@ COPY pyproject.toml uv.lock README.md CHANGELOG.md ./
 COPY harness_interface ./harness_interface
 COPY catalog ./catalog
 COPY console ./console
-RUN uv build --wheel --out-dir /dist
+COPY docs ./docs
+COPY mkdocs.yml ./
+RUN uvx --from mkdocs-material mkdocs build --strict && uv build --wheel --out-dir /dist
 
 FROM python:3.12-slim-bookworm
 ARG DOCKER_VERSION=27.5.1

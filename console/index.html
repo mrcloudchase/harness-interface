@@ -32,7 +32,7 @@
 </style>
 </head>
 <body>
-<header><b>harness-interface</b><span class="dim" id="edition"></span><span class="who" id="who"></span></header>
+<header><b>harness-interface</b><span class="dim" id="edition"></span><a class="dim" href="/docs/" style="margin-left:12px">docs</a><span class="who" id="who"></span></header>
 <nav id="nav"></nav>
 <main id="main"></main>
 <script>
@@ -192,13 +192,13 @@ async function tenants() {
   const name = h("input", { placeholder: "tenant" }), owner = h("input", { placeholder: "owner member" }), limits = h("input", { placeholder: '{"max_runs": 4} (optional)', size: "30" }), out = h("div");
   const rows = list.map(t => { const lim = h("input", { value: JSON.stringify(t.limits), size: "60" }); return h("tr", {}, h("td", {}, h("b", {}, t.name)), h("td", {}, tag(t.status, t.status === "active" ? "ok" : "bad")),
     h("td", {}, `${t.usage.turns} turns · ${t.usage.seconds}s · ${t.usage.calls} calls · ${t.usage.running} running · ${t.usage.queued} queued`),
-    h("td", {}, lim, " ", h("button", { class: "quiet", on: { click: async () => { try { await api("PATCH", "/v1/tenants/" + t.name, { limits: JSON.parse(lim.value) }); render(); } catch (e) { alert(e.message); } } } }, "save")),
+    h("td", {}, lim, " ", h("button", { class: "quiet", on: { click: async () => { try { await api("PATCH", "/v1/tenants/" + t.name, { limits: JSON.parse(lim.value) }); render(); } catch (e) { out.replaceChildren(fail(e)); } } } }, "save")),
     h("td", {}, h("button", { class: "quiet", on: { click: async () => { await api("PATCH", "/v1/tenants/" + t.name, { status: t.status === "active" ? "suspended" : "active" }); render(); } } }, t.status === "active" ? "suspend" : "activate"), " ",
       h("button", { class: "quiet danger", on: { click: async () => { if (confirm(`Delete tenant ${t.name} and everything it owns?`)) { await api("DELETE", "/v1/tenants/" + t.name); render(); } } } }, "delete"))); });
   return h("div", {}, h("div", { class: "card" }, h("h2", {}, "Tenants"), h("table", {}, h("tr", {}, h("th", {}, "tenant"), h("th", {}, "status"), h("th", {}, "usage"), h("th", {}, "ceilings"), h("th")), ...rows)),
     h("div", { class: "card" }, h("h2", {}, "+ Tenant"), h("div", { class: "row" }, name, owner, limits, h("button", { class: "act", on: { click: async () => {
       try { const r = await api("POST", "/v1/tenants", { name: name.value.trim(), owner: owner.value.trim(), ...(limits.value.trim() ? { limits: JSON.parse(limits.value) } : {}) });
-        out.replaceChildren(h("p", {}, `Owner key for ${r.owner}, shown once. Hand it over securely:`), h("div", { class: "secret" }, r.key.secret)); render; } catch (e) { out.replaceChildren(fail(e)); } } } }, "Create")), out));
+        out.replaceChildren(h("p", {}, `Owner key for ${r.owner}, shown once. Hand it over securely:`), h("div", { class: "secret" }, r.key.secret)); render(); } catch (e) { out.replaceChildren(fail(e)); } } } }, "Create")), out));
 }
 
 async function workers() {

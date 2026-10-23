@@ -12,4 +12,5 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN set -eux; arch="$(uname -m)"; case "$arch" in x86_64) a=x64 ;; aarch64) a=arm64 ;; *) echo "unsupported $arch"; exit 1 ;; esac; \
     curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-${a}.tar.xz" -o /tmp/node.tar.xz; \
     tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 --no-same-owner; rm /tmp/node.tar.xz; \
+    npm install -g npm@latest && npm cache clean --force; \
     node --version; npm --version; python3 --version

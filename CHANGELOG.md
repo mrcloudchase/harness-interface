@@ -6,6 +6,9 @@ the wheel and the image, and publishes the section as its notes.
 
 ## [6.0.1]
 
+- **The base image's npm is current.** Node's bundled npm carried fixable findings (pacote,
+  sigstore, ip-address, picomatch); the base image updates npm to the latest release, so the
+  scan the base-image workflow runs after publishing passes.
 - **Picky has a portrait.** The mascot is the illustrated hermit crab, with its shell, everywhere:
   the home page, the app, the documentation, the README and the favicon.
 

@@ -11,7 +11,7 @@
 <body>
 <header>
   <img src="/web/picky.svg" alt=""><b><a href="/">Harness Gateway</a></b><span class="edition" id="edition"></span>
-  <a class="link" href="/docs/">Docs</a><a class="link" href="/reference">API</a><a class="link" href="https://github.com/mrcloudchase/harnessgateway">GitHub</a>
+  <a class="link" href="/docs/">Docs</a><a class="link" href="/reference">API</a><a class="link" href="https://github.com/mrcloudchase/harnessgatewayai">GitHub</a>
   <a class="act cta" href="/app">Sign in</a>
 </header>
 
@@ -57,7 +57,7 @@
   <p class="dim">A provider and a package in place, that is the whole request. <a href="/docs/first-request/">What comes back</a>.</p>
 </section>
 
-<footer>Harness Gateway · Apache 2.0 · <a href="/docs/">Docs</a> · <a href="/reference">API reference</a> · <a href="https://github.com/mrcloudchase/harnessgateway">Source</a></footer>
+<footer>Harness Gateway · Apache 2.0 · <a href="/docs/">Docs</a> · <a href="/reference">API reference</a> · <a href="https://github.com/mrcloudchase/harnessgatewayai">Source</a></footer>
 <script>
   fetch("/healthz").then(r => r.json()).then(h => {
     document.getElementById("edition").textContent = h.signup === "open" ? "cloud" : "self-hosted";

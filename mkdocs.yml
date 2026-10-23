@@ -1,8 +1,8 @@
 site_name: Harness Gateway
 site_description: A multi-tenant platform that runs coding-agent CLIs sandboxed behind the OpenAI Responses API.
 site_url: https://harnessgateway.ai/docs/
-repo_url: https://github.com/mrcloudchase/harnessgateway
-repo_name: mrcloudchase/harnessgateway
+repo_url: https://github.com/mrcloudchase/harnessgatewayai
+repo_name: mrcloudchase/harnessgatewayai
 edit_uri: edit/main/docs/
 docs_dir: docs
 site_dir: harnessgateway/docs          # ships in the wheel; the API serves it at /docs

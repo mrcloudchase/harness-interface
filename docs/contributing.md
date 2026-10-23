@@ -6,7 +6,7 @@ layer rule, lint, and a strict build of this documentation.
 ## Set up
 
 ```bash
-git clone https://github.com/mrcloudchase/harnessgateway && cd harnessgateway
+git clone https://github.com/mrcloudchase/harnessgatewayai && cd harnessgateway
 uv run --extra dev pytest                       # the unit suite: SQLite and a directory
 uv run --extra dev pytest -m docker             # the Docker tests, with a daemon running
 HG_TEST_POSTGRES=postgresql://… uv run --extra dev pytest    # also on Postgres

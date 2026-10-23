@@ -1,6 +1,6 @@
 # zeroclaw
 
-zeroclaw, one-shot over `zeroclaw agent -m`, on an OpenAI chat-shaped provider through a `[providers.models.custom.hi]` entry in a config directory the folder writes each turn; the credential travels in the environment variable zeroclaw derives from that key path.
+zeroclaw, one-shot over `zeroclaw agent -m`, on an OpenAI chat-shaped provider through a `[providers.models.custom.hg]` entry in a config directory the folder writes each turn; the credential travels in the environment variable zeroclaw derives from that key path.
 
 ## Verified
 
@@ -85,17 +85,17 @@ trap 'steer=$(cat "$HG_DIR/interrupt" 2>/dev/null || true)' USR1
 mkdir -p "$HG_DIR/zc"
 cat > "$HG_DIR/zc/config.toml" <<EOF
 schema_version = 3
-[providers.models.custom.hi]
+[providers.models.custom.hg]
 uri = "${HG_PROVIDER_URL%/}"
 model = "$HG_MODEL"
 native_tools = true
 [agents.zeroclaw]
 enabled = true
-model_provider = "custom.hi"
-risk_profile = "hi"
+model_provider = "custom.hg"
+risk_profile = "hg"
 [agents.zeroclaw.workspace]
 path = "$HG_WORKSPACE"
-[risk_profiles.hi]
+[risk_profiles.hg]
 level = "full"
 allowed_commands = ["*"]
 block_high_risk_commands = false

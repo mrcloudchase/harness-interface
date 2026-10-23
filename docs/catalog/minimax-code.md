@@ -82,12 +82,12 @@ steer=""
 trap 'steer=$(cat "$HG_DIR/interrupt" 2>/dev/null || true)' USR1
 mkdir -p "$HOME/.minimax"
 cat > "$HG_DIR/mcode.yaml" <<EOF
-defaultModel: custom_provider:hi/$HG_MODEL
+defaultModel: custom_provider:hg/$HG_MODEL
 permissionMode: "off"
 dataContribution:
   enabled: false
 custom_provider:
-  hi:
+  hg:
     kind: custom
     enabled: true
     api: anthropic-messages

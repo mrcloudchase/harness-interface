@@ -79,9 +79,9 @@ export PI_OFFLINE=1 PI_TELEMETRY=0 PI_SKIP_VERSION_CHECK=1
 mkdir -p "$HOME/.pi/agent"
 cat > "$HOME/.pi/agent/models.json" <<EOF
 {"providers": {"anthropic": {"baseUrl": "${HG_PROVIDER_URL%/v1}", "apiKey": "\$ANTHROPIC_API_KEY"},
-               "hi": {"baseUrl": "${HG_PROVIDER_URL%/v1}", "api": "anthropic-messages", "apiKey": "\$ANTHROPIC_API_KEY", "models": [{"id": "$HG_MODEL"}]}}}
+               "hg": {"baseUrl": "${HG_PROVIDER_URL%/v1}", "api": "anthropic-messages", "apiKey": "\$ANTHROPIC_API_KEY", "models": [{"id": "$HG_MODEL"}]}}}
 EOF
-turn() { pi -p --mode json --provider hi --model "$HG_MODEL" --session-id "$HG_SESSION" "$1"; }
+turn() { pi -p --mode json --provider hg --model "$HG_MODEL" --session-id "$HG_SESSION" "$1"; }
 
 run_wait turn "$prompt"; rc=$?
 if [ -n "$steer" ]; then run_wait turn "$steer"; rc=$?; fi

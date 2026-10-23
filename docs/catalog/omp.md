@@ -82,7 +82,7 @@ trap 'steer=$(cat "$HG_DIR/interrupt" 2>/dev/null || true)' USR1
 mkdir -p "$HOME/.omp/agent"
 cat > "$HOME/.omp/agent/models.yml" <<EOF
 providers:
-  hi:
+  hg:
     baseUrl: ${HG_PROVIDER_URL%/v1}
     apiKey: ANTHROPIC_API_KEY
     api: anthropic-messages
@@ -90,7 +90,7 @@ providers:
       - id: $HG_MODEL
 EOF
 turn() {
-  local args=(-p --mode json --approval-mode yolo --model "hi/$HG_MODEL")
+  local args=(-p --mode json --approval-mode yolo --model "hg/$HG_MODEL")
   [ -s "$HG_DIR/session" ] && args+=(--resume "$(cat "$HG_DIR/session")")
   omp "${args[@]}" "$1" </dev/null | tee "$HG_DIR/last.jsonl"
   local rc=${PIPESTATUS[0]}

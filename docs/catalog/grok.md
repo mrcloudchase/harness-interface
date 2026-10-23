@@ -1,6 +1,6 @@
 # Grok Build
 
-Grok Build, headless over `grok -p --output-format streaming-json`, on any provider through a `[model.hi]` entry in `$HOME/.grok/config.toml` whose `env_key` names the variable holding the credential.
+Grok Build, headless over `grok -p --output-format streaming-json`, on any provider through a `[model.hg]` entry in `$HOME/.grok/config.toml` whose `env_key` names the variable holding the credential.
 
 ## Verified
 
@@ -83,16 +83,16 @@ export GROK_FOLDER_TRUST=0 GROK_DISABLE_AUTOUPDATER=1
 mkdir -p "$HOME/.grok"
 cat > "$HOME/.grok/config.toml" <<EOF
 [models]
-session_summary = "hi"
-prompt_suggestion = "hi"
-[model.hi]
+session_summary = "hg"
+prompt_suggestion = "hg"
+[model.hg]
 model = "$HG_MODEL"
 base_url = "${HG_PROVIDER_URL%/}"
 env_key = "OPENAI_API_KEY"
 api_backend = "chat_completions"
 EOF
 turn() {
-  local args=(-p "$1" -m hi --output-format streaming-json --permission-mode bypassPermissions)
+  local args=(-p "$1" -m hg --output-format streaming-json --permission-mode bypassPermissions)
   if [ -f "$HG_DIR/turned" ]; then args+=(--resume "$(sid_uuid)"); else args+=(-s "$(sid_uuid)"); fi
   touch "$HG_DIR/turned"
   grok "${args[@]}"

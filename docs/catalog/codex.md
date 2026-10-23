@@ -78,13 +78,13 @@ trap 'steer=$(cat "$HG_DIR/interrupt" 2>/dev/null || true)' USR1
 export CODEX_HOME="$HOME/.codex"
 mkdir -p "$CODEX_HOME"
 cat > "$CODEX_HOME/config.toml" <<EOF
-model_provider = "hi"
+model_provider = "hg"
 model = "$HG_MODEL"
 approval_policy = "never"
 sandbox_mode = "danger-full-access"
 check_for_update_on_startup = false
-[model_providers.hi]
-name = "hi"
+[model_providers.hg]
+name = "hg"
 base_url = "${HG_PROVIDER_URL%/}"
 env_key = "OPENAI_API_KEY"
 wire_api = "responses"
@@ -113,7 +113,7 @@ exit $rc
 
 ## Notes
 
-- Codex reads its provider from `$CODEX_HOME/config.toml`, written every turn: `model_providers.hi` with the gateway's `/v1` base and `env_key = "OPENAI_API_KEY"`, which `provider_env` sets to the session token.
+- Codex reads its provider from `$CODEX_HOME/config.toml`, written every turn: `model_providers.hg` with the gateway's `/v1` base and `env_key = "OPENAI_API_KEY"`, which `provider_env` sets to the session token.
 - `sandbox_mode = "danger-full-access"` and `--skip-git-repo-check`: the container is the sandbox and the workspace need not be a git repository.
 - The three `features` switches stop Codex cloning its plugin repository and discovering models over the network, both of which the door would refuse anyway.
 - The request's model path (`node22/codex/openai-responses/<model>`) picks the model; `gpt-5.4-mini` is the default here.

@@ -135,7 +135,6 @@ async function harnesses() {
 }
 
 async function sessions() {
-  const list = (await api("GET", "/v1/sessions")).data.reverse();
   const hs = (await api("GET", "/v1/harnesses")).data;
   const model = h("input", { placeholder: "harness or harness/provider/model", list: "hs", size: "36" }), input = h("textarea", { placeholder: "the task" }), prev = h("input", { placeholder: "previous_response_id (optional)", size: "40" }), out = h("div");
   const dl = h("datalist", { id: "hs" }, ...hs.map(x => h("option", { value: x.name })));
@@ -148,11 +147,16 @@ async function sessions() {
       let i; while ((i = buf.indexOf("\n\n")) >= 0) { const ev = buf.slice(0, i); buf = buf.slice(i + 2); const line = ev.split("\n").find(l => l.startsWith("data: ")); if (!line) continue; const d = JSON.parse(line.slice(6));
         if (d.type === "response.output_text.delta") $("#live").textContent += d.delta; if (d.type.startsWith("response.") && d.response && !["response.created", "response.in_progress"].includes(d.type)) final = d.response; } }
     if (final) out.append(h("h3", {}, `response · ${final.status}`), h("pre", {}, final.output[0].content[0].text), h("div", { class: "dim" }, `response ${final.id} · session ${final.metadata.session_id}`));
-    render();
+    table.replaceWith(table = await sessionTable());   // the list, refreshed in place; the response stays on screen
   };
-  const rows = list.map(s => h("tr", {}, h("td", {}, h("a", { href: "#", on: { click: (e) => { e.preventDefault(); session(s.id); } } }, s.id.slice(0, 18) + "…")), h("td", {}, s.harness), h("td", {}, s.member), h("td", {}, tag(s.status, s.status === "running" ? "run" : "")), h("td", {}, s.responses.length), h("td", {}, when(s.created_at))));
+  const sessionTable = async () => {
+    const list = (await api("GET", "/v1/sessions")).data.reverse();
+    const rows = list.map(s => h("tr", {}, h("td", {}, h("a", { href: "#", on: { click: (e) => { e.preventDefault(); session(s.id); } } }, s.id.slice(0, 18) + "…")), h("td", {}, s.harness), h("td", {}, s.member), h("td", {}, tag(s.status, s.status === "running" ? "run" : "")), h("td", {}, s.responses.length), h("td", {}, when(s.created_at))));
+    return h("table", {}, h("tr", {}, h("th", {}, "session"), h("th", {}, "harness"), h("th", {}, "member"), h("th", {}, "status"), h("th", {}, "turns"), h("th", {}, "created")), ...rows);
+  };
+  let table = await sessionTable();
   return h("div", {}, dl, h("div", { class: "card" }, h("h2", {}, "New request"), h("div", { class: "row" }, model, prev), input, h("div", { class: "row" }, h("button", { class: "act", on: { click: run } }, "Run")), out),
-    h("div", { class: "card" }, h("h2", {}, "Sessions"), h("table", {}, h("tr", {}, h("th", {}, "session"), h("th", {}, "harness"), h("th", {}, "member"), h("th", {}, "status"), h("th", {}, "turns"), h("th", {}, "created")), ...rows)));
+    h("div", { class: "card" }, h("h2", {}, "Sessions"), table));
 }
 
 async function session(sid) {

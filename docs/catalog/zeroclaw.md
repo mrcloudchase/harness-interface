@@ -31,7 +31,7 @@ The package's default provider is `deepseek-openai` and its default model `deeps
     "model": "deepseek-chat"
   },
   "provider_env": {
-    "key": "ZEROCLAW_providers__models__custom__hi__api_key",
+    "key": "ZEROCLAW_providers__models__custom__hg__api_key",
     "url": ""
   },
   "interrupt": "SIGUSR1",

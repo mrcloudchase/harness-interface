@@ -8,13 +8,13 @@
    "recall": true,
    "archive": true,
    "stream": true,
-   "interrupt accepted": true,
+   "interrupt accepted": false,
    "steer": false,
    "cancel": true,
-   "trace": true,
+   "trace": false,
    "stateless": true
   },
-  "passed": 8,
+  "passed": 6,
   "provider": "deepseek-openai",
   "model": "deepseek-chat"
  },
@@ -24,5 +24,5 @@
   "`openai/<model>` routes through litellm's OpenAI path; `anthropic/<model>` with `ANTHROPIC_API_BASE` (no `/v1`) for an Anthropic-shaped provider.",
   "The litellm model-price fetch it logs at start is refused by the door and harmless; DeepSeek's chat model edits reliably in its `whole` format, which is why it is the default here."
  ],
- "caveat": "aider has no shell tool: a task that asks it to run a command is answered with a script to run instead, so the counting turn ends at once and the steer, delivered after the turn, finds nothing to interrupt. That is aider's shape, not a platform fault; cancel and the rest work."
+ "caveat": "aider has no shell tool: a task that asks it to run a command is answered with a script to run instead, so the counting turn ends at once. A steer sent after the turn has ended is refused (there is nothing running to interrupt), so the interrupt and steer checks depend on timing; cancel and the rest work. That is aider's shape, not a platform fault."
 }

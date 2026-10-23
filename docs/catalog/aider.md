@@ -4,9 +4,9 @@ aider, one turn per `--message`, on an OpenAI chat-shaped provider through `OPEN
 
 ## Verified
 
-`scripts/live.py` against a running platform, provider `deepseek-openai`, model `deepseek-chat`: **8 of 9** checks passed (make, recall, archive, stream, interrupt accepted, cancel, trace, stateless).
+`scripts/live.py` against a running platform, provider `deepseek-openai`, model `deepseek-chat`: **6 of 9** checks passed (make, recall, archive, stream, cancel, stateless).
 
-Not passing: steer. aider has no shell tool: a task that asks it to run a command is answered with a script to run instead, so the counting turn ends at once and the steer, delivered after the turn, finds nothing to interrupt. That is aider's shape, not a platform fault; cancel and the rest work.
+Not passing: interrupt accepted, steer, trace. aider has no shell tool: a task that asks it to run a command is answered with a script to run instead, so the counting turn ends at once. A steer sent after the turn has ended is refused (there is nothing running to interrupt), so the interrupt and steer checks depend on timing; cancel and the rest work. That is aider's shape, not a platform fault.
 
 ## Use it
 

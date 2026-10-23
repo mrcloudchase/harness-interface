@@ -15,4 +15,4 @@ runcmd:
     --add-host host.docker.internal:host-gateway
     -e HG_DATA_DIR=/srv/hg/data -e HG_CONTROL_URL=https://hg.example.com -e HG_JOIN_TOKEN=CHANGE-ME
     -e HG_GATEWAY_URL=https://gateway.hg.example.com -e HG_RUNTIME=runsc -e HG_WORKER_SLOTS=4
-    ghcr.io/mrcloudchase/harnessgateway:5.0.0 serve --role worker
+    ghcr.io/mrcloudchase/harnessgatewayai:5.0.1 serve --role worker

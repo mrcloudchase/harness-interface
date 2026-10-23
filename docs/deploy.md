@@ -5,8 +5,8 @@ and the same variables.
 
 ## What you need
 
-- A Linux machine with Docker. Every turn runs in a container the platform starts through the
-  Docker socket.
+- Docker: a Linux machine, or Docker Desktop on a Mac. The image is built for amd64 and arm64.
+  Every turn runs in a container the platform starts through the Docker socket.
 - A data directory mounted at the **same path inside and outside** the platform's container.
   Workers bind-mount session trees into sandboxes by their host paths, so the path must agree.
 - A name and TLS in front, for anything beyond your laptop. The compose file brings Caddy.
@@ -14,13 +14,13 @@ and the same variables.
 ## One box with Docker
 
 ```bash
-mkdir -p /srv/hg/data
+mkdir -p $HOME/hg
 docker run -d --name hg --restart unless-stopped \
-  -p 127.0.0.1:8000:8000 -p 127.0.0.1:8081:8081 \
+  -p 127.0.0.1:8000:8000 -p 8081:8081 \
   -v /var/run/docker.sock:/var/run/docker.sock \
-  -v /srv/hg/data:/srv/hg/data -e HG_DATA_DIR=/srv/hg/data \
+  -v $HOME/hg:$HOME/hg -e HG_DATA_DIR=$HOME/hg \
   --add-host host.docker.internal:host-gateway \
-  ghcr.io/mrcloudchase/harnessgateway:5.0.0
+  ghcr.io/mrcloudchase/harnessgatewayai:5.0.1
 ```
 
 That runs `serve --role all`: the API on 8000, the gateway on 8081, and a worker that builds the
@@ -28,8 +28,15 @@ sandbox base image on first start (a few minutes) and then takes turns. The home
 `http://127.0.0.1:8000/`, the app at `/app`, this documentation at `/docs/`, the OpenAPI reference
 at `/reference`.
 
-On a Mac with Docker Desktop, replace `/srv/hg/data` with a directory under your home, such as
-`$HOME/hg`, on both sides of the `-v` and in `HG_DATA_DIR`.
+The data directory is under your home because that works everywhere: on a Mac, `/srv` is
+read-only and Docker Desktop shares your home by default; on a Linux server any directory does,
+mounted at the same path on both sides of the `-v`.
+
+The gateway's port, 8081, is published on every interface, not only on localhost: the sandboxes
+reach the gateway through `host.docker.internal`, which is the Docker host's bridge address, and
+a port bound to 127.0.0.1 is not reachable from there. The gateway accepts nothing without a
+per-turn session token, so what the port exposes is a 401; on an internet-facing box, firewall it
+to the host itself all the same. The API on 8000 stays on localhost for a reverse proxy to front.
 
 ## One box with compose and TLS
 
@@ -75,7 +82,7 @@ docker run -d --name hg-worker --restart unless-stopped \
   --add-host host.docker.internal:host-gateway \
   -e HG_DATA_DIR=/srv/hg/data -e HG_CONTROL_URL=https://hg.example.com -e HG_JOIN_TOKEN=… \
   -e HG_GATEWAY_URL=https://gateway.hg.example.com -e HG_RUNTIME=runsc \
-  ghcr.io/mrcloudchase/harnessgateway:5.0.0 serve --role worker
+  ghcr.io/mrcloudchase/harnessgatewayai:5.0.1 serve --role worker
 ```
 
 `deploy/worker.cloud-init.yml` is the same as a cloud-init file for an autoscaling group:

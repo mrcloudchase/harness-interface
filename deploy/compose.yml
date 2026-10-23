@@ -36,7 +36,7 @@ services:
 
   # one box
   platform:
-    image: ${HG_IMAGE:-ghcr.io/mrcloudchase/harnessgateway:5.0.0}
+    image: ${HG_IMAGE:-ghcr.io/mrcloudchase/harnessgatewayai:5.0.1}
     profiles: [one-box]
     restart: unless-stopped
     command: ["serve", "--role", "all"]
@@ -44,14 +44,14 @@ services:
       <<: *env
       HG_HOST: 0.0.0.0
     extra_hosts: ["host.docker.internal:host-gateway"]
-    ports: ["127.0.0.1:8081:8081"]              # the gateway, for the doors on this host
+    ports: ["8081:8081"]                        # the gateway, for the doors on this host: reachable through host.docker.internal, token-only
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - /srv/hg/data:/srv/hg/data
 
   # many boxes
   api:
-    image: ${HG_IMAGE:-ghcr.io/mrcloudchase/harnessgateway:5.0.0}
+    image: ${HG_IMAGE:-ghcr.io/mrcloudchase/harnessgatewayai:5.0.1}
     profiles: [ha]
     restart: unless-stopped
     command: ["serve", "--role", "api,gateway"]
@@ -68,7 +68,7 @@ services:
     depends_on: [postgres, minio]
 
   worker:
-    image: ${HG_IMAGE:-ghcr.io/mrcloudchase/harnessgateway:5.0.0}
+    image: ${HG_IMAGE:-ghcr.io/mrcloudchase/harnessgatewayai:5.0.1}
     profiles: [ha]
     restart: unless-stopped
     command: ["serve", "--role", "worker"]

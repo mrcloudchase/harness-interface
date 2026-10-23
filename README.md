@@ -39,13 +39,13 @@ returns exactly what the package decided. Any OpenAI SDK works unchanged.
 
 ## Run it
 
-You need Docker: a Linux machine, or Docker Desktop on a Mac. No cloud account.
+You need Docker: a Linux machine, or Docker Desktop on a Mac. No cloud account. The image is built for amd64 and arm64.
 
 ```bash
-mkdir -p /srv/hg/data
-docker run -d --name hg --restart unless-stopped -p 127.0.0.1:8000:8000 -p 127.0.0.1:8081:8081 \
-  -v /var/run/docker.sock:/var/run/docker.sock -v /srv/hg/data:/srv/hg/data -e HG_DATA_DIR=/srv/hg/data \
-  --add-host host.docker.internal:host-gateway ghcr.io/mrcloudchase/harnessgateway:5.0.0
+mkdir -p $HOME/hg
+docker run -d --name hg --restart unless-stopped -p 127.0.0.1:8000:8000 -p 8081:8081 \
+  -v /var/run/docker.sock:/var/run/docker.sock -v $HOME/hg:$HOME/hg -e HG_DATA_DIR=$HOME/hg \
+  --add-host host.docker.internal:host-gateway ghcr.io/mrcloudchase/harnessgatewayai:5.0.1
 docker exec hg harnessgateway init --tenant acme --owner chase     # prints the deployer key and your key, once
 ```
 

@@ -4,6 +4,13 @@ Every release is a section here, newest first, and the newest section's heading 
 A merge to `main` that adds a section releases it: the release workflow tags that version, builds
 the wheel and the image, and publishes the section as its notes.
 
+## [6.1.0]
+
+- **The arena is the rodeo.** The page, the records and the routes are named for it:
+  `POST/GET/PATCH/DELETE /v1/rodeos`. The 6.0 paths under `/v1/arenas` keep answering, so
+  nothing built on them breaks. A rodeo kept as an arena record before this release is not
+  carried over.
+
 ## [6.0.1]
 
 - **The base image's npm is current.** Node's bundled npm carried fixable findings (pacote,

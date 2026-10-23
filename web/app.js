@@ -1,12 +1,12 @@
 // The HarnessGateway app: sign in with an account (email and password, GitHub, Google) or an API
-// key, then the tenant's requests, arena, sessions, providers, harnesses and members; the
+// key, then the tenant's requests, rodeo, sessions, providers, harnesses and members; the
 // deployer's dashboard, tenants and workers. Every action is a call to the same routes any client
 // uses. No framework, no build step.
 const $ = (s) => document.querySelector(s);
-const state = { health: null, auth: null, key: sessionStorage.getItem("hg.key") || "", me: null, account: null, tenants: [], kind: "", page: "", window: 30, arena: null };
+const state = { health: null, auth: null, key: sessionStorage.getItem("hg.key") || "", me: null, account: null, tenants: [], kind: "", page: "", window: 30, rodeo: null };
 const h = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === "on") for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn); else if (k === "html") e.innerHTML = v; else if (v !== false && v != null) e.setAttribute(k, v); } for (const k of kids.flat()) if (k != null && k !== false) e.append(k instanceof Node ? k : document.createTextNode(k)); return e; };
 const svg = (tag, attrs = {}, ...kids) => { const e = document.createElementNS("http://www.w3.org/2000/svg", tag); for (const [k, v] of Object.entries(attrs)) { if (k === "on") for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn); else e.setAttribute(k, v); } for (const k of kids.flat()) if (k != null) e.append(k instanceof Node ? k : document.createTextNode(k)); return e; };
-const ICONS = { bolt: "M13 2L4 14h7l-1 8 9-12h-7l1-8z", swords: "M3 3l7 7M21 3l-7 7M3 21l6-6M21 21l-6-6M10 14l-3 3M14 14l3 3M3 3h5M3 3v5M21 3h-5M21 3v5", clock: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2", plug: "M9 2v6M15 2v6M5 8h14l-1 5a6 6 0 0 1-12 0L5 8zM12 19v3", box: "M21 8l-9-5-9 5v8l9 5 9-5V8zM3 8l9 5 9-5M12 13v8", users: "M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM21 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8", user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", chart: "M3 3v18h18M7 14v4M12 9v9M17 5v13", building: "M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2", server: "M3 5h18v6H3zM3 13h18v6H3zM7 8h.01M7 16h.01", book: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z", logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9", file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM14 2v6h6" };
+const ICONS = { bolt: "M13 2L4 14h7l-1 8 9-12h-7l1-8z", lasso: "M15 7a5 5 0 1 1-10 0 5 5 0 0 1 10 0zM13 11c2 2 3 5 4 9M17 20l3-1", clock: "M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2", plug: "M9 2v6M15 2v6M5 8h14l-1 5a6 6 0 0 1-12 0L5 8zM12 19v3", box: "M21 8l-9-5-9 5v8l9 5 9-5V8zM3 8l9 5 9-5M12 13v8", users: "M16 21v-2a4 4 0 0 0-4-4H7a4 4 0 0 0-4 4v2M9.5 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM21 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8", user: "M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z", chart: "M3 3v18h18M7 14v4M12 9v9M17 5v13", building: "M3 21h18M5 21V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2v16M9 7h2M13 7h2M9 11h2M13 11h2M9 15h2M13 15h2", server: "M3 5h18v6H3zM3 13h18v6H3zM7 8h.01M7 16h.01", book: "M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z", logout: "M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9", file: "M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8l-6-6zM14 2v6h6" };
 const icon = (name) => svg("svg", { viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", "stroke-width": "1.8", "stroke-linecap": "round", "stroke-linejoin": "round" }, svg("path", { d: ICONS[name] }));
 
 async function api(method, path, body, raw) {
@@ -104,10 +104,10 @@ function login(note, mode = "signin", resetToken = "") {
 
 // the shell
 const NAV = {
-  member: [["Build", [["Requests", "bolt"], ["Arena", "swords"], ["Sessions", "clock"]]], ["Setup", [["Providers", "plug"], ["Harnesses", "box"]]], ["Team", [["Members", "users"], ["Account", "user"]]]],
+  member: [["Build", [["Requests", "bolt"], ["Rodeo", "lasso"], ["Sessions", "clock"]]], ["Setup", [["Providers", "plug"], ["Harnesses", "box"]]], ["Team", [["Members", "users"], ["Account", "user"]]]],
   deployer: [["Platform", [["Dashboard", "chart"], ["Tenants", "building"], ["Workers", "server"]]]],
 };
-const VIEWS = { Requests: requests, Arena: arena, Sessions: sessions, Providers: providers, Harnesses: harnesses, Members: members, Account: account, Dashboard: dashboard, Tenants: tenants, Workers: workers };
+const VIEWS = { Requests: requests, Rodeo: rodeo, Sessions: sessions, Providers: providers, Harnesses: harnesses, Members: members, Account: account, Dashboard: dashboard, Tenants: tenants, Workers: workers };
 function pages() { return NAV[state.kind === "deployer" ? "deployer" : "member"].flatMap(([, items]) => items.map(([p]) => p)).filter(p => p !== "Account" || state.account); }
 function signOut() { sessionStorage.removeItem("hg.key"); state.key = ""; if (state.account) api("POST", "/auth/logout").catch(() => {}); state.account = null; state.me = null; state.kind = ""; location.hash = ""; boot(); }
 function shell(page) {
@@ -201,12 +201,12 @@ async function requests() {
     h("div", { class: "card" }, h("div", { class: "grid-3" }, field("Harness", model), field("Provider / model override", override), field("Continue from", prev)), h("div", { style: "margin-top:10px" }, field("Instructions", instr)), h("div", { style: "margin-top:10px" }, field("Task", input)), h("div", { class: "row between", style: "margin-top:10px" }, h("span", { class: "muted" }, "⌘↵ runs · POST /v1/responses with stream: true"), runBtn), out));
 }
 
-// the arena
-async function arena() {
-  const [hs, board] = await Promise.all([api("GET", "/v1/harnesses"), api("GET", "/v1/arenas")]);
+// the rodeo
+async function rodeo() {
+  const [hs, board] = await Promise.all([api("GET", "/v1/harnesses"), api("GET", "/v1/rodeos")]);
   const picks = h("div", { class: "picks" }, ...hs.data.map(x => h("label", {}, h("input", { type: "checkbox", value: x.name }), x.name)));
-  const input = h("textarea", { placeholder: "One task for every harness you pick. Create a small program, fix a bug, write a plan…" }), cols = h("div", { class: "arena" }), verdict = h("div", { class: "row", style: "margin-top:12px" }), out = h("div");
-  const runBtn = h("button", { class: "act", on: { click: () => fight() } }, icon("swords"), "Run the arena");
+  const input = h("textarea", { placeholder: "One task for every harness you pick. Create a small program, fix a bug, write a plan…" }), cols = h("div", { class: "rodeo" }), verdict = h("div", { class: "row", style: "margin-top:12px" }), out = h("div");
+  const runBtn = h("button", { class: "act", on: { click: () => fight() } }, icon("lasso"), "Run the rodeo");
   const fight = async () => {
     const chosen = [...picks.querySelectorAll("input:checked")].map(i => i.value);
     if (chosen.length < 2 || chosen.length > 6) return out.replaceChildren(fail(new Error("pick two to six harnesses")));
@@ -222,18 +222,18 @@ async function arena() {
     const ok = results.filter(r => r.final);
     if (ok.length >= 2) {
       let saved = null;
-      try { saved = await api("POST", "/v1/arenas", { prompt: input.value, entries: ok.map(r => ({ response: r.final.id })) }); } catch (e) { out.replaceChildren(fail(e)); }
-      verdict.replaceChildren(h("b", {}, "Pick the winner:"), ...ok.map(r => h("button", { class: "quiet small", on: { click: async (ev) => { for (const c of cols.children) c.classList.remove("winner"); r.col.classList.add("winner"); if (saved) { await api("PATCH", `/v1/arenas/${saved.id}`, { winner: r.name }); ev.target.parentElement.append(h("span", { class: "muted" }, " saved")); } } } }, r.name)), h("button", { class: "ghost small", on: { click: () => shell("Arena") } }, "refresh the leaderboard"));
+      try { saved = await api("POST", "/v1/rodeos", { prompt: input.value, entries: ok.map(r => ({ response: r.final.id })) }); } catch (e) { out.replaceChildren(fail(e)); }
+      verdict.replaceChildren(h("b", {}, "Pick the winner:"), ...ok.map(r => h("button", { class: "quiet small", on: { click: async (ev) => { for (const c of cols.children) c.classList.remove("winner"); r.col.classList.add("winner"); if (saved) { await api("PATCH", `/v1/rodeos/${saved.id}`, { winner: r.name }); ev.target.parentElement.append(h("span", { class: "muted" }, " saved")); } } } }, r.name)), h("button", { class: "ghost small", on: { click: () => shell("Rodeo") } }, "refresh the leaderboard"));
     }
     runBtn.disabled = false;
   };
-  const rows = board.data.map(a => h("tr", {}, h("td", {}, when(a.created)), h("td", { class: "mono", style: "max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis", title: a.prompt }, a.prompt.slice(0, 80)), h("td", {}, a.entries.map(e => e.harness).join(", ")), h("td", {}, a.winner ? tag(a.winner, "orange") : h("span", { class: "muted" }, "undecided")), h("td", {}, h("button", { class: "ghost small danger", on: { click: async () => { await api("DELETE", `/v1/arenas/${a.id}`); shell("Arena"); } } }, "delete"))));
-  return h("div", {}, head("Arena", "One task, several harnesses, side by side as they stream. Pick the winner; the leaderboard remembers."),
+  const rows = board.data.map(a => h("tr", {}, h("td", {}, when(a.created)), h("td", { class: "mono", style: "max-width:220px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis", title: a.prompt }, a.prompt.slice(0, 80)), h("td", {}, a.entries.map(e => e.harness).join(", ")), h("td", {}, a.winner ? tag(a.winner, "orange") : h("span", { class: "muted" }, "undecided")), h("td", {}, h("button", { class: "ghost small danger", on: { click: async () => { await api("DELETE", `/v1/rodeos/${a.id}`); shell("Rodeo"); } } }, "delete"))));
+  return h("div", {}, head("Rodeo", "One task, several harnesses, out of the chute side by side. Pick the winner; the leaderboard remembers."),
     h("div", { class: "card" }, h("h3", { style: "margin-top:0" }, "harnesses"), picks, h("div", { style: "margin-top:12px" }, field("Task", input)), h("div", { class: "row between", style: "margin-top:10px" }, h("span", { class: "muted" }, "each harness runs in its own session; every one is a normal request"), runBtn), out),
-    h("div", { id: "arena-run", style: "margin-top:16px" }, cols, verdict),
+    h("div", { id: "rodeo-run", style: "margin-top:16px" }, cols, verdict),
     h("div", { class: "grid-2", style: "margin-top:16px" },
-      h("div", { class: "card" }, h("h2", {}, "Leaderboard"), h("p", { class: "dim" }, "Wins per harness, across the arenas you can see."), board.leaderboard.length ? h("div", { class: "bars" }, ...board.leaderboard.map(r => h("div", { class: "r" }, h("span", { class: "n" }, r.harness), h("div", {}, h("div", { class: "b", style: `width:${Math.max(2, 100 * r.wins / Math.max(1, board.leaderboard[0].wins))}%` })), h("span", { class: "v" }, `${r.wins} / ${r.runs}`)))) : h("div", { class: "empty" }, "No arena yet.")),
-      h("div", { class: "card" }, h("h2", {}, "Past arenas"), rows.length ? h("div", { class: "table-wrap" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "when"), h("th", {}, "task"), h("th", {}, "harnesses"), h("th", {}, "winner"), h("th"))), h("tbody", {}, ...rows))) : h("div", { class: "empty" }, "Nothing yet."))));
+      h("div", { class: "card" }, h("h2", {}, "Leaderboard"), h("p", { class: "dim" }, "Wins per harness, across the rodeos you can see."), board.leaderboard.length ? h("div", { class: "bars" }, ...board.leaderboard.map(r => h("div", { class: "r" }, h("span", { class: "n" }, r.harness), h("div", {}, h("div", { class: "b", style: `width:${Math.max(2, 100 * r.wins / Math.max(1, board.leaderboard[0].wins))}%` })), h("span", { class: "v" }, `${r.wins} / ${r.runs}`)))) : h("div", { class: "empty" }, "No rodeo yet.")),
+      h("div", { class: "card" }, h("h2", {}, "Past rodeos"), rows.length ? h("div", { class: "table-wrap" }, h("table", {}, h("thead", {}, h("tr", {}, h("th", {}, "when"), h("th", {}, "task"), h("th", {}, "harnesses"), h("th", {}, "winner"), h("th"))), h("tbody", {}, ...rows))) : h("div", { class: "empty" }, "Nothing yet."))));
 }
 
 // sessions

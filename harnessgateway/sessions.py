@@ -7,7 +7,7 @@ a final status. A session is the chain of turns that share a workspace, kept as 
     chunk/<tenant>/<rid>:<seq>   a running turn's output, as it arrives, for any number of followers
     trace/<tenant>/<sid>:<seq>   every request, response, steer and cancel, as sent
     usage/<tenant>/<rid>         calls and bytes (the gateway's), seconds, the time, harness and status (the turn's)
-    arena/<tenant>/<aid>         a matchup: one prompt, several harnesses' turns, and the winner the member picked
+    rodeo/<tenant>/<aid>         a matchup: one prompt, several harnesses' turns, and the winner the member picked
 
     blobs tenants/<t>/sessions/<sid>/workspace.tgz           the workspace after the last turn
           tenants/<t>/members/<m>/harnesses/<h>/home.tgz    the member's home for that package
@@ -452,47 +452,47 @@ class Sessions:
                     return tar.extractfile(m).read()
         raise NotFound(f"no file {path}")
 
-    # arenas: one prompt, several harnesses, the member's pick
-    def create_arena(self, who: Member, prompt: str, entries: list[dict[str, Any]]) -> dict[str, Any]:
+    # rodeos: one prompt, several harnesses, the member's pick
+    def create_rodeo(self, who: Member, prompt: str, entries: list[dict[str, Any]]) -> dict[str, Any]:
         if not 2 <= len(entries) <= 6:
-            raise Invalid("an arena has two to six entries")
+            raise Invalid("a rodeo has two to six entries")
         rows = []
         for e in entries:
             r = self.response(who, str(e.get("response", "")))
             rows.append({"harness": r.harness, "model": f"{r.harness}/{r.provider}/{r.model}", "response": r.id, "session": r.session})
         if len({row["harness"] for row in rows}) < 2:
-            raise Invalid("an arena pits different harnesses against each other")
-        d = {"id": f"arena_{uuid.uuid4().hex[:12]}", "tenant": who.tenant, "member": who.name, "prompt": (prompt or "")[:4000],
+            raise Invalid("a rodeo pits different harnesses against each other")
+        d = {"id": f"rodeo_{uuid.uuid4().hex[:12]}", "tenant": who.tenant, "member": who.name, "prompt": (prompt or "")[:4000],
              "entries": rows, "winner": "", "created": time.time()}
-        self.records.put("arena", who.tenant, d["id"], d)
+        self.records.put("rodeo", who.tenant, d["id"], d)
         return d
 
-    def arena(self, who: Member, aid: str) -> dict[str, Any]:
-        d = self.records.get("arena", who.tenant, aid) if aid.startswith("arena_") else None
+    def rodeo(self, who: Member, aid: str) -> dict[str, Any]:
+        d = self.records.get("rodeo", who.tenant, aid) if aid.startswith("rodeo_") else None
         if d is None or not self._reachable(who, d["tenant"], d["member"]):
-            raise NotFound(f"no arena {aid}")
+            raise NotFound(f"no rodeo {aid}")
         return d
 
-    def arenas(self, who: Member) -> list[dict[str, Any]]:
-        found = [d for d in self.records.list("arena", who.tenant) if self._reachable(who, d["tenant"], d["member"])]
+    def rodeos(self, who: Member) -> list[dict[str, Any]]:
+        found = [d for d in self.records.list("rodeo", who.tenant) if self._reachable(who, d["tenant"], d["member"])]
         return sorted(found, key=lambda d: -d["created"])
 
     def pick_winner(self, who: Member, aid: str, winner: str) -> dict[str, Any]:
-        d = self.arena(who, aid)
+        d = self.rodeo(who, aid)
         if winner and winner not in {e["harness"] for e in d["entries"]}:
-            raise Invalid("the winner is one of the arena's harnesses")
+            raise Invalid("the winner is one of the rodeo's harnesses")
         d["winner"] = winner
-        self.records.put("arena", who.tenant, aid, d)
+        self.records.put("rodeo", who.tenant, aid, d)
         return d
 
-    def delete_arena(self, who: Member, aid: str) -> None:
-        self.arena(who, aid)
-        self.records.delete("arena", who.tenant, aid)
+    def delete_rodeo(self, who: Member, aid: str) -> None:
+        self.rodeo(who, aid)
+        self.records.delete("rodeo", who.tenant, aid)
 
     def leaderboard(self, who: Member) -> list[dict[str, Any]]:
-        """Per harness, across the arenas this member can see: runs and wins, most wins first."""
+        """Per harness, across the rodeos this member can see: runs and wins, most wins first."""
         board: dict[str, dict[str, int]] = {}
-        for d in self.arenas(who):
+        for d in self.rodeos(who):
             for e in d["entries"]:
                 row = board.setdefault(e["harness"], {"runs": 0, "wins": 0})
                 row["runs"] += 1

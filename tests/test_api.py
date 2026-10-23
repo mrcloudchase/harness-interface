@@ -340,7 +340,7 @@ def test_sign_up_with_mail_verifies_first(tmp_path, vault, monkeypatch):
     asyncio.run(go())
 
 
-def test_workspace_files_and_an_arena(platform):
+def test_workspace_files_and_an_rodeo(platform):
     async def scenario(c, node):
         owner = await signup(c)
         key = await ready(c, owner)
@@ -354,16 +354,17 @@ def test_workspace_files_and_an_arena(platform):
         assert (await c.get(f"/v1/sessions/{sid}/files/nope.txt", headers=auth(key))).status_code == 404
         assert (await c.get(f"/v1/sessions/{sid}/files/../x", headers=auth(key))).status_code == 404
         entries = [{"response": r.json()["id"]} for r in runs]
-        assert (await c.post("/v1/arenas", json={"prompt": "p", "entries": entries[:1]}, headers=auth(key))).status_code == 400
-        a = (await c.post("/v1/arenas", json={"prompt": "write out.txt", "entries": entries}, headers=auth(key))).json()
+        assert (await c.post("/v1/rodeos", json={"prompt": "p", "entries": entries[:1]}, headers=auth(key))).status_code == 400
+        a = (await c.post("/v1/rodeos", json={"prompt": "write out.txt", "entries": entries}, headers=auth(key))).json()
         assert [e["harness"] for e in a["entries"]] == ["cc", "cc2"] and a["winner"] == ""
-        assert (await c.patch(f"/v1/arenas/{a['id']}", json={"winner": "zz"}, headers=auth(key))).status_code == 400
-        assert (await c.patch(f"/v1/arenas/{a['id']}", json={"winner": "cc2"}, headers=auth(key))).json()["winner"] == "cc2"
-        board = (await c.get("/v1/arenas", headers=auth(key))).json()
+        assert (await c.patch(f"/v1/rodeos/{a['id']}", json={"winner": "zz"}, headers=auth(key))).status_code == 400
+        assert (await c.patch(f"/v1/rodeos/{a['id']}", json={"winner": "cc2"}, headers=auth(key))).json()["winner"] == "cc2"
+        board = (await c.get("/v1/rodeos", headers=auth(key))).json()
         assert len(board["data"]) == 1 and board["leaderboard"] == [{"harness": "cc2", "runs": 1, "wins": 1}, {"harness": "cc", "runs": 1, "wins": 0}]
-        assert (await c.get(f"/v1/arenas/{a['id']}", headers=auth(owner))).status_code == 200    # the owner sees the member's
+        assert (await c.get(f"/v1/rodeos/{a['id']}", headers=auth(owner))).status_code == 200    # the owner sees the member's
         other = await signup(c, "other", "o")
-        assert (await c.get(f"/v1/arenas/{a['id']}", headers=auth(other))).status_code == 404
-        assert (await c.delete(f"/v1/arenas/{a['id']}", headers=auth(key))).status_code == 200
-        assert (await c.get("/v1/arenas", headers=auth(key))).json()["data"] == []
+        assert (await c.get(f"/v1/rodeos/{a['id']}", headers=auth(other))).status_code == 404
+        assert (await c.delete(f"/v1/rodeos/{a['id']}", headers=auth(key))).status_code == 200
+        assert (await c.get("/v1/rodeos", headers=auth(key))).json()["data"] == []
+        assert (await c.get("/v1/arenas", headers=auth(key))).json()["data"] == []            # the 6.0 path still answers
     run(platform, scenario)

@@ -59,7 +59,7 @@ nav:
       - Harnesses: harnesses.md
       - First request: first-request.md
   - Use it:
-      - Arena: arena.md
+      - Rodeo: rodeo.md
       - Sessions: sessions.md
       - Steer and cancel: steer-and-cancel.md
       - Traces and captures: traces-and-captures.md

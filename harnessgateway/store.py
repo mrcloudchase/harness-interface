@@ -168,7 +168,7 @@ class Store:
 
     def delete_tenant(self, name: str) -> None:
         self.tenant(name)
-        for kind in ("member", "key", "provider", "harness", "session", "response", "turn", "chunk", "usage", "trace", "arena", "invite"):
+        for kind in ("member", "key", "provider", "harness", "session", "response", "turn", "chunk", "usage", "trace", "rodeo", "invite"):
             for d in self.records.list(kind, name):
                 self.records.delete(kind, name, d.get("id") or d.get("name") or d.get("key"))
         for login in self.records.where("login", "tenant", name, limit=10_000):

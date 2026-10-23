@@ -29,7 +29,7 @@ process; a fleet runs them apart. Nothing in the package names a cloud.
 |---|---|
 | Stand the platform up | [Deploy](deploy.md), then [Initialize](initialize.md) |
 | Use a tenant: keys, providers, packages, a first request | [The app](app.md) through [First request](first-request.md) |
-| Pit harnesses against each other on one task | [Arena](arena.md) |
+| Pit harnesses against each other on one task | [Rodeo](rodeo.md) |
 | Drive sessions: continue, steer, cancel, read the record | [Sessions](sessions.md), [Steer and cancel](steer-and-cancel.md), [Traces and captures](traces-and-captures.md) |
 | Call it from code | [Clients](clients.md) |
 | Run it for others: tenants, limits, workers | [Tenants and limits](tenants.md), [Workers and scale](workers.md) |

@@ -8,7 +8,7 @@ did, in pieces.
 
 Events, one JSON object per line on stdout (foobar's shapes, not ours):
     {"ev": "think", "text": …}
-    {"ev": "tool", "id": …, "name": …, "args": {…}}   then   {"ev": "tool_result", "id": …, "ok": bool, "out": …}
+    {"ev": "tool", "id": …, "name": …, "args": {…}}   then   {"ev": "tool_result", "id": …, "ok": bool, "out": …[, "err": …, "code": …]}
     {"ev": "mcp", "id": …, "server": …, "tool": …, "args": {…}, "out": …}
     {"ev": "say", "delta": …}                           the answer, as it is written
     {"ev": "end", "ok": bool}
@@ -59,7 +59,7 @@ def main():
         emit(ev="tool_result", id="t1", ok=True, out="wrote 15 bytes")
     emit(ev="tool", id="t2", name="run", args={"cmd": "python3 hello.py"})
     r = subprocess.run(["python3", "hello.py"], capture_output=True, text=True)
-    emit(ev="tool_result", id="t2", ok=r.returncode == 0, out=(r.stdout + r.stderr).strip())
+    emit(ev="tool_result", id="t2", ok=r.returncode == 0, out=r.stdout, err=r.stderr, code=r.returncode)
     for s in config.get("mcp", []):
         emit(ev="mcp", id=f"m-{s['name']}", server=s["name"], tool="lookup", args={"q": a.task[:40]}, out=f"(simulated) {s['name']} answered")
     files = ", ".join(sorted(f for f in os.listdir(".") if not f.startswith(".")))

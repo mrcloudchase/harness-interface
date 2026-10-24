@@ -1,20 +1,26 @@
 #!/usr/bin/env python3
-"""The Responses wire end to end, in one file, around one template package: `foobarness/`.
+"""The Responses wire end to end, in one file, around one template package: `foobarness/`. The
+schema is the OpenAI SDK's own: the request is validated with its `ResponseCreateParams`, every
+item a package reports is validated as its `ResponseOutputItem`, the response is its `Response`
+model, the stream is its event classes, and the client is the real `openai` client pointed at
+this file's endpoint. Nothing of the schema is written here.
 
+    pip install openai        (the repository's venv has it)
     python3 prototype/foobarness_wire.py
 
 What it shows, in order:
 
-1. A client's request in the OpenAI Responses schema. `parse_request` resolves it into the fixed
+1. A client's request, as the `openai` client sends it. `parse_request` resolves it into the fixed
    subset a harness gets (prompt, files, instructions, continuation, model, reasoning effort, MCP
-   tools) and refuses, with the standard error shape, anything the package's manifest does not accept.
+   tools) and refuses, with the API's error shape, anything the package's manifest does not accept.
 2. `stage` writes that subset where the package reads it: the files into the workspace, the prompt
    and `request.json` into the run directory. This is the only thing a package sees of the request.
 3. `run_turn` is the template: the common runner every package shares. It runs the adapter's
    configure.sh (seeds become the CLI's config), then run.sh (the CLI, its native events relayed
    live) piped through items.py (the package's filter: native events become Responses items).
-4. `response_object` and `events` put the items back on the wire: the non-streaming response
-   object, and the standard event stream with the same items and the message's deltas.
+4. `response_object` and `events` put the items back on the wire, as the SDK's `Response` and its
+   stream events; a tiny HTTP server serves them at POST /v1/responses, and the `openai` client reads
+   them back as typed objects.
 
 Nothing here is Docker, the gateway or the store: the turn runs as a process in a temporary
 directory, with a fake provider URL and token, so the mapping is the whole subject.
@@ -28,18 +34,26 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import uuid
 from dataclasses import dataclass, field
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Iterator
 
+import openai
+from openai.types import responses as R
+from pydantic import TypeAdapter, ValidationError
+
 HERE = Path(__file__).resolve().parent
 PACKAGE = HERE / "foobarness"
+PARAMS = TypeAdapter(R.ResponseCreateParams)         # the request schema, the SDK's
+ITEM = TypeAdapter(R.ResponseOutputItem)             # the output item schema, the SDK's
 
 
 class Refused(Exception):
-    """A request the harness cannot take; `body` is the Responses API's error shape, HTTP 400."""
+    """A request the harness cannot take; `body` is the API's error shape, sent as HTTP 400."""
 
     def __init__(self, message: str, param: str, code: str = "unsupported_parameter"):
         super().__init__(message)
@@ -47,7 +61,11 @@ class Refused(Exception):
 
 
 # 1. the request, as a client sends it, resolved into what a harness gets
-def parse_request(body: dict[str, Any], manifest: dict[str, Any], previous_turn: Turn | None) -> dict[str, Any]:
+def parse_request(body: dict[str, Any], manifest: dict[str, Any]) -> dict[str, Any]:
+    try:
+        PARAMS.validate_python(body)
+    except ValidationError as e:
+        raise Refused(f"not a Responses request: {e.errors()[0]['msg']}", ".".join(str(p) for p in e.errors()[0]["loc"][1:]), "invalid_value") from None
     accepts = manifest["accepts"]
     parts = str(body.get("model", "")).split("/", 2)
     harness, provider, model = (parts[0], "", "") if len(parts) == 1 else (parts[0], parts[1], parts[2])
@@ -56,7 +74,10 @@ def parse_request(body: dict[str, Any], manifest: dict[str, Any], previous_turn:
     prompt, files = [], {}
     given = body.get("input", "")
     for item in [{"type": "input_text", "text": given}] if isinstance(given, str) else given:
-        for part in item.get("content", [item]) if item.get("type") == "message" else [item]:
+        content = item.get("content", []) if item.get("type", "message") == "message" and not isinstance(item.get("content"), str) else [item]
+        if isinstance(item.get("content"), str):
+            content = [{"type": "input_text", "text": item["content"]}]
+        for part in content:
             if part.get("type") == "input_text":
                 prompt.append(part["text"])
             elif part.get("type") == "input_file":
@@ -79,14 +100,14 @@ def parse_request(body: dict[str, Any], manifest: dict[str, Any], previous_turn:
     if effort and effort not in accepts["reasoning_effort"]:
         raise Refused(f"reasoning.effort is one of {', '.join(accepts['reasoning_effort'])}", "reasoning.effort", "invalid_value")
     for knob in ("temperature", "top_p", "max_output_tokens"):
-        if knob in body and not accepts["sampling"]:
+        if body.get(knob) is not None and not accepts["sampling"]:
             raise Refused(f"{harness} does not take {knob}: its CLI decides", knob)
     if (body.get("text") or {}).get("format", {}).get("type", "text") != "text" and not accepts["text_format"]:
         raise Refused(f"{harness} returns text; it takes no output format", "text.format")
     return {"harness": harness, "provider": provider or manifest["defaults"]["provider"], "model": model or manifest["defaults"]["model"],
             "prompt": "\n".join(prompt), "files": files, "instructions": body.get("instructions") or "",
             "resume": bool(body.get("previous_response_id")), "reasoning_effort": effort or "medium", "mcp_servers": mcp,
-            "metadata": body.get("metadata") or {}, "store": body.get("store", True)}
+            "metadata": body.get("metadata") or {}, "store": body.get("store", True) is not False}
 
 
 # 2. staged: what the package finds on disk
@@ -122,8 +143,8 @@ class Session:
 
 @dataclass
 class Turn:
-    """A turn as the platform keeps it: the items the package reported, in order, the message
-    assembled from the deltas, and how it ended."""
+    """A turn as the platform keeps it: the items the package reported, typed, in order; the
+    message assembled from the deltas; how it ended."""
     id: str
     session: str
     harness: str
@@ -135,19 +156,19 @@ class Turn:
     metadata: dict[str, str]
     store: bool
     created: float = field(default_factory=time.time)
-    items: list[dict[str, Any]] = field(default_factory=list)
+    items: list[Any] = field(default_factory=list)   # ResponseOutputItem instances
     text: str = ""
     status: str = "in_progress"
     exit_code: int | None = None
-    native: str = ""
+    error: str = ""
 
     @property
     def message_id(self) -> str:
         return f"msg_{self.id[5:29]}"
 
-    def message(self, done: bool) -> dict[str, Any]:
-        return {"type": "message", "id": self.message_id, "status": "completed" if done else "in_progress", "role": "assistant",
-                "content": [{"type": "output_text", "text": self.text, "annotations": []}]}
+    def message(self, done: bool) -> R.ResponseOutputMessage:
+        return R.ResponseOutputMessage(type="message", id=self.message_id, role="assistant", status="completed" if done else "in_progress",
+                                       content=[R.ResponseOutputText(type="output_text", text=self.text, annotations=[])])
 
 
 # 3. the template: install once, then configure -> run | items, relayed as it happens
@@ -157,8 +178,8 @@ def install(tools: Path) -> None:
 
 
 def run_turn(session: Session, turn: Turn, ask: dict[str, Any], tools: Path) -> Iterator[tuple[str, Any]]:
-    """Yields ("native", line) for every line the CLI printed, ("item", item) and ("delta", text) as
-    the filter reports them, then ("end", exit_code)."""
+    """Yields ("item", item) and ("delta", text) as the filter reports them, then ("end", code).
+    Every item is validated against the schema; one that does not fit fails the turn."""
     for d in (session.workspace, session.run, session.home):
         d.mkdir(parents=True, exist_ok=True)
     stage(session, ask)
@@ -168,95 +189,160 @@ def run_turn(session: Session, turn: Turn, ask: dict[str, Any], tools: Path) -> 
            "HG_MODEL": ask["model"], "HG_INSTRUCTIONS": ask["instructions"], "HG_PROVIDER_URL": "http://hg-provider:8080",
            "FOOBAR_API_KEY": "sk-hg-session-token", "FOOBAR_BASE_URL": "http://hg-provider:8080"}
     subprocess.run(["bash", str(PACKAGE / "adapter" / "configure.sh")], env=env, check=True)
-    native = session.run / "native.jsonl"
+    native = session.run / "native.jsonl"            # the CLI's own events, kept whole as the capture
     pipeline = f'bash "$HG_HARNESS_DIR/adapter/run.sh" | tee "{native}" | python3 "$HG_HARNESS_DIR/adapter/items.py"'
     proc = subprocess.Popen(["bash", "-o", "pipefail", "-c", pipeline], env=env, stdout=subprocess.PIPE, text=True)
-    seen = 0
     for line in proc.stdout:
-        lines = native.read_text().splitlines()
-        for raw in lines[seen:]:
-            yield "native", raw
-        seen = len(lines)
         report = json.loads(line)
         if "item" in report:
-            turn.items.append(report["item"])
-            yield "item", report["item"]
+            try:
+                item = ITEM.validate_python(report["item"])
+            except ValidationError as e:
+                proc.kill()
+                turn.error = f"the package reported an item that is not a Responses output item: {e.errors()[0]['msg']}"
+                break
+            turn.items.append(item)
+            yield "item", item
         else:
             turn.text += report["delta"]
             yield "delta", report["delta"]
     code = proc.wait()
-    turn.native = native.read_text()
-    turn.exit_code, turn.status = code, "completed" if code == 0 else "failed"
+    turn.exit_code = code
+    turn.status = "failed" if turn.error or code != 0 else "completed"
+    turn.error = turn.error or ("" if code == 0 else f"the package exited {code}")
     session.turn = turn.turn
     yield "end", code
 
 
-# 4. back on the wire: the response object, and the stream
-def response_object(t: Turn) -> dict[str, Any]:
+# 4. back on the wire: the SDK's Response, and its stream events
+def response_object(t: Turn) -> R.Response:
     done = t.status != "in_progress"
-    return {"id": t.id, "object": "response", "created_at": int(t.created), "status": t.status,
-            "error": {"code": "exit_status", "message": f"the package exited {t.exit_code}"} if t.status == "failed" else None,
-            "incomplete_details": None, "instructions": t.instructions or None, "max_output_tokens": None,
-            "model": f"{t.harness}/{t.provider}/{t.model}", "output": [*t.items, *([t.message(True)] if done or t.text else [])],
-            "parallel_tool_calls": False, "previous_response_id": t.previous, "reasoning": {"effort": None, "summary": None},
-            "store": t.store, "temperature": None, "text": {"format": {"type": "text"}}, "tool_choice": "none", "tools": [],
-            "top_p": None, "truncation": "disabled", "usage": None, "user": None,
-            "metadata": {**t.metadata, "session_id": t.session, "harness": t.harness, "turn": str(t.turn)}}
+    return R.Response(
+        id=t.id, object="response", created_at=int(t.created), status=t.status, model=f"{t.harness}/{t.provider}/{t.model}",
+        output=[*t.items, *([t.message(True)] if done or t.text else [])], parallel_tool_calls=False, tool_choice="none", tools=[],
+        error=R.ResponseError(code="server_error", message=t.error) if t.status == "failed" else None,
+        incomplete_details=None, instructions=t.instructions or None, previous_response_id=t.previous, store=t.store,
+        truncation="disabled", text={"format": {"type": "text"}}, reasoning=None, usage=None,
+        metadata={**t.metadata, "session_id": t.session, "harness": t.harness, "turn": str(t.turn)})
 
 
-def output_text(response: dict[str, Any]) -> str:
-    """What an SDK's `response.output_text` returns: every output_text part, joined."""
-    return "".join(p["text"] for item in response["output"] if item["type"] == "message" for p in item["content"] if p["type"] == "output_text")
-
-
-def events(t: Turn, relay: Iterator[tuple[str, Any]]) -> Iterator[str]:
-    """The standard stream: each item added and done as it arrives; the message opened on its first
-    delta, closed before the next item or at the end; the final event with the whole response."""
+def events(t: Turn, relay: Iterator[tuple[str, Any]]) -> Iterator[R.ResponseStreamEvent]:
+    """The stream: each item added and done as it arrives, with the argument events the schema has
+    for that item; the message opened on its first delta, closed before the next item or at the
+    end; the final event with the whole response."""
     n = -1
 
-    def event(kind: str, **data: Any) -> str:
+    def seq() -> int:
         nonlocal n
         n += 1
-        return f"event: {kind}\ndata: {json.dumps({'type': kind, 'sequence_number': n, **data})}\n\n"
+        return n
 
     index, message_open = 0, False
 
     def close_message():
         nonlocal index, message_open
-        yield event("response.output_text.done", item_id=t.message_id, output_index=index, content_index=0, text=t.text)
-        yield event("response.content_part.done", item_id=t.message_id, output_index=index, content_index=0,
-                    part={"type": "output_text", "text": t.text, "annotations": []})
-        yield event("response.output_item.done", output_index=index, item=t.message(True))
+        part = R.ResponseOutputText(type="output_text", text=t.text, annotations=[])
+        yield R.ResponseTextDoneEvent(type="response.output_text.done", item_id=t.message_id, output_index=index, content_index=0, text=t.text, logprobs=[], sequence_number=seq())
+        yield R.ResponseContentPartDoneEvent(type="response.content_part.done", item_id=t.message_id, output_index=index, content_index=0, part=part, sequence_number=seq())
+        yield R.ResponseOutputItemDoneEvent(type="response.output_item.done", output_index=index, item=t.message(True), sequence_number=seq())
         index, message_open = index + 1, False
 
-    yield event("response.created", response=response_object(t))
-    yield event("response.in_progress", response=response_object(t))
+    yield R.ResponseCreatedEvent(type="response.created", response=response_object(t), sequence_number=seq())
+    yield R.ResponseInProgressEvent(type="response.in_progress", response=response_object(t), sequence_number=seq())
     for kind, data in relay:
         if kind == "item":
             if message_open:
                 yield from close_message()
-            skeleton = {**data, "status": "in_progress", **({"arguments": ""} if data["type"] in ("function_call", "mcp_call") else {})}
-            yield event("response.output_item.added", output_index=index, item=skeleton)
-            if data["type"] in ("function_call", "mcp_call"):
-                stem = "response.function_call_arguments" if data["type"] == "function_call" else "response.mcp_call_arguments"
-                yield event(f"{stem}.delta", item_id=data["id"], output_index=index, delta=data["arguments"])
-                yield event(f"{stem}.done", item_id=data["id"], output_index=index, arguments=data["arguments"])
-            yield event("response.output_item.done", output_index=index, item=data)
+            opening = data.model_copy(update={"status": "in_progress"} | ({"arguments": ""} if hasattr(data, "arguments") else {}))
+            yield R.ResponseOutputItemAddedEvent(type="response.output_item.added", output_index=index, item=opening, sequence_number=seq())
+            if data.type == "function_call":
+                yield R.ResponseFunctionCallArgumentsDeltaEvent(type="response.function_call_arguments.delta", item_id=data.id, output_index=index, delta=data.arguments, sequence_number=seq())
+                yield R.ResponseFunctionCallArgumentsDoneEvent(type="response.function_call_arguments.done", item_id=data.id, output_index=index, arguments=data.arguments, sequence_number=seq())
+            elif data.type == "mcp_call":
+                yield R.ResponseMcpCallArgumentsDeltaEvent(type="response.mcp_call_arguments.delta", item_id=data.id, output_index=index, delta=data.arguments, sequence_number=seq())
+                yield R.ResponseMcpCallArgumentsDoneEvent(type="response.mcp_call_arguments.done", item_id=data.id, output_index=index, arguments=data.arguments, sequence_number=seq())
+            yield R.ResponseOutputItemDoneEvent(type="response.output_item.done", output_index=index, item=data, sequence_number=seq())
             index += 1
         elif kind == "delta":
             if not message_open:
                 message_open = True
-                yield event("response.output_item.added", output_index=index, item={**t.message(False), "content": []})
-                yield event("response.content_part.added", item_id=t.message_id, output_index=index, content_index=0,
-                            part={"type": "output_text", "text": "", "annotations": []})
-            yield event("response.output_text.delta", item_id=t.message_id, output_index=index, content_index=0, delta=data)
+                yield R.ResponseOutputItemAddedEvent(type="response.output_item.added", output_index=index, item=t.message(False).model_copy(update={"content": []}), sequence_number=seq())
+                yield R.ResponseContentPartAddedEvent(type="response.content_part.added", item_id=t.message_id, output_index=index, content_index=0,
+                                                      part=R.ResponseOutputText(type="output_text", text="", annotations=[]), sequence_number=seq())
+            yield R.ResponseTextDeltaEvent(type="response.output_text.delta", item_id=t.message_id, output_index=index, content_index=0, delta=data, logprobs=[], sequence_number=seq())
         elif kind == "end":
             if message_open:
                 yield from close_message()
-            yield event("response.completed" if t.status == "completed" else "response.failed", response=response_object(t))
+            final = response_object(t)
+            if t.status == "completed":
+                yield R.ResponseCompletedEvent(type="response.completed", response=final, sequence_number=seq())
+            else:
+                yield R.ResponseFailedEvent(type="response.failed", response=final, sequence_number=seq())
 
 
-# the demo
+# the endpoint: POST /v1/responses, the way the platform serves it
+class Platform:
+    def __init__(self, root: Path):
+        self.manifest = json.loads((PACKAGE / "harness.json").read_text())
+        self.root, self.tools = root, root / "tools"
+        self.turns: dict[str, tuple[Session, Turn]] = {}
+        install(self.tools)
+
+    def create(self, body: dict[str, Any]) -> tuple[Turn, Iterator[tuple[str, Any]]]:
+        ask = parse_request(body, self.manifest)
+        prev = self.turns.get(body.get("previous_response_id") or "")
+        if body.get("previous_response_id") and not prev:
+            raise Refused(f"no response {body['previous_response_id']}", "previous_response_id", "not_found")
+        session = prev[0] if prev else Session(self.root / "sessions" / uuid.uuid4().hex[:8])
+        t = Turn(f"resp_{uuid.uuid4().hex}", session.id, ask["harness"], ask["provider"], ask["model"], session.turn + 1,
+                 body.get("previous_response_id"), ask["instructions"], ask["metadata"], ask["store"])
+        self.turns[t.id] = (session, t)
+        return t, run_turn(session, t, ask, self.tools)
+
+
+class Handler(BaseHTTPRequestHandler):
+    platform: Platform
+
+    def log_message(self, *a: Any) -> None:
+        pass
+
+    def do_POST(self) -> None:
+        body = json.loads(self.rfile.read(int(self.headers.get("content-length", 0)) or 0) or b"{}")
+        if self.path != "/v1/responses":
+            return self.reply(404, {"error": {"type": "invalid_request_error", "code": "not_found", "message": f"no {self.path}", "param": None}})
+        try:
+            turn, relay = self.platform.create(body)
+        except Refused as e:
+            return self.reply(400 if e.body["error"]["code"] != "not_found" else 404, e.body)
+        if not body.get("stream"):
+            for _ in relay:
+                pass
+            return self.reply(200, response_object(turn).model_dump(mode="json"))
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream")
+        self.send_header("Cache-Control", "no-cache")
+        self.end_headers()
+        for ev in events(turn, relay):
+            self.wfile.write(f"event: {ev.type}\ndata: {ev.model_dump_json()}\n\n".encode())
+            self.wfile.flush()
+
+    def reply(self, status: int, body: dict[str, Any]) -> None:
+        data = json.dumps(body).encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(data)))
+        self.end_headers()
+        self.wfile.write(data)
+
+
+def serve(platform: Platform) -> str:
+    Handler.platform = platform
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    return f"http://127.0.0.1:{server.server_port}/v1"
+
+
+# the demo: the real openai client, against this endpoint
 def show(title: str, body: Any = None) -> None:
     print(f"\n\033[1m── {title}\033[0m")
     if body is not None:
@@ -264,67 +350,62 @@ def show(title: str, body: Any = None) -> None:
 
 
 def main() -> None:
-    manifest = json.loads((PACKAGE / "harness.json").read_text())
     root = Path(tempfile.mkdtemp(prefix="foobarness-"))
-    tools = root / "tools"
-    install(tools)
-    turns: dict[str, tuple[Session, Turn]] = {}
-    show("the package's manifest: what it accepts of a request", manifest["accepts"])
-
-    def create(body: dict[str, Any]) -> Turn:
-        prev = turns.get(body.get("previous_response_id") or "")
-        ask = parse_request(body, manifest, prev[1] if prev else None)
-        session = prev[0] if prev else Session(root / "sessions" / uuid.uuid4().hex[:8])
-        t = Turn(f"resp_{uuid.uuid4().hex}", session.id, ask["harness"], ask["provider"], ask["model"], session.turn + 1,
-                 body.get("previous_response_id"), ask["instructions"], ask["metadata"], ask["store"])
-        turns[t.id] = (session, t)
-        t.relay = run_turn(session, t, ask, tools)   # type: ignore[attr-defined]
-        return t
+    platform = Platform(root)
+    client = openai.OpenAI(base_url=serve(platform), api_key="hg_test-key")
+    show("the package's manifest: what it accepts of a request", platform.manifest["accepts"])
 
     # A: a non-streaming request with instructions, an MCP tool of its own, a reasoning effort and metadata
-    request_a = {"model": "foobarness", "instructions": "Answer in one sentence.",
-                 "input": "Create hello.py that prints hello and run it",
-                 "tools": [{"type": "mcp", "server_label": "search", "server_url": "https://mcp.example.com/search"}],
-                 "reasoning": {"effort": "high"}, "metadata": {"ticket": "HG-12"}}
-    show("A. the request, as a client sends it (POST /v1/responses)", request_a)
-    a = create(request_a)
-    native: list[str] = []
-    for kind, data in a.relay:                        # type: ignore[attr-defined]
-        if kind == "native":
-            native.append(data)
-    session = turns[a.id][0]
+    show("A. client.responses.create(…), not streamed", 'client.responses.create(model="foobarness", instructions="Answer in one sentence.",\n'
+         '    input="Create hello.py that prints hello and run it",\n'
+         '    tools=[{"type": "mcp", "server_label": "search", "server_url": "https://mcp.example.com/search"}],\n'
+         '    reasoning={"effort": "high"}, metadata={"ticket": "HG-12"})')
+    a = client.responses.create(model="foobarness", instructions="Answer in one sentence.", input="Create hello.py that prints hello and run it",
+                                tools=[{"type": "mcp", "server_label": "search", "server_url": "https://mcp.example.com/search"}],
+                                reasoning={"effort": "high"}, metadata={"ticket": "HG-12"})
+    session = platform.turns[a.id][0]
     show("A. what the harness got: $HG_REQUEST, written by the template", json.loads((session.run / "request.json").read_text()))
     show("A. what the adapter made of the seeds and the request: foobar's own config", json.loads((session.home / ".foobar" / "config.json").read_text()))
-    show("A. the CLI's native events (foobar's shapes, relayed live, kept as the capture)", "\n".join(native))
-    show("A. the items the package's filter reported", a.items)
-    response_a = response_object(a)
-    show("A. the response object, back on the wire", response_a)
-    show("A. response.output_text, as an SDK reads it", output_text(response_a))
+    show("A. the CLI's native events (foobar's shapes, kept whole as the capture)", (session.run / "native.jsonl").read_text().strip())
+    show("A. response.output, as the SDK typed it", "\n".join(f"  {type(i).__name__:<36} {i.type}" for i in a.output))
+    show("A. what the typed items hold", "\n".join([
+        f"  reasoning summary : {a.output[0].summary[0].text}",
+        f"  apply_patch_call  : {a.output[1].operation.type} {a.output[1].operation.path} ({len(a.output[1].operation.diff)} bytes)",
+        f"  shell_call        : {a.output[3].action.commands}",
+        f"  shell_call_output : stdout={a.output[4].output[0].stdout!r} exit={a.output[4].output[0].outcome.exit_code}",
+        f"  mcp_call          : {a.output[5].server_label}.{a.output[5].name} -> {a.output[5].output!r}",
+        f"  message           : {a.output[-1].content[0].text!r}"]))
+    show("A. response.output_text", a.output_text)
+    show("A. the whole Response, as the SDK holds it", json.loads(a.model_dump_json(exclude_none=True)))
     show("A. the workspace after the turn", sorted(p.name for p in session.workspace.iterdir()))
 
     # B: a streamed continuation, with a file attached
-    request_b = {"model": "foobarness", "previous_response_id": a.id, "stream": True,
-                 "input": [{"type": "message", "role": "user", "content": [
-                     {"type": "input_text", "text": "Run it again and tell me what files are here."},
-                     {"type": "input_file", "filename": "notes.txt", "file_data": "data:text/plain;base64," + base64.b64encode(b"remember the milk\n").decode()}]}]}
-    show("B. a continuation, streamed, with a file (POST /v1/responses)", request_b)
-    b = create(request_b)
-    show("B. the event stream (text/event-stream), as it arrives")
-    for sse in events(b, b.relay):                    # type: ignore[attr-defined]
-        kind, data = sse.split("\n")[0][7:], json.loads(sse.split("\n")[1][6:])
-        if "response" in data:
-            data["response"] = {"id": data["response"]["id"], "status": data["response"]["status"], "output": f"{len(data['response']['output'])} items"}
-        print(f"  {kind:<40} {json.dumps({k: v for k, v in data.items() if k not in ('type', 'sequence_number')})[:150]}")
-    show("B. response.output_text at the end", output_text(response_object(b)))
+    show("B. client.responses.create(…, previous_response_id=a.id, stream=True), with a file attached")
+    stream = client.responses.create(model="foobarness", previous_response_id=a.id, stream=True, input=[
+        {"type": "message", "role": "user", "content": [
+            {"type": "input_text", "text": "Run it again and tell me what files are here."},
+            {"type": "input_file", "filename": "notes.txt", "file_data": "data:text/plain;base64," + base64.b64encode(b"remember the milk\n").decode()}]}])
+    final = None
+    for ev in stream:
+        detail = ""
+        if ev.type == "response.output_item.added":
+            detail = f"item {ev.output_index}: {type(ev.item).__name__} ({ev.item.type})"
+        elif ev.type == "response.output_text.delta":
+            detail = f"delta={ev.delta!r}"
+        elif ev.type in ("response.function_call_arguments.delta", "response.mcp_call_arguments.delta"):
+            detail = f"delta={ev.delta!r}"
+        elif ev.type == "response.completed":
+            final = ev.response
+            detail = f"response: {len(ev.response.output)} items, status {ev.response.status}"
+        print(f"  {ev.sequence_number:>3}  {type(ev).__name__:<40} {ev.type:<40} {detail}")
+    show("B. final.output_text from response.completed", final.output_text)
 
-    # C: what the manifest refuses
-    for request_c in ({"model": "foobarness", "input": "x", "tools": [{"type": "function", "name": "run", "parameters": {}}]},
-                      {"model": "foobarness", "input": "x", "temperature": 0.2},
-                      {"model": "foobarness", "input": "x", "reasoning": {"effort": "max"}}):
+    # C: what the manifest refuses: the client raises the SDK's own error, with the API's error body
+    for kwargs in ({"tools": [{"type": "function", "name": "run", "parameters": {}, "strict": False}]}, {"temperature": 0.2}, {"reasoning": {"effort": "max"}}):
         try:
-            parse_request(request_c, manifest, None)
-        except Refused as e:
-            show(f"C. refused, 400: {json.dumps({k: v for k, v in request_c.items() if k not in ('model', 'input')})}", e.body)
+            client.responses.create(model="foobarness", input="x", **kwargs)
+        except openai.BadRequestError as e:
+            show(f"C. refused: {json.dumps(kwargs)} -> {type(e).__name__} {e.status_code}", e.body)
     shutil.rmtree(root, ignore_errors=True)
 
 
